@@ -1,0 +1,115 @@
+# OpenTelemetry Collector configuration for JEEX Plan
+# Optimized for distributed tracing and metrics
+
+receivers:
+  # OTLP receiver for application telemetry
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  # Host metrics receiver
+  hostmetrics:
+    scrapers:
+      cpu:
+      disk:
+      filesystem:
+      load:
+      memory:
+      network:
+      processes:
+
+  # Database metrics (simplified)
+  redis:
+    endpoint: redis:6379
+    collection_interval: 30s
+
+exporters:
+  # Debug exporter for development
+  debug:
+    verbosity: detailed
+
+  # Prometheus exporter for metrics
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: jeex_plan
+
+  # Console exporters for development
+  logging:
+    loglevel: debug
+
+processors:
+  # Resource detection for automatic tagging
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 10s
+    override: false
+
+  # Batch processor for performance
+  batch:
+    send_batch_size: 8192
+    timeout: 5s
+    send_batch_max_size: 8192
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+  # Add resource attributes
+  resource:
+    attributes:
+      - key: service.name
+        value: jeex-plan-backend
+      - key: service.version
+        value: 1.0.0
+      - key: deployment.environment
+        value: development
+
+  # Filter sensitive information
+  filter:
+    metrics:
+      include:
+        match_type: regexp
+        metric_names:
+          - ".*duration.*"
+          - ".*count.*"
+          - ".*size.*"
+          - ".*memory.*"
+          - ".*cpu.*"
+
+extensions:
+  # Health check extension
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  # PProf extension for profiling
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # ZPages extension for debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  pipelines:
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp, hostmetrics, redis]
+      processors: [batch, memory_limiter, resource]
+      exporters: [prometheus, logging]
+
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [batch, memory_limiter, resource]
+      exporters: [logging]
+
+    # Logs pipeline (if needed)
+    logs:
+      receivers: [otlp]
+      processors: [batch, memory_limiter, resource]
+      exporters: [logging]

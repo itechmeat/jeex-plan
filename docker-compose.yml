@@ -1,0 +1,145 @@
+version: '3.8'
+
+services:
+
+  # Backend API - FastAPI
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.simple
+    ports:
+      - "5210:8000"  # External:5210 -> Internal:8000
+    environment:
+      - ENVIRONMENT=development
+    volumes: []
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jeex-network
+
+  # PostgreSQL - Primary Database
+  postgres:
+    image: postgres:18beta2-alpine
+    ports:
+      - "5220:5432"  # External:5220 -> Internal:5432
+    environment:
+      - POSTGRES_DB=jeex_plan
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jeex_plan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jeex-network
+
+  # Qdrant - Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.15.4
+    ports:
+      - "5230:6333"  # External:5230 -> Internal:6333
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=INFO
+    volumes:
+      - qdrant_data:/qdrant/storage
+      - ./backend/config/qdrant-minimal.yaml:/qdrant/config/production.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - jeex-network
+
+  # Redis - Cache and Queue
+  redis:
+    image: redis:8.2-alpine
+    ports:
+      - "5240:6379"  # External:5240 -> Internal:6379
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis_data:/data
+      - ./backend/config/redis.conf:/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_password", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - jeex-network
+
+  # HashiCorp Vault - Secrets Management
+  vault:
+    image: hashicorp/vault:1.15.4
+    ports:
+      - "5250:8200"  # External:5250 -> Internal:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./backend/config/vault-minimal.hcl:/vault/config/vault.hcl:ro
+      - vault_data:/vault/data
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+    command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - jeex-network
+
+  # OpenTelemetry Collector - Observability
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.103.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./backend/config/otel-collector-minimal.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4318:4318"  # OTLP HTTP receiver
+      - "4317:4317"  # OTLP gRPC receiver
+      - "8888:8888"  # Metrics endpoint
+    depends_on:
+      - api
+    networks:
+      - jeex-network
+
+  # Nginx - Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - api
+    networks:
+      - jeex-network
+
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+  vault_data:
+    driver: local
+
+networks:
+  jeex-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

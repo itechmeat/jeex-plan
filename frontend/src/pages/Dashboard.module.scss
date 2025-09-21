@@ -1,0 +1,296 @@
+@import "../styles/mixins.scss";
+
+.dashboard {
+  min-height: 100vh;
+  background-color: $color-gray-50;
+}
+
+.container {
+  @include container;
+  padding-top: $spacing-8;
+  padding-bottom: $spacing-8;
+}
+
+.header {
+  @include flex-between;
+  margin-bottom: $spacing-6;
+
+  @media (max-width: $breakpoint-sm) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: $spacing-4;
+  }
+}
+
+.headerContent {
+  h1 {
+    font-size: $font-size-3xl;
+    font-weight: $font-weight-bold;
+    color: $color-gray-900;
+    margin-bottom: $spacing-2;
+  }
+
+  p {
+    font-size: $font-size-sm;
+    color: $color-gray-700;
+    margin-bottom: 0;
+  }
+}
+
+.refreshButton {
+  @include button-primary;
+  @include button-md;
+  gap: $spacing-2;
+
+  .refreshIcon {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+
+.loading {
+  @include flex-center;
+  height: 16rem;
+
+  .loadingIcon {
+    width: 2rem;
+    height: 2rem;
+    animation: spin 1s linear infinite;
+  }
+
+  span {
+    margin-left: $spacing-2;
+    color: $color-gray-600;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.overviewCard {
+  @include card;
+  margin-bottom: $spacing-6;
+
+  .cardHeader {
+    @include card-header;
+
+    h2 {
+      font-size: $font-size-lg;
+      font-weight: $font-weight-medium;
+      color: $color-gray-900;
+      margin-bottom: 0;
+    }
+  }
+
+  .cardBody {
+    @include card-body;
+  }
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: $spacing-4;
+
+  @include mobile-up {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include desktop-up {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.statCard {
+  @include card;
+  padding: $spacing-5;
+
+  &.gray {
+    background-color: $color-gray-50;
+  }
+
+  &.green {
+    background-color: $color-success-light;
+  }
+
+  &.yellow {
+    background-color: $color-warning-light;
+  }
+
+  &.blue {
+    background-color: $color-info-light;
+  }
+}
+
+.statContent {
+  @include flex-start;
+  gap: $spacing-5;
+
+  .statIcon {
+    width: 1.5rem;
+    height: 1.5rem;
+    flex-shrink: 0;
+
+    &.gray {
+      color: $color-gray-400;
+    }
+
+    &.green {
+      color: $color-success;
+    }
+
+    &.yellow {
+      color: $color-warning;
+    }
+
+    &.blue {
+      color: $color-info;
+    }
+  }
+}
+
+.statData {
+  flex: 1;
+  min-width: 0;
+
+  dt {
+    font-size: $font-size-sm;
+    font-weight: $font-weight-medium;
+    color: $color-gray-500;
+    margin-bottom: $spacing-1;
+    @include truncate;
+
+    &.green {
+      color: $color-success;
+    }
+
+    &.yellow {
+      color: $color-warning;
+    }
+
+    &.blue {
+      color: $color-info;
+    }
+  }
+
+  dd {
+    font-size: $font-size-2xl;
+    font-weight: $font-weight-semibold;
+    margin: 0;
+
+    &.gray {
+      color: $color-gray-900;
+    }
+
+    &.green {
+      color: $color-success;
+    }
+
+    &.yellow {
+      color: $color-warning;
+    }
+
+    &.blue {
+      color: $color-info;
+    }
+  }
+}
+
+.servicesGrid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: $spacing-4;
+
+  @include mobile-up {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include tablet-up {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.serviceCard {
+  @include card;
+  padding: $spacing-6;
+  transition: transform $transition-fast, box-shadow $transition-fast;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-lg;
+  }
+}
+
+.serviceHeader {
+  @include flex-between;
+  margin-bottom: $spacing-4;
+
+  .serviceInfo {
+    @include flex-start;
+    gap: $spacing-3;
+    min-width: 0;
+    flex: 1;
+
+    .serviceIcon {
+      width: 1.25rem;
+      height: 1.25rem;
+      flex-shrink: 0;
+      color: $color-gray-600;
+    }
+
+    .serviceName {
+      font-size: $font-size-base;
+      font-weight: $font-weight-semibold;
+      color: $color-gray-900;
+      margin: 0;
+      @include truncate;
+    }
+  }
+
+  .responseTime {
+    font-size: $font-size-sm;
+    font-weight: $font-weight-medium;
+    color: $color-gray-500;
+    text-align: right;
+    flex-shrink: 0;
+  }
+}
+
+.serviceDetails {
+  .serviceEndpoint {
+    font-size: $font-size-sm;
+    color: $color-gray-600;
+    margin-bottom: $spacing-2;
+    font-family: $font-family-mono;
+    word-break: break-all;
+  }
+
+  .serviceStatus {
+    @include badge-base;
+    margin-bottom: $spacing-2;
+
+    &.healthy {
+      @include badge-success;
+    }
+
+    &.degraded {
+      @include badge-warning;
+    }
+
+    &.unhealthy {
+      @include badge-error;
+    }
+  }
+
+  .serviceTimestamp {
+    font-size: $font-size-xs;
+    color: $color-gray-400;
+    margin: 0;
+  }
+}

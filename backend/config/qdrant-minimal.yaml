@@ -1,0 +1,29 @@
+# Qdrant Configuration - Minimal for JEEX Plan
+log_level: INFO
+
+# Storage configuration
+storage:
+  # Performance optimizations for development
+  max_concurrent_compactions: 2
+  max_segment_size_kb: 100000
+
+  # Memory optimizations
+  memmap_threshold_kb: 100000
+  on_disk_payload: false
+
+# Service configuration
+service:
+  # HTTP API
+  http_port: 6333
+  grpc_port: 6334
+
+  # Performance settings
+  max_request_size_mb: 32
+  max_workers: 0  # Use all available cores
+
+# Cluster configuration (disabled for single node)
+cluster:
+  enabled: false
+
+# Telemetry
+telemetry_disabled: false

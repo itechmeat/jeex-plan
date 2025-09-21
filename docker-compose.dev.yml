@@ -1,0 +1,94 @@
+version: '3.8'
+
+# Development-specific Docker Compose configuration
+# Extends the base docker-compose.yml with development settings
+
+services:
+  # Frontend with hot reload
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:5210
+      - VITE_ENVIRONMENT=development
+    command: npm run dev
+
+  # Backend with hot reload
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    environment:
+      - DATABASE_URL=postgresql://postgres:secure_password@postgres:5432/jeex_plan
+      - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://redis:6379
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=dev-token
+      - ENVIRONMENT=development
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DEBUG=true
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Override PostgreSQL for development
+  postgres:
+    environment:
+      - POSTGRES_DB=jeex_plan
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=secure_password
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+  # Development tools
+  redis-cli:
+    image: redis:8.2-alpine
+    command: redis-cli -h redis -a redis_password
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@jeex.plan
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+  qdrant-webui:
+    image: qdrant/qdrant-web-ui:latest
+    ports:
+      - "6333:6333"
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      - qdrant
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+  vault_data:
+    driver: local
+
+networks:
+  jeex-network:
+    driver: bridge

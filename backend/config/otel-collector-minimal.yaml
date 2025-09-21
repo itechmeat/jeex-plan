@@ -1,0 +1,72 @@
+# OpenTelemetry Collector - Minimal Configuration for JEEX Plan
+# Simplified for basic telemetry collection
+
+receivers:
+  # OTLP receiver for application telemetry
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  # Host metrics receiver
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+      memory:
+      load:
+      disk:
+      filesystem:
+
+exporters:
+  # Debug exporter for development
+  debug:
+    verbosity: basic
+
+  # Prometheus exporter for metrics
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: jeex_plan
+
+  # Console exporter for development
+  logging:
+    verbosity: basic
+
+processors:
+  # Batch processor for performance
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+
+extensions:
+  # Health check extension
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp, hostmetrics]
+      processors: [batch, memory_limiter]
+      exporters: [prometheus, logging]
+
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [logging]
+
+    # Logs pipeline
+    logs:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [logging]

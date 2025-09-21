@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:medium.com)",
+      "WebSearch",
+      "Bash(chmod:*)",
+      "Bash(./scripts/setup.sh:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker pull:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(docker system prune:*)",
+      "Bash(curl:*)",
+      "Bash(docker logs:*)",
+      "Bash(redis-cli:*)",
+      "Bash(pg_isready:*)",
+      "Bash(nc:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(docker stats:*)",
+      "Bash(tree:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm install:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm run:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(open:*)",
+      "Bash(docker:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:www.pubnub.com)",
+      "Bash(mkdir:*)",
+      "mcp__ide__getDiagnostics"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
