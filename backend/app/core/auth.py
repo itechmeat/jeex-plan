@@ -5,6 +5,7 @@ Core authentication module with JWT and OAuth2 support.
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from uuid import UUID
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +27,10 @@ security = HTTPBearer()
 class AuthService:
     """Service for handling authentication and authorization."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, tenant_id: Optional[UUID] = None):
         self.db = db
-        self.user_repo = UserRepository(db)
+        self.tenant_id = tenant_id
+        self.user_repo = UserRepository(db, tenant_id) if tenant_id else None
         self.tenant_repo = TenantRepository(db)
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
@@ -111,7 +113,14 @@ class AuthService:
         if not user_id:
             return None
 
-        user = await self.user_repo.get_by_id(uuid.UUID(user_id))
+        # For token validation, we need to search across all tenants
+        from ..models.user import User
+        from sqlalchemy import select
+
+        stmt = select(User).where(User.id == uuid.UUID(user_id), User.is_active == True)
+        result = await self.db.execute(stmt)
+        user = result.scalar_one_or_none()
+
         return user
 
     async def authenticate_user(
@@ -121,7 +130,17 @@ class AuthService:
         tenant_id: Optional[uuid.UUID] = None
     ) -> Optional[User]:
         """Authenticate user with email and password."""
-        user = await self.user_repo.get_by_email(email, tenant_id)
+        # For authentication, we need to search across all tenants
+        from ..models.user import User
+        from sqlalchemy import select
+
+        stmt = select(User).where(User.email == email, User.is_active == True)
+        if tenant_id:
+            stmt = stmt.where(User.tenant_id == tenant_id)
+
+        result = await self.db.execute(stmt)
+        user = result.scalar_one_or_none()
+
         if not user or not user.hashed_password:
             return None
 

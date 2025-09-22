@@ -3,9 +3,13 @@ Test Vault integration for Epic 01 - Secrets management.
 """
 
 import pytest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+import scripts.init_vault as init_vault_script
+from app.core.config import Settings, VaultSettings
 from app.core.vault import (
     VaultClient,
+    DEV_PLACEHOLDER_TOKEN,
     get_vault_client,
     get_jwt_secret,
     get_oauth_secrets,
@@ -29,6 +33,25 @@ class TestVaultClient:
         assert vault_client.vault_url == "http://test-vault:8200"
         assert vault_client.vault_token == "test-token"
         assert vault_client.timeout == 10
+
+    @pytest.mark.asyncio
+    async def test_vault_client_placeholder_token_in_development(self, monkeypatch):
+        """VaultClient uses placeholder token when missing in development."""
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        monkeypatch.delenv("VAULT_TOKEN", raising=False)
+
+        client = VaultClient(vault_url="http://vault:8200")
+
+        assert client.vault_token == DEV_PLACEHOLDER_TOKEN
+
+    @pytest.mark.asyncio
+    async def test_vault_client_requires_token_outside_development(self, monkeypatch):
+        """VaultClient raises when VAULT_TOKEN is absent in non-dev env."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.delenv("VAULT_TOKEN", raising=False)
+
+        with pytest.raises(RuntimeError):
+            VaultClient(vault_url="http://vault:8200")
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
@@ -338,6 +361,95 @@ class TestVaultInitialization:
         assert jwt_call is not None
 
 
+class TestDatabaseSecretSetup:
+    """Validate database secret parsing and storage."""
+
+    @pytest.mark.asyncio
+    @patch('scripts.init_vault.vault_client.put_secret', new_callable=AsyncMock)
+    @patch('scripts.init_vault.get_settings')
+    async def test_setup_database_secrets_normalizes_asyncpg(self, mock_get_settings, mock_put_secret):
+        """Ensure asyncpg URLs are parsed and stored correctly."""
+        mock_get_settings.return_value = SimpleNamespace(
+            DATABASE_URL="postgresql+asyncpg://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
+        )
+        mock_put_secret.return_value = True
+
+        await init_vault_script.setup_database_secrets()
+
+        mock_put_secret.assert_called_once()
+        args, kwargs = mock_put_secret.call_args
+        stored = kwargs.get('secrets', args[1])
+
+        assert stored["username"] == "agent"
+        assert stored["password"] == "p@ssw0rd"
+        assert stored["host"] == "db.example.com"
+        assert stored["port"] == "6543"
+        assert stored["database"] == "jeex"
+        assert stored["url"] == "postgresql://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
+        assert stored["async_url"] == (
+            "postgresql+asyncpg://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
+        )
+
+    @pytest.mark.asyncio
+    @patch('scripts.init_vault.vault_client.put_secret', new_callable=AsyncMock)
+    @patch('scripts.init_vault.get_settings')
+    async def test_setup_database_secrets_defaults_when_missing(self, mock_get_settings, mock_put_secret):
+        """Fallback to defaults when URL is missing or invalid."""
+        mock_get_settings.return_value = SimpleNamespace(DATABASE_URL="")
+        mock_put_secret.return_value = True
+
+        await init_vault_script.setup_database_secrets()
+
+        mock_put_secret.assert_called_once()
+        args, kwargs = mock_put_secret.call_args
+        stored = kwargs.get('secrets', args[1])
+
+        assert stored["url"] == "postgresql://jeex_user:jeex_password@postgres:5432/jeex_plan"
+        assert stored["async_url"] == "postgresql+asyncpg://jeex_user:jeex_password@postgres:5432/jeex_plan"
+
+
+class TestVaultSettingsDatabaseUrl:
+    """Ensure Vault settings prefer async URLs when available."""
+
+    @pytest.mark.asyncio
+    async def test_get_database_url_prefers_async(self, monkeypatch):
+        """Return async URL when both async and canonical URLs are stored."""
+        vault_settings = VaultSettings(Settings(USE_VAULT=True))
+
+        async def fake_get_secret(self, path: str, use_cache: bool = True):
+            return {
+                "async_url": "postgresql+asyncpg://agent:p%40ss@db:5432/jeex",
+                "url": "postgresql://agent:p%40ss@db:5432/jeex",
+            }
+
+        monkeypatch.setattr(VaultSettings, "get_vault_secret", fake_get_secret, raising=False)
+
+        result = await vault_settings.get_database_url()
+
+        assert result == "postgresql+asyncpg://agent:p%40ss@db:5432/jeex"
+
+    @pytest.mark.asyncio
+    async def test_get_database_url_falls_back_to_url(self, monkeypatch):
+        """Return canonical URL when async URL is absent."""
+        vault_settings = VaultSettings(Settings(USE_VAULT=True))
+
+        async def fake_get_secret(self, path: str, use_cache: bool = True):
+            return {
+                "url": "postgresql://agent:p%40ss@db:5432/jeex",
+                "username": "agent",
+                "password": "p@ss",
+                "host": "db",
+                "port": "5432",
+                "database": "jeex",
+            }
+
+        monkeypatch.setattr(VaultSettings, "get_vault_secret", fake_get_secret, raising=False)
+
+        result = await vault_settings.get_database_url()
+
+        assert result == "postgresql://agent:p%40ss@db:5432/jeex"
+
+
 class TestVaultDependencyInjection:
     """Test Vault dependency injection."""
 
@@ -404,8 +516,10 @@ class TestVaultClientLifecycle:
     """Test Vault client lifecycle management."""
 
     @pytest.mark.asyncio
-    async def test_client_close(self):
+    async def test_client_close(self, monkeypatch):
         """Test closing Vault client."""
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        monkeypatch.delenv("VAULT_TOKEN", raising=False)
         client = VaultClient()
 
         # Simulate client being used
@@ -424,8 +538,10 @@ class TestVaultClientLifecycle:
             mock_client_instance.aclose.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_client_reuse(self):
+    async def test_client_reuse(self, monkeypatch):
         """Test that client instances are reused."""
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        monkeypatch.delenv("VAULT_TOKEN", raising=False)
         client = VaultClient()
 
         with patch('httpx.AsyncClient') as mock_client_class:

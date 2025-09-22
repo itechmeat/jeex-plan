@@ -46,7 +46,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -65,15 +65,25 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        url=url,
     )
 
     # Check if this is an async engine
     if isinstance(connectable, AsyncEngine):
-        asyncio.run(run_async_migrations(connectable))
+        # Check if there's already a running event loop
+        try:
+            asyncio.get_running_loop()
+            # If we get here, there's already a running loop, so schedule the coroutine
+            asyncio.create_task(run_async_migrations(connectable))
+        except RuntimeError:
+            # No running loop, so we can use asyncio.run
+            asyncio.run(run_async_migrations(connectable))
     else:
         with connectable.connect() as connection:
             context.configure(

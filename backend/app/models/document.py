@@ -2,7 +2,14 @@
 Document model with multi-tenant support.
 """
 
-from sqlalchemy import Column, String, Text, ForeignKey, Enum as SQLEnum, Integer
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    Enum as SQLEnum,
+    Integer,
+    ForeignKeyConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from enum import Enum
@@ -32,8 +39,15 @@ class Document(BaseModel):
 
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=True)
-    document_type = Column(SQLEnum(DocumentType), nullable=False)
-    status = Column(SQLEnum(DocumentStatus), default=DocumentStatus.PENDING, nullable=False)
+    document_type = Column(
+        SQLEnum(DocumentType, name="documenttype"),
+        nullable=False,
+    )
+    status = Column(
+        SQLEnum(DocumentStatus, name="documentstatus"),
+        default=DocumentStatus.PENDING,
+        nullable=False,
+    )
 
     # Generation metadata
     generation_step = Column(Integer, default=1, nullable=False)  # 1-4 for wizard steps
@@ -41,7 +55,16 @@ class Document(BaseModel):
     error_message = Column(Text, nullable=True)
 
     # Project relationship
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=True), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "project_id"],
+            ["projects.tenant_id", "projects.id"],
+            ondelete="CASCADE",
+        ),
+    )
+
     project = relationship("Project", back_populates="documents")
 
     class Config:

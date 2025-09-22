@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select, func, update, delete
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.base import BaseModel
@@ -68,6 +69,31 @@ class BaseRepository(Generic[ModelType], ABC):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_all_with_eager(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[Dict[str, Any]] = None,
+        eager_loads: Optional[List[str]] = None
+    ) -> List[ModelType]:
+        """Get all entities with optional filtering and eager loading."""
+        stmt = select(self.model).where(self.model.is_deleted == False)
+
+        # Apply eager loading
+        if eager_loads:
+            for load_path in eager_loads:
+                if hasattr(self.model, load_path):
+                    stmt = stmt.options(selectinload(getattr(self.model, load_path)))
+
+        if filters:
+            for field, value in filters.items():
+                if hasattr(self.model, field):
+                    stmt = stmt.where(getattr(self.model, field) == value)
+
+        stmt = stmt.offset(skip).limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def update(self, entity_id: UUID, **kwargs) -> Optional[ModelType]:
         """Update entity by ID."""
         try:
@@ -75,12 +101,27 @@ class BaseRepository(Generic[ModelType], ABC):
             if not instance:
                 return None
 
-            # Update timestamp
-            kwargs['updated_at'] = datetime.utcnow()
+            protected_fields = {"id", "tenant_id", "created_at"}
+            # also protect potential mixin aliases
+            if hasattr(instance, "tenant_id"):
+                protected_fields.add("tenant_id")
 
-            for field, value in kwargs.items():
+            # Update timestamp
+            update_data = dict(kwargs)
+            update_data['updated_at'] = datetime.utcnow()
+
+            ignored_fields = []
+            for field, value in update_data.items():
+                if field in protected_fields:
+                    ignored_fields.append(field)
+                    continue
                 if hasattr(instance, field):
                     setattr(instance, field, value)
+
+            if ignored_fields:
+                logger.warning(
+                    "Ignored protected fields during update", fields=ignored_fields, model=self.model.__name__
+                )
 
             await self.session.commit()
             await self.session.refresh(instance)
@@ -185,6 +226,36 @@ class TenantRepository(BaseRepository[ModelType]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_all_with_eager(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[Dict[str, Any]] = None,
+        eager_loads: Optional[List[str]] = None
+    ) -> List[ModelType]:
+        """Get all entities within tenant with eager loading."""
+        stmt = select(self.model).where(
+            and_(
+                self.model.tenant_id == self.tenant_id,
+                self.model.is_deleted == False
+            )
+        )
+
+        # Apply eager loading
+        if eager_loads:
+            for load_path in eager_loads:
+                if hasattr(self.model, load_path):
+                    stmt = stmt.options(selectinload(getattr(self.model, load_path)))
+
+        if filters:
+            for field, value in filters.items():
+                if hasattr(self.model, field):
+                    stmt = stmt.where(getattr(self.model, field) == value)
+
+        stmt = stmt.offset(skip).limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """Count entities within tenant."""
         stmt = select(func.count(self.model.id)).where(
@@ -260,14 +331,16 @@ class TenantRepository(BaseRepository[ModelType]):
             filters['tenant_id'] = self.tenant_id
             filters['is_deleted'] = False
 
-            # Add updated timestamp
+            # Add updated timestamp and protect tenant field
+            updates = dict(updates)
             updates['updated_at'] = datetime.utcnow()
+            updates.pop('tenant_id', None)
 
             stmt = update(self.model).where(
                 and_(*[getattr(self.model, k) == v for k, v in filters.items()])
             ).values(**updates)
 
-            result = await self.session.execute(stmt)
+            result = await self.session.execute(stmt.execution_options(synchronize_session=False))
             await self.session.commit()
 
             logger.info(f"Bulk updated {result.rowcount} {self.model.__name__} records")

@@ -2,7 +2,15 @@
 Project model with multi-tenant support.
 """
 
-from sqlalchemy import Column, String, Text, ForeignKey, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    Enum as SQLEnum,
+    UniqueConstraint,
+    ForeignKey,
+    ForeignKeyConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from enum import Enum
@@ -24,10 +32,14 @@ class Project(BaseModel):
 
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(SQLEnum(ProjectStatus), default=ProjectStatus.DRAFT, nullable=False)
+    status = Column(
+        SQLEnum(ProjectStatus, name="projectstatus"),
+        default=ProjectStatus.DRAFT,
+        nullable=False,
+    )
 
     # Owner relationship
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_id = Column(UUID(as_uuid=True), nullable=False)
     owner = relationship("User", back_populates="projects")
 
     # Tenant relationship
@@ -41,6 +53,16 @@ class Project(BaseModel):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_project_tenant_name"),
+        ForeignKeyConstraint(
+            ["tenant_id"],
+            ["tenants.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["owner_id", "tenant_id"],
+            ["users.id", "users.tenant_id"],
+            ondelete="RESTRICT",
+        ),
     )
 
     class Config:

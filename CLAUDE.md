@@ -9,6 +9,7 @@ JEEX Plan is a multi-agent documentation generation system that transforms raw i
 ## Architecture
 
 ### Core Services (Backend Only - No Frontend in Docker)
+
 - **API Backend**: FastAPI with Python (Port 5210)
 - **PostgreSQL**: Primary database with multi-tenant schema (Port 5220)
 - **Qdrant**: Vector database for semantic search (Port 5230)
@@ -18,6 +19,7 @@ JEEX Plan is a multi-agent documentation generation system that transforms raw i
 - **OpenTelemetry Collector**: Observability
 
 ### Multi-Tenant Architecture
+
 - **Tenant Isolation**: All data operations are scoped by `tenant_id`
 - **Server-side Filtering**: Backend enforces tenant isolation, never client-side
 - **Database Models**: Uses mixins (TenantMixin, TimestampMixin, SoftDeleteMixin)
@@ -26,6 +28,7 @@ JEEX Plan is a multi-agent documentation generation system that transforms raw i
 ## Common Development Commands
 
 ### Quick Start
+
 ```bash
 # Start all services
 make dev
@@ -43,6 +46,7 @@ make health
 ```
 
 ### Database Operations
+
 ```bash
 # Apply migrations
 make db-migrate
@@ -58,6 +62,7 @@ docker-compose exec api alembic revision --autogenerate -m "description"
 ```
 
 ### Development Workflow
+
 ```bash
 # Backend development (with hot reload in Docker)
 make dev
@@ -75,6 +80,7 @@ make clean
 ```
 
 ### Service Access
+
 ```bash
 # API shell
 make api-shell
@@ -93,6 +99,7 @@ make vault-status
 ```
 
 ### Testing
+
 ```bash
 # Run backend tests
 docker-compose exec api pytest
@@ -108,30 +115,35 @@ npm run test
 ## Key Architecture Patterns
 
 ### Multi-Tenant Data Access
+
 - All models inherit from `TenantMixin` (except `Tenant` itself)
 - Repository classes automatically filter by `tenant_id`
 - Database constraints ensure tenant isolation
 - Example: `UserRepository.get_by_email()` only searches within tenant
 
 ### Database Schema
+
 - **Base Models**: Located in `backend/app/models/base.py`
 - **Core Models**: Tenant, User, Project, Document
 - **Migrations**: Alembic with async SQLAlchemy support
 - **Indexes**: Optimized for tenant-scoped queries
 
 ### API Structure
+
 - **Authentication**: JWT with refresh tokens
 - **Tenant Context**: Extracted from JWT and injected into repositories
 - **Health Checks**: Comprehensive service monitoring
 - **Error Handling**: Structured error responses
 
 ### Development Environment
+
 - **Hot Reload**: Backend runs with `--reload` in development mode
 - **Environment Variables**: Set `ENVIRONMENT=development` for dev features
 - **Volumes**: Backend code mounted for instant updates
 - **No Frontend in Docker**: Frontend runs separately via npm
 
 ### Secret Management
+
 - **Vault Integration**: All secrets stored in HashiCorp Vault
 - **Environment Variables**: Only for Vault connection
 - **Rotation**: Automated JWT secret rotation
@@ -140,12 +152,14 @@ npm run test
 ## Important Files
 
 ### Configuration
+
 - `backend/.env` - Backend environment variables
 - `frontend/.env` - Frontend environment variables
 - `docker-compose.yml` - Service definitions
 - `backend/alembic.ini` - Database migration config
 
 ### Core Application
+
 - `backend/main.py` - FastAPI application entry point
 - `backend/app/models/` - Database models with tenant isolation
 - `backend/app/repositories/` - Data access layer
@@ -153,6 +167,7 @@ npm run test
 - `backend/app/core/vault.py` - Vault client and secret management
 
 ### Testing
+
 - `backend/tests/` - Backend test suite
 - `backend/tests/conftest.py` - Test configuration and fixtures
 - Tests use async pytest and database fixtures
@@ -160,15 +175,18 @@ npm run test
 ## Critical Development Rules
 
 ### Language Requirements (STRICT)
+
 - **ALL project files MUST be written in English only** - including code, comments, documentation, variable names, function names, commit messages, and any text within the codebase
 - **Exception**: Non-English markdown files that were originally created in another language should remain in their original language
 - **Chat Communication**: ALWAYS respond in the same language the user is communicating in. If the user writes in any language other than English, respond in that exact language - this rule applies ONLY to project files remaining in English, not chat interactions
 - **No Mixed Languages**: Never mix English and non-English in the same file
 
 ### Package Version Requirements (ABSOLUTE PRIORITY)
+
 **NEVER downgrade package versions below the specifications in `docs/specs.md`. This is the strictest rule in the project.**
 
 Required minimum versions from specs:
+
 - **FastAPI**: 0.116.2+
 - **CrewAI**: 0.186.1+
 - **Pydantic AI**: 1.0.8+
@@ -182,6 +200,7 @@ Required minimum versions from specs:
 - **Alembic**: 1.13+
 
 When dependency conflicts occur, resolve by:
+
 1. Finding compatible higher versions
 2. Updating conflicting dependencies to newer versions
 3. Never downgrading below specified minimums
@@ -193,23 +212,27 @@ When dependency conflicts occur, resolve by:
 ## Development Notes
 
 ### Multi-Tenancy Rules
+
 - Never access data without tenant context
 - All database queries must include tenant filtering
 - Vector search payloads must include tenant metadata
 - Cache keys must be namespaced by tenant
 
 ### Hot Reload Setup
+
 - Backend automatically reloads on code changes in development
 - Dockerfile uses conditional command based on `ENVIRONMENT` variable
 - Volume mount: `./backend:/app` enables instant updates
 
 ### Database Migrations
+
 - Always test migrations in development first
 - Use descriptive migration messages
 - Verify tenant isolation after schema changes
 - Check for proper indexes on tenant_id columns
 
 ### Error Handling
+
 - Use structured logging with correlation IDs
 - Return tenant-safe error messages
 - Implement proper HTTP status codes
@@ -218,24 +241,29 @@ When dependency conflicts occur, resolve by:
 ## Code Quality and Development Standards
 
 ### Git Operations (STRICT)
-- **NEVER execute git commands** (git add, git commit, git push, etc.)
+
+- **NEVER execute git commands** (git add, git commit, git push, etc.), but you can execute git diff and git status.
 - **User handles all git operations manually**
 - Claude Code should focus only on code implementation, never version control
 
 ### Production Code Requirements (ABSOLUTE)
+
 - **NEVER use hardcoded values, mocks, stubs, or placeholders in production code**
 - **All code must be real, functional implementations with actual integrations**
 - **If an error occurs, display the actual error - no fallbacks or fake responses**
 - **No "TODO", "FIXME", or placeholder comments in production code**
 
 ### Docker-First Development (MANDATORY)
+
 - **ALL backend work must be performed inside Docker containers**
 - **Execute scripts, commands, and development tasks within Docker environment**
 - **Frontend must work outside Docker** (runs via npm/pnpm on host)
 - **Use `docker-compose exec` for backend operations**
 
 ### Code Architecture Principles (STRICT)
+
 - **Follow DRY (Don't Repeat Yourself) principle**
+
   - Extract reusable code into utilities, libraries, helpers, or separate files
   - Avoid code duplication across modules
   - Create shared components for common functionality
@@ -248,6 +276,7 @@ When dependency conflicts occur, resolve by:
   - **Dependency Inversion**: Depend on abstractions, not concretions
 
 ### Prompt Engineering Standards (CRITICAL)
+
 - **NEVER hardcode specific examples, queries, or responses in LLM prompts**
 - **Prompts must be universal and work for any input**
 - **Use general patterns and rules, not specific case examples**

@@ -84,36 +84,69 @@ async def setup_database_secrets():
     """Setup database-specific secrets."""
     logger.info("Setting up database secrets...")
 
+    from urllib.parse import quote, unquote, urlparse, urlunsplit
+
     settings = get_settings()
 
-    # Extract database details from URL if available
     db_url = settings.DATABASE_URL
-    if "postgresql://" in db_url:
-        # Parse URL: postgresql://user:pass@host:port/db
-        parts = db_url.replace("postgresql://", "").split("/")
-        db_name = parts[-1] if len(parts) > 1 else "jeex_plan"
 
-        host_part = parts[0].split("@")[-1] if "@" in parts[0] else "postgres:5432"
-        host, port = host_part.split(":") if ":" in host_part else (host_part, "5432")
+    parsed = urlparse(db_url) if db_url else None
+    scheme = (parsed.scheme or "").lower() if parsed else ""
 
-        user_pass = parts[0].split("@")[0] if "@" in parts[0] else "jeex_user:jeex_password"
-        user, password = user_pass.split(":") if ":" in user_pass else (user_pass, "jeex_password")
+    default_user = "jeex_user"
+    default_password = "jeex_password"
+    default_host = "postgres"
+    default_port = "5432"
+    default_db = "jeex_plan"
+
+    if scheme.startswith("postgresql"):
+        username = unquote(parsed.username) if parsed.username else default_user
+        password = unquote(parsed.password) if parsed.password else default_password
+        hostname = parsed.hostname or default_host
+        port = str(parsed.port or default_port)
+        database = parsed.path.lstrip("/") or default_db
+        query = parsed.query or ""
     else:
-        # Default values
-        user = "jeex_user"
-        password = "jeex_password"
-        host = "postgres"
-        port = "5432"
-        db_name = "jeex_plan"
+        username = default_user
+        password = default_password
+        hostname = default_host
+        port = default_port
+        database = default_db
+        query = ""
+
+    # Normalize potential IPv6 hosts for URL construction
+    def format_host(host: str) -> str:
+        if ":" in host and not host.startswith("["):
+            return f"[{host}]"
+        return host
+
+    def build_netloc(user: str, pwd: str, host: str, port_str: str) -> str:
+        auth_part = ""
+        if user:
+            auth_part = quote(user)
+            if pwd is not None:
+                auth_part += f":{quote(pwd)}"
+            auth_part += "@"
+        host_part = format_host(host)
+        port_value = f":{port_str}" if port_str else ""
+        return f"{auth_part}{host_part}{port_value}"
+
+    def build_url(scheme: str) -> str:
+        netloc = build_netloc(username, password, hostname, port)
+        path = f"/{database}" if database else ""
+        return urlunsplit((scheme, netloc, path, query, ""))
+
+    canonical_url = build_url("postgresql")
+    async_url = build_url("postgresql+asyncpg")
 
     db_secrets = {
-        "username": user,
+        "username": username,
         "password": password,
-        "host": host,
-        "port": port,
-        "database": db_name,
-        "url": f"postgresql://{user}:{password}@{host}:{port}/{db_name}",
-        "async_url": f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db_name}"
+        "host": hostname,
+        "port": str(port),
+        "database": database,
+        "url": canonical_url,
+        "async_url": async_url,
     }
 
     success = await vault_client.put_secret("database/postgres", db_secrets)
@@ -147,12 +180,15 @@ async def setup_enhanced_secrets():
     }
 
     # AI/LLM secrets (placeholders)
-    ai_secrets = {
-        "openai_api_key": "sk-placeholder-openai-api-key-replace-in-production",
-        "anthropic_api_key": "sk-ant-placeholder-anthropic-key-replace-in-production",
+    openai_secrets = {
+        "api_key": "sk-placeholder-openai-api-key-replace-in-production",
         "default_model": "gpt-4",
         "max_tokens": "4000",
         "temperature": "0.7"
+    }
+
+    anthropic_secrets = {
+        "api_key": "sk-ant-placeholder-anthropic-key-replace-in-production"
     }
 
     # Application secrets
@@ -166,7 +202,8 @@ async def setup_enhanced_secrets():
     secrets_to_setup = [
         ("auth/jwt", jwt_secrets),
         ("cache/redis", redis_secrets),
-        ("ai/openai", ai_secrets),
+        ("ai/openai", openai_secrets),
+        ("ai/anthropic", anthropic_secrets),
         ("app/config", app_secrets)
     ]
 

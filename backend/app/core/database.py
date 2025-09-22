@@ -5,6 +5,7 @@ Database configuration and connection management.
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
+from sqlalchemy import text
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -90,7 +91,7 @@ class DatabaseManager:
         try:
             async with AsyncSessionLocal() as session:
                 # Simple query to test connection
-                await session.execute("SELECT 1")
+                await session.execute(text("SELECT 1"))
                 return {
                     "status": "healthy",
                     "message": "Database connection successful",

@@ -1,7 +1,7 @@
 """Add RBAC models and update user authentication
 
-Revision ID: 003
-Revises: 002
+Revision ID: f80535a935e7
+Revises: cbe2ed1ce948
 Create Date: 2025-09-22 15:00:00.000000
 
 """
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '003'
-down_revision: Union[str, Sequence[str], None] = '002'
+revision: str = 'f80535a935e7'
+down_revision: Union[str, Sequence[str], None] = 'cbe2ed1ce948'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

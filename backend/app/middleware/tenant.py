@@ -21,6 +21,7 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
             "/redoc",
             "/openapi.json",
             "/health",
+            "/api/v1/health",
             "/auth/login",
             "/auth/register",
             "/auth/oauth",

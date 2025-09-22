@@ -31,7 +31,9 @@ ENV/
 .coverage
 .coverage.*
 htmlcov/
+coverage.xml
 .hypothesis/
+backend/.env
 
 # Static analysis
 .mypy_cache/

@@ -30,8 +30,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting JEEX Plan Backend")
 
-    # Initialize database tables
-    await create_tables()
+    # Initialize database tables - disabled, using migrations instead
+    # await create_tables()
 
     # Setup observability
     # setup_observability(app)  # TODO: Fix OpenTelemetry version conflicts

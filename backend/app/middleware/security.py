@@ -87,7 +87,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             "/redoc",
             "/openapi.json",
             "/health",
-            "/auth/oauth",  # OAuth flows handle CSRF differently
+            "/auth/",  # All auth endpoints are stateless JWT-based
         ]
         self.state_changing_methods = {"POST", "PUT", "PATCH", "DELETE"}
 

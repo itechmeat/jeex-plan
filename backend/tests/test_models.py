@@ -4,7 +4,7 @@ Test models for Epic 01 - Multi-tenant foundation.
 
 import pytest
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 
 from app.models.tenant import Tenant
@@ -443,7 +443,7 @@ class TestSoftDelete:
 
         # Soft delete
         user.is_deleted = True
-        user.deleted_at = datetime.utcnow()
+        user.deleted_at = datetime.now(timezone.utc)
         await test_session.commit()
 
         assert user.is_deleted is True
@@ -477,7 +477,7 @@ class TestSoftDelete:
 
         # Soft delete
         project.is_deleted = True
-        project.deleted_at = datetime.utcnow()
+        project.deleted_at = datetime.now(timezone.utc)
         await test_session.commit()
 
         assert project.is_deleted is True

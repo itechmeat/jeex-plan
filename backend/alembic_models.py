@@ -8,7 +8,7 @@ import os
 
 # Minimal imports to avoid loading the entire application during migrations
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, DateTime, Boolean, ForeignKey, func, String, Text, Integer
+from sqlalchemy import Column, DateTime, Boolean, ForeignKey, func, String, Text, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, ENUM as PostgreSQLEnum
 import uuid
 
@@ -34,6 +34,10 @@ class Tenant(Base):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'email', name='uq_user_tenant_email'),
+        UniqueConstraint('tenant_id', 'username', name='uq_user_tenant_username'),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -52,6 +56,9 @@ class User(Base):
 
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'name', name='uq_project_tenant_name'),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)

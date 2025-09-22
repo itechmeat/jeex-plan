@@ -53,7 +53,7 @@ class Settings(BaseSettings):
         default="http://vault:8200",
         env="VAULT_ADDR"
     )
-    VAULT_TOKEN: str = Field(default="dev-token-jeex-plan", env="VAULT_TOKEN")
+    VAULT_TOKEN: str = Field(default="__REPLACE_WITH_TOKEN__", env="VAULT_TOKEN")
     USE_VAULT: bool = Field(default=True, env="USE_VAULT")
 
     # Authentication
@@ -177,7 +177,14 @@ class VaultSettings:
         if self.settings.USE_VAULT:
             secrets = await self.get_vault_secret("database/postgres")
             if secrets:
-                return f"postgresql://{secrets['username']}:{secrets['password']}@{secrets['host']}:{secrets['port']}/{secrets['database']}"
+                if secrets.get("async_url"):
+                    return secrets["async_url"]
+                if secrets.get("url"):
+                    return secrets["url"]
+                return (
+                    f"postgresql://{secrets['username']}:{secrets['password']}"
+                    f"@{secrets['host']}:{secrets['port']}/{secrets['database']}"
+                )
 
         return self.settings.DATABASE_URL
 

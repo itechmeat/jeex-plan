@@ -5,6 +5,8 @@ Role-Based Access Control (RBAC) service for managing permissions and roles.
 import uuid
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 
 from ..models.rbac import Role, PermissionModel, ProjectMember, Permission, ProjectRole
@@ -267,35 +269,44 @@ class RBACService:
     ) -> List[Dict[str, Any]]:
         """Get all members of a project with their roles."""
 
-        memberships = await self.member_repo.get_all(
-            skip=skip,
-            limit=limit,
-            filters={"project_id": project_id, "is_active": True}
+        # Use direct query with eager loading to avoid N+1 pattern
+        stmt = (
+            select(ProjectMember)
+            .options(
+                selectinload(ProjectMember.user),
+                selectinload(ProjectMember.role)
+            )
+            .where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.is_active == True,
+                ProjectMember.is_deleted == False
+            )
+            .offset(skip)
+            .limit(limit)
         )
 
-        result = []
-        for membership in memberships:
-            user = await membership.user
-            role = await membership.role
+        result = await self.db.execute(stmt)
+        memberships = list(result.scalars().all())
 
-            result.append({
+        return [
+            {
                 "user_id": membership.user_id,
                 "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "username": user.username,
-                    "full_name": user.full_name
+                    "id": membership.user.id,
+                    "email": membership.user.email,
+                    "username": membership.user.username,
+                    "full_name": membership.user.full_name
                 },
                 "role": {
-                    "id": role.id,
-                    "name": role.name,
-                    "display_name": role.display_name
+                    "id": membership.role.id,
+                    "name": membership.role.name,
+                    "display_name": membership.role.display_name
                 },
                 "joined_at": membership.joined_at,
                 "invited_by_id": membership.invited_by_id
-            })
-
-        return result
+            }
+            for membership in memberships
+        ]
 
     async def get_user_projects(
         self,
@@ -305,29 +316,27 @@ class RBACService:
     ) -> List[Dict[str, Any]]:
         """Get all projects where user is a member."""
 
-        memberships = await self.member_repo.get_all(
+        memberships = await self.member_repo.get_all_with_eager(
             skip=skip,
             limit=limit,
-            filters={"user_id": user_id, "is_active": True}
+            filters={"user_id": user_id, "is_active": True},
+            eager_loads=["project", "role"]
         )
 
         result = []
         for membership in memberships:
-            project = await membership.project
-            role = await membership.role
-
             result.append({
                 "project_id": membership.project_id,
                 "project": {
-                    "id": project.id,
-                    "name": project.name,
-                    "description": project.description,
-                    "status": project.status
+                    "id": membership.project.id,
+                    "name": membership.project.name,
+                    "description": membership.project.description,
+                    "status": membership.project.status
                 },
                 "role": {
-                    "id": role.id,
-                    "name": role.name,
-                    "display_name": role.display_name
+                    "id": membership.role.id,
+                    "name": membership.role.name,
+                    "display_name": membership.role.display_name
                 },
                 "joined_at": membership.joined_at
             })
