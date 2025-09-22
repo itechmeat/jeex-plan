@@ -1,6 +1,6 @@
 """
 JEEX Plan - Simple Main API Service
-Упрощенная реализация для Docker контейнера
+Simplified implementation for Docker container
 """
 
 from fastapi import FastAPI
@@ -13,11 +13,11 @@ from typing import Dict, Any
 
 app = FastAPI(
     title="JEEX Plan API",
-    description="AI-powered система управления документацией",
+    description="AI-powered documentation management system",
     version="1.0.0"
 )
 
-# Настройка CORS для разработки
+# CORS configuration for development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,17 +29,18 @@ app.add_middleware(
 
 @app.get("/")
 async def root() -> Dict[str, str]:
-    """Корневой endpoint"""
+    """Root endpoint"""
     return {
         "service": "JEEX Plan API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "hot_reload": "testing hot-reload functionality"
     }
 
 
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
-    """Проверка здоровья сервиса"""
+    """Service health check"""
     return {
         "status": "healthy",
         "service": "jeex-plan-api",
@@ -52,7 +53,7 @@ async def health_check() -> Dict[str, Any]:
 
 @app.get("/ready")
 async def readiness_check() -> Dict[str, Any]:
-    """Проверка готовности сервиса"""
+    """Service readiness check"""
     return {
         "status": "ready",
         "database": "simulated_ready",
@@ -62,7 +63,7 @@ async def readiness_check() -> Dict[str, Any]:
 
 
 async def check_service_health(url: str, timeout: float = 5.0) -> Dict[str, Any]:
-    """Проверка здоровья внешнего сервиса"""
+    """External service health check"""
     start_time = time.time()
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
@@ -96,14 +97,13 @@ async def check_service_health(url: str, timeout: float = 5.0) -> Dict[str, Any]
 
 @app.get("/system/status")
 async def system_status() -> Dict[str, Any]:
-    """Проверка статуса всех сервисов системы"""
+    """System services status check"""
     services = [
         {"name": "API Backend", "endpoint": "http://localhost:8000/health", "url": "http://localhost:8000/health"},
-        {"name": "PostgreSQL", "endpoint": "localhost:5432", "url": "http://postgres:5432"},
-        {"name": "Qdrant", "endpoint": "http://localhost:6333/", "url": "http://qdrant:6333/"},
-        {"name": "Redis", "endpoint": "localhost:6379", "url": "http://redis:6379"},
-        {"name": "Vault", "endpoint": "http://localhost:8200/v1/sys/health", "url": "http://vault:8200/v1/sys/health"},
-        {"name": "Frontend", "endpoint": "http://localhost:5200", "url": "http://host.docker.internal:5200"}
+        {"name": "PostgreSQL", "endpoint": "postgresql://postgres:secure_password@postgres:5432/jeex_plan", "url": "postgres:5432"},
+        {"name": "Redis", "endpoint": "redis://redis:6379", "url": "redis:6379"},
+        {"name": "Qdrant", "endpoint": "http://qdrant:6333/", "url": "http://qdrant:6333/"},
+        {"name": "Vault", "endpoint": "http://vault:8200/v1/sys/health", "url": "http://vault:8200/v1/sys/health"}
     ]
 
     results = []
@@ -128,17 +128,17 @@ async def system_status() -> Dict[str, Any]:
 
 @app.get("/api/v1/info")
 async def api_info() -> Dict[str, Any]:
-    """Информация об API"""
+    """API information"""
     return {
         "name": "JEEX Plan API",
-        "description": "AI-powered система управления документацией",
+        "description": "AI-powered documentation management system",
         "version": "1.0.0",
         "endpoints": [
-            {"path": "/", "method": "GET", "description": "Корневой endpoint"},
-            {"path": "/health", "method": "GET", "description": "Проверка здоровья"},
-            {"path": "/ready", "method": "GET", "description": "Проверка готовности"},
-            {"path": "/system/status", "method": "GET", "description": "Статус всех сервисов"},
-            {"path": "/api/v1/info", "method": "GET", "description": "Информация об API"}
+            {"path": "/", "method": "GET", "description": "Root endpoint"},
+            {"path": "/health", "method": "GET", "description": "Health check"},
+            {"path": "/ready", "method": "GET", "description": "Readiness check"},
+            {"path": "/system/status", "method": "GET", "description": "System services status"},
+            {"path": "/api/v1/info", "method": "GET", "description": "API information"}
         ]
     }
 

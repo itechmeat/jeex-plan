@@ -3,7 +3,7 @@ HashiCorp Vault adapter for secrets management.
 """
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import hvac
 from hvac.exceptions import VaultError, InvalidRequest
 

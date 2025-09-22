@@ -25,7 +25,7 @@
 ## Tasks
 
 - [ ] **03.1.** Qdrant Infrastructure Setup *→ Depends on [Epic 01.1.1](01-infrastructure.md#011)*
-  - [ ] **03.1.1.** Qdrant 1.15.4+ deployment с Docker configuration
+  - [x] **03.1.1.** Qdrant 1.15.4+ deployment с Docker configuration
   - [ ] **03.1.2.** Multi-tenant collection schema design
   - [ ] **03.1.3.** HNSW parameters optimization для payload filtering
   - [ ] **03.1.4.** Volume configuration для persistent vector storage

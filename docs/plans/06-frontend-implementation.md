@@ -25,11 +25,11 @@ Frontend является единственным способом взаимо
 
 ## Tasks
 
-- [ ] **06.1.** React Application Foundation *→ Depends on [Epic 02.6.1](02-authentication.md#026)*
-  - [ ] **06.1.1.** React + TypeScript + Vite setup на порту 5200
-  - [ ] **06.1.2.** Routing system с protected routes
-  - [ ] **06.1.3.** Global state management (Context API или Zustand)
-  - [ ] **06.1.4.** HTTP client configuration с authentication
+- [x] **06.1.** React Application Foundation *→ Depends on [Epic 02.6.1](02-authentication.md#026)*
+  - [x] **06.1.1.** React + TypeScript + Vite setup на порту 5200
+  - [x] **06.1.2.** Routing system с protected routes
+  - [x] **06.1.3.** Global state management (Context API или Zustand)
+  - [x] **06.1.4.** HTTP client configuration с authentication
 
 - [ ] **06.2.** Four-Step Wizard Interface *→ Depends on [Epic 05.1.1](05-document-generation.md#051)*
   - [ ] **06.2.1.** Wizard navigation component с progress indicator
