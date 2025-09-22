@@ -6,17 +6,23 @@ services:
   api:
     build:
       context: ./backend
-      dockerfile: Dockerfile.simple
+      dockerfile: Dockerfile
     ports:
       - "5210:8000"  # External:5210 -> Internal:8000
     environment:
       - ENVIRONMENT=development
-    volumes: []
+    volumes:
+      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - jeex-network
 
@@ -53,7 +59,7 @@ services:
       - qdrant_data:/qdrant/storage
       - ./backend/config/qdrant-minimal.yaml:/qdrant/config/production.yaml
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:6333/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -77,19 +83,18 @@ services:
     networks:
       - jeex-network
 
-  # HashiCorp Vault - Secrets Management
+  # HashiCorp Vault - Secrets Management (Dev Mode)
   vault:
     image: hashicorp/vault:1.15.4
     ports:
       - "5250:8200"  # External:5250 -> Internal:8200
     cap_add:
       - IPC_LOCK
-    volumes:
-      - ./backend/config/vault-minimal.hcl:/vault/config/vault.hcl:ro
-      - vault_data:/vault/data
     environment:
       - VAULT_ADDR=http://0.0.0.0:8200
-    command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+      - VAULT_DEV_ROOT_TOKEN_ID=dev-token-jeex-plan
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    command: ["vault", "server", "-dev"]
     healthcheck:
       test: ["CMD", "vault", "status"]
       interval: 30s

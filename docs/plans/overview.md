@@ -4,15 +4,15 @@
 
 | Epic | Outcome | Primary Owner | Dependencies | Status |
 |------|---------|---------------|--------------|---------|
-| [01 — Infrastructure](01-infrastructure.md) | Полная архитектура с базовой функциональностью | Backend Developer | None | ⏳ Not Started |
+| [01 — Infrastructure](01-infrastructure.md) | Полная архитектура с базовой функциональностью | Backend Developer | None | ✅ Completed (100%) |
 | [02 — Authentication](02-authentication.md) | OAuth2 аутентификация и мультитенантность | Backend Developer | Epic 01 (database, API) | ⏳ Not Started |
-| [03 — Vector Database](03-vector-database.md) | Векторный поиск и эмбеддинги | Backend Developer | Epic 01 (infrastructure) | ⏳ Not Started |
+| [03 — Vector Database](03-vector-database.md) | Векторный поиск и эмбеддинги | Backend Developer | Epic 01 (infrastructure) | 🔴 Blocked (10%) |
 | [04 — Agent Orchestration](04-agent-orchestration.md) | CrewAI агенты и мультиагентная система | Backend Developer | Epic 02, 03 (auth, vector store) | ⏳ Not Started |
 | [05 — Document Generation](05-document-generation.md) | Четырехэтапная генерация документов | Backend Developer | Epic 04 (agents) | ⏳ Not Started |
-| [06 — Frontend Implementation](06-frontend-implementation.md) | React интерфейс с SSE и прогресс-трекингом | Frontend Developer | Epic 05 (document API) | ⏳ Not Started |
+| [06 — Frontend Implementation](06-frontend-implementation.md) | React интерфейс с SSE и прогресс-трекингом | Frontend Developer | Epic 05 (document API) | 🟡 In Progress (30%) |
 | [07 — Export System](07-export-system.md) | ZIP архивы и структурированный экспорт | Backend Developer | Epic 05, 06 (documents, UI) | ⏳ Not Started |
 | [08 — Quality Assurance](08-quality-assurance.md) | Валидация контента и обеспечение качества | Backend Developer | Epic 05 (generation) | ⏳ Not Started |
-| [09 — Observability](09-observability.md) | OpenTelemetry трассировка и мониторинг | DevOps Engineer | Epic 01 (infrastructure) | ⏳ Not Started |
+| [09 — Observability](09-observability.md) | OpenTelemetry трассировка и мониторинг | DevOps Engineer | Epic 01 (infrastructure) | 🟡 In Progress (15%) |
 | [10 — Testing](10-testing.md) | Комплексное тестирование всей системы | QA Engineer | All previous epics | ⏳ Not Started |
 
 ## Development Flow

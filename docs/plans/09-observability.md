@@ -26,7 +26,7 @@ Observability критически важна для production readiness мул
 ## Tasks
 
 - [ ] **09.1.** OpenTelemetry Foundation *→ Depends on [Epic 01.2.3](01-infrastructure.md#012)*
-  - [ ] **09.1.1.** OpenTelemetry Collector deployment и configuration
+  - [x] **09.1.1.** OpenTelemetry Collector deployment и configuration
   - [ ] **09.1.2.** FastAPI auto-instrumentation setup
   - [ ] **09.1.3.** Trace context propagation across services
   - [ ] **09.1.4.** Resource detection и service identification

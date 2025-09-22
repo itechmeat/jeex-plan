@@ -14,15 +14,25 @@ from app.core.logger import get_logger
 logger = get_logger()
 
 # Create async engine with optimized settings
-engine = create_async_engine(
-    settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
-    echo=settings.DEBUG,
-    poolclass=NullPool if settings.is_development else None,
-    pool_size=20 if not settings.is_development else 5,
-    max_overflow=30 if not settings.is_development else 10,
-    pool_pre_ping=True,
-    pool_recycle=300,
-)
+if settings.is_development:
+    # Development: use NullPool (no pool parameters)
+    engine = create_async_engine(
+        settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+        echo=settings.DEBUG,
+        poolclass=NullPool,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
+else:
+    # Production: use connection pooling
+    engine = create_async_engine(
+        settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+        echo=settings.DEBUG,
+        pool_size=20,
+        max_overflow=30,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
 
 # Create session factory
 AsyncSessionLocal = async_sessionmaker(

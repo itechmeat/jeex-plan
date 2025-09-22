@@ -16,7 +16,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchServicesStatus()
-    const interval = setInterval(fetchServicesStatus, 30000) // Обновляем каждые 30 секунд
+    const interval = setInterval(fetchServicesStatus, 30000) // Update every 30 seconds
     return () => clearInterval(interval)
   }, [])
 
@@ -40,7 +40,7 @@ const Dashboard: React.FC = () => {
       setServices(servicesData)
     } catch (error) {
       console.error('Failed to fetch services status:', error)
-      // Показываем ошибку пользователю
+      // Show error to user
       setServices([{
         name: 'System Status',
         status: 'unhealthy',
@@ -72,7 +72,7 @@ const Dashboard: React.FC = () => {
     return endpoints[serviceName] || 'Unknown'
   }
 
-  // Вычисляем статистику на основе реальных данных
+  // Calculate statistics based on real data
   const totalServices = services.length
   const healthyServices = services.filter(s => s.status === 'healthy').length
   const degradedServices = services.filter(s => s.status === 'degraded').length

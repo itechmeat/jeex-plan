@@ -1,12 +1,14 @@
 """
-Application configuration with environment variable support
-and type validation using Pydantic settings.
+Application configuration with environment variable support,
+Vault integration, and type validation using Pydantic settings.
 """
 
 import os
-from typing import List, Optional
+import logging
+from typing import List, Optional, Dict, Any
+from functools import lru_cache
 from pydantic_settings import BaseSettings
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
@@ -48,10 +50,11 @@ class Settings(BaseSettings):
 
     # HashiCorp Vault
     VAULT_ADDR: str = Field(
-        default="http://localhost:8200",
+        default="http://vault:8200",
         env="VAULT_ADDR"
     )
-    VAULT_TOKEN: Optional[str] = Field(default=None, env="VAULT_TOKEN")
+    VAULT_TOKEN: str = Field(default="dev-token-jeex-plan", env="VAULT_TOKEN")
+    USE_VAULT: bool = Field(default=True, env="USE_VAULT")
 
     # Authentication
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
@@ -79,14 +82,16 @@ class Settings(BaseSettings):
     DEFAULT_TENANT_ID: str = Field(default="default", env="DEFAULT_TENANT_ID")
     ENABLE_TENANT_ISOLATION: bool = Field(default=True, env="ENABLE_TENANT_ISOLATION")
 
-    @validator("ALLOWED_ORIGINS", pre=True)
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
     def parse_allowed_origins(cls, v):
         """Parse comma-separated origins"""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
 
-    @validator("ENVIRONMENT")
+    @field_validator("ENVIRONMENT")
+    @classmethod
     def validate_environment(cls, v):
         """Validate environment setting"""
         allowed = ["development", "staging", "production"]
@@ -131,5 +136,83 @@ class Settings(BaseSettings):
         return settings
 
 
+logger = logging.getLogger(__name__)
+
+
+class VaultSettings:
+    """Settings manager with Vault integration."""
+
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self._vault_cache: Dict[str, Any] = {}
+
+    async def get_vault_secret(self, path: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
+        """Get secret from Vault with caching."""
+        if not self.settings.USE_VAULT:
+            return None
+
+        if use_cache and path in self._vault_cache:
+            return self._vault_cache[path]
+
+        try:
+            # Import here to avoid circular imports
+            from .vault import vault_client
+            secrets = await vault_client.get_secret(path)
+            if secrets and use_cache:
+                self._vault_cache[path] = secrets
+            return secrets
+        except Exception as e:
+            logger.warning(f"Failed to get secret from Vault at {path}: {e}")
+            return None
+
+    async def get_database_url(self) -> str:
+        """Get database URL from Vault or fallback to config."""
+        if self.settings.USE_VAULT:
+            secrets = await self.get_vault_secret("database/postgres")
+            if secrets:
+                return f"postgresql://{secrets['username']}:{secrets['password']}@{secrets['host']}:{secrets['port']}/{secrets['database']}"
+
+        return self.settings.DATABASE_URL
+
+    async def get_redis_url(self) -> str:
+        """Get Redis URL from Vault or fallback to config."""
+        if self.settings.USE_VAULT:
+            secrets = await self.get_vault_secret("cache/redis")
+            if secrets:
+                password_part = f":{secrets['password']}@" if secrets.get('password') else ""
+                return f"redis://{password_part}{secrets['host']}:{secrets['port']}/0"
+
+        return self.settings.REDIS_URL
+
+    async def get_jwt_secret(self) -> str:
+        """Get JWT secret from Vault or fallback to config."""
+        if self.settings.USE_VAULT:
+            secrets = await self.get_vault_secret("auth/jwt")
+            if secrets:
+                return secrets.get('secret_key', self.settings.SECRET_KEY)
+
+        return self.settings.SECRET_KEY
+
+    async def get_openai_api_key(self) -> Optional[str]:
+        """Get OpenAI API key from Vault or fallback to config."""
+        if self.settings.USE_VAULT:
+            secrets = await self.get_vault_secret("ai/openai")
+            if secrets:
+                return secrets.get('api_key')
+
+        return self.settings.OPENAI_API_KEY
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    """Get application settings (cached)."""
+    return Settings()
+
+
+def get_vault_settings() -> VaultSettings:
+    """Get Vault-integrated settings."""
+    return VaultSettings(get_settings())
+
+
 # Global settings instance
-settings = Settings()
+settings = get_settings()

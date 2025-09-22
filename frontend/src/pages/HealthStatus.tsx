@@ -30,7 +30,7 @@ const HealthStatus: React.FC = () => {
 
       const data = await response.json()
 
-      // Преобразуем данные в нужный формат
+      // Transform data to required format
       const healthChecks: HealthCheck[] = data.services.map((service: any) => ({
         service: service.service,
         endpoint: service.endpoint,
@@ -43,13 +43,13 @@ const HealthStatus: React.FC = () => {
       setHealthChecks(healthChecks)
     } catch (error) {
       console.error('Failed to fetch health status:', error)
-      // Показываем ошибку пользователю
+      // Show error to user
       setHealthChecks([{
         service: 'System Status',
         endpoint: '/api/system/status',
         status: 'fail',
         responseTime: 0,
-        details: `Не удалось загрузить статус: ${error}`,
+        details: `Failed to load status: ${error}`,
         timestamp: new Date().toISOString()
       }])
     } finally {
