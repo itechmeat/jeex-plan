@@ -1,226 +1,448 @@
 """
-Authentication endpoints with OAuth2 support.
+Authentication endpoints with OAuth2 support and full JWT implementation.
 """
 
-from datetime import datetime, timedelta
+import uuid
+import secrets
+from datetime import datetime
 from typing import Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, EmailStr
 
-from app.core.database import get_db
-from app.core.config import settings
-from app.core.logger import get_logger
-from app.api.schemas.auth import Token, UserCreate, UserResponse
+from ...core.database import get_db
+from ...core.config import get_settings
+from ...core.logger import get_logger
+from ...core.auth import AuthService, get_current_user_dependency, get_current_active_user_dependency
+from ...core.oauth import OAuthService
+from ...services.user import UserService
+from ...api.schemas.auth import (
+    Token, UserCreate, UserResponse, LoginRequest, LoginResponse,
+    RefreshTokenRequest, LogoutResponse, TokenData
+)
+from ...middleware.tenant import get_tenant_context
 
 router = APIRouter()
 security = HTTPBearer()
 logger = get_logger(__name__)
+settings = get_settings()
 
 
-@router.post("/login", response_model=Token)
-async def login(
-    user_credentials: dict,
-    db: AsyncSession = Depends(get_db)
-) -> Token:
-    """
-    User login endpoint.
-
-    For MVP phase, this accepts email/password and returns JWT tokens.
-    In production, this would integrate with OAuth2 providers.
-    """
-    # Mock authentication for MVP - replace with real OAuth2 integration
-    logger.info("Login attempt", email=user_credentials.get("email"))
-
-    # TODO: Implement actual authentication logic
-    # 1. Validate user credentials
-    # 2. Check user exists and is active
-    # 3. Verify password
-    # 4. Generate JWT tokens
-
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-
-    # Mock user data - replace with real user lookup
-    mock_user_data = {
-        "sub": "user_123",
-        "email": user_credentials.get("email", "user@example.com"),
-        "tenant_id": "default",
-        "name": "Demo User"
-    }
-
-    access_token = _create_access_token(
-        data=mock_user_data,
-        expires_delta=access_token_expires
-    )
-
-    refresh_token = _create_refresh_token(data=mock_user_data)
-
-    logger.info("Login successful", user_id=mock_user_data["sub"])
-
-    return Token(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
+class OAuthInitRequest(BaseModel):
+    """OAuth initialization request."""
+    provider: str
+    redirect_url: Optional[str] = None
 
 
-@router.post("/register", response_model=UserResponse)
-async def register(
+class OAuthCallbackRequest(BaseModel):
+    """OAuth callback request."""
+    code: str
+    state: str
+    provider: str
+
+
+@router.post("/register", response_model=LoginResponse)
+async def register_user(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db)
-) -> UserResponse:
+) -> LoginResponse:
     """
-    User registration endpoint.
+    User registration with email and password.
 
-    Creates a new user with default tenant and returns user information.
+    Creates a new user account and returns authentication tokens.
     """
     logger.info("Registration attempt", email=user_data.email)
 
-    # TODO: Implement actual registration logic
-    # 1. Validate email format and uniqueness
-    # 2. Hash password
-    # 3. Create user record
-    # 4. Create default tenant
-    # 5. Send verification email
+    # Validate password confirmation
+    if user_data.password != user_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
 
-    # Mock user creation response
-    mock_user = UserResponse(
-        id="user_123",
-        email=user_data.email,
-        name=user_data.name,
-        tenant_id="tenant_123",
-        is_active=True,
-        created_at=datetime.utcnow(),
-        last_login_at=None
-    )
+    user_service = UserService(db)
 
-    logger.info("Registration successful", user_id=mock_user.id)
+    try:
+        # Register user and get tokens
+        result = await user_service.register_user(
+            email=user_data.email,
+            username=user_data.name.lower().replace(" ", "_"),
+            password=user_data.password,
+            full_name=user_data.name
+        )
 
-    return mock_user
+        user_response = UserResponse(
+            id=str(result["user"].id),
+            email=result["user"].email,
+            name=result["user"].full_name or result["user"].username,
+            tenant_id=str(result["user"].tenant_id),
+            is_active=result["user"].is_active,
+            created_at=result["user"].created_at,
+            last_login_at=result["user"].last_login_at
+        )
+
+        token = Token(**result["tokens"])
+
+        logger.info("Registration successful", user_id=str(result["user"].id))
+
+        return LoginResponse(
+            user=user_response,
+            token=token
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Registration failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed"
+        )
+
+
+@router.post("/login", response_model=LoginResponse)
+async def login_user(
+    login_data: LoginRequest,
+    db: AsyncSession = Depends(get_db)
+) -> LoginResponse:
+    """
+    User login with email and password.
+
+    Authenticates user and returns JWT tokens.
+    """
+    logger.info("Login attempt", email=login_data.email)
+
+    user_service = UserService(db)
+
+    try:
+        # Authenticate user
+        result = await user_service.authenticate_user(
+            email=login_data.email,
+            password=login_data.password
+        )
+
+        user_response = UserResponse(
+            id=str(result["user"].id),
+            email=result["user"].email,
+            name=result["user"].full_name or result["user"].username,
+            tenant_id=str(result["user"].tenant_id),
+            is_active=result["user"].is_active,
+            created_at=result["user"].created_at,
+            last_login_at=result["user"].last_login_at
+        )
+
+        token = Token(**result["tokens"])
+
+        logger.info("Login successful", user_id=str(result["user"].id))
+
+        return LoginResponse(
+            user=user_response,
+            token=token
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Login failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(
-    refresh_token: str,
+async def refresh_access_token(
+    refresh_data: RefreshTokenRequest,
     db: AsyncSession = Depends(get_db)
 ) -> Token:
     """
     Refresh access token using refresh token.
     """
-    # TODO: Implement refresh token validation
-    # 1. Validate refresh token signature and expiration
-    # 2. Check if token is revoked
-    # 3. Get user information from token
-    # 4. Generate new access token
+    logger.info("Token refresh attempt")
 
-    # Mock response for MVP
-    mock_user_data = {
-        "sub": "user_123",
-        "email": "user@example.com",
-        "tenant_id": "default",
-        "name": "Demo User"
-    }
+    user_service = UserService(db)
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = _create_access_token(
-        data=mock_user_data,
-        expires_delta=access_token_expires
+    try:
+        tokens = await user_service.refresh_tokens(refresh_data.refresh_token)
+        logger.info("Token refresh successful")
+        return Token(**tokens)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Token refresh failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+
+
+@router.post("/logout", response_model=LogoutResponse)
+async def logout_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> LogoutResponse:
+    """
+    User logout endpoint.
+
+    Invalidates the current session (for future token blacklisting).
+    """
+    current_user = await get_current_user(credentials, db)
+
+    logger.info("Logout successful", user_id=str(current_user.id))
+
+    # TODO: Implement token blacklisting in Redis
+    # For now, client should discard the tokens
+
+    return LogoutResponse(message="Successfully logged out")
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(
+    current_user = Depends(get_current_active_user_dependency)
+) -> UserResponse:
+    """
+    Get current authenticated user profile.
+    """
+    return UserResponse(
+        id=str(current_user.id),
+        email=current_user.email,
+        name=current_user.full_name or current_user.username,
+        tenant_id=str(current_user.tenant_id),
+        is_active=current_user.is_active,
+        created_at=current_user.created_at,
+        last_login_at=current_user.last_login_at
     )
 
-    return Token(
-        access_token=access_token,
-        refresh_token=refresh_token,  # Return same refresh token for MVP
-        token_type="bearer",
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
+
+# OAuth2 Endpoints
+@router.post("/oauth/init")
+async def oauth_init(
+    oauth_data: OAuthInitRequest,
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    Initialize OAuth2 flow.
+
+    Returns authorization URL for the specified provider.
+    """
+    logger.info("OAuth init", provider=oauth_data.provider)
+
+    oauth_service = OAuthService(db)
+
+    try:
+        # Generate state parameter for CSRF protection
+        state = secrets.token_urlsafe(32)
+
+        # Get authorization URL
+        auth_url = await oauth_service.get_authorization_url(
+            oauth_data.provider,
+            state
+        )
+
+        # Store state in session/cache for validation
+        # TODO: Store state in Redis with expiration
+
+        return {
+            "authorization_url": auth_url,
+            "state": state,
+            "provider": oauth_data.provider
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("OAuth init failed", provider=oauth_data.provider, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"OAuth initialization failed for provider {oauth_data.provider}"
+        )
 
 
-@router.post("/logout")
-async def logout(
+@router.get("/oauth/callback")
+async def oauth_callback(
+    code: str = Query(..., description="Authorization code from OAuth provider"),
+    state: str = Query(..., description="State parameter for CSRF protection"),
+    provider: str = Query(..., description="OAuth provider name"),
+    db: AsyncSession = Depends(get_db)
+) -> RedirectResponse:
+    """
+    OAuth2 callback endpoint.
+
+    Handles the callback from OAuth providers and completes authentication.
+    """
+    logger.info("OAuth callback", provider=provider)
+
+    oauth_service = OAuthService(db)
+    auth_service = AuthService(db)
+
+    try:
+        # TODO: Validate state parameter from stored session/cache
+
+        # Authenticate user with OAuth provider
+        user = await oauth_service.authenticate_user(
+            provider,
+            code,
+            state
+        )
+
+        # Generate JWT tokens
+        tokens = await auth_service.create_tokens_for_user(user)
+
+        # Redirect to frontend with tokens
+        frontend_url = settings.ALLOWED_ORIGINS[0] if settings.ALLOWED_ORIGINS else "http://localhost:3000"
+        redirect_url = f"{frontend_url}/auth/callback?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
+
+        logger.info("OAuth callback successful", provider=provider, user_id=str(user.id))
+
+        return RedirectResponse(url=redirect_url)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("OAuth callback failed", provider=provider, error=str(e))
+        # Redirect to frontend with error
+        frontend_url = settings.ALLOWED_ORIGINS[0] if settings.ALLOWED_ORIGINS else "http://localhost:3000"
+        error_url = f"{frontend_url}/auth/error?error=oauth_failed"
+        return RedirectResponse(url=error_url)
+
+
+@router.post("/oauth/callback", response_model=LoginResponse)
+async def oauth_callback_post(
+    callback_data: OAuthCallbackRequest,
+    db: AsyncSession = Depends(get_db)
+) -> LoginResponse:
+    """
+    OAuth2 callback endpoint (POST version for SPA applications).
+
+    Handles the callback data and returns authentication tokens directly.
+    """
+    logger.info("OAuth callback POST", provider=callback_data.provider)
+
+    oauth_service = OAuthService(db)
+    auth_service = AuthService(db)
+
+    try:
+        # Authenticate user with OAuth provider
+        user = await oauth_service.authenticate_user(
+            callback_data.provider,
+            callback_data.code,
+            callback_data.state
+        )
+
+        # Generate JWT tokens
+        tokens = await auth_service.create_tokens_for_user(user)
+
+        user_response = UserResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.full_name or user.username,
+            tenant_id=str(user.tenant_id),
+            is_active=user.is_active,
+            created_at=user.created_at,
+            last_login_at=user.last_login_at
+        )
+
+        token = Token(**tokens)
+
+        logger.info("OAuth callback POST successful", provider=callback_data.provider, user_id=str(user.id))
+
+        return LoginResponse(
+            user=user_response,
+            token=token
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("OAuth callback POST failed", provider=callback_data.provider, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OAuth authentication failed"
+        )
+
+
+@router.get("/providers")
+async def get_available_providers() -> dict:
+    """
+    Get list of available OAuth providers.
+    """
+    providers = []
+
+    if settings.GOOGLE_CLIENT_ID:
+        providers.append({
+            "name": "google",
+            "display_name": "Google",
+            "enabled": True
+        })
+
+    if settings.GITHUB_CLIENT_ID:
+        providers.append({
+            "name": "github",
+            "display_name": "GitHub",
+            "enabled": True
+        })
+
+    return {"providers": providers}
+
+
+# Password management endpoints
+@router.post("/change-password")
+async def change_password(
+    current_password: str,
+    new_password: str,
+    current_user = Depends(get_current_active_user_dependency)
+) -> dict:
+    """
+    Change user password.
+    """
+    logger.info("Password change attempt", user_id=str(current_user.id))
+
+    user_service = UserService(db)
+
+    try:
+        await user_service.change_password(
+            current_user.id,
+            current_password,
+            new_password
+        )
+
+        logger.info("Password change successful", user_id=str(current_user.id))
+        return {"message": "Password changed successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Password change failed", user_id=str(current_user.id), error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password change failed"
+        )
+
+
+@router.post("/validate-token")
+async def validate_token(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> dict:
     """
-    User logout endpoint.
-
-    Invalidates the current refresh token.
+    Validate JWT token and return token information.
     """
-    # TODO: Implement token invalidation
-    # 1. Add refresh token to blocklist
-    # 2. Clear user session data
+    try:
+        current_user = await get_current_active_user(credentials, db)
 
-    logger.info("Logout successful", user="current_user")
+        return {
+            "valid": True,
+            "user_id": str(current_user.id),
+            "tenant_id": str(current_user.tenant_id),
+            "email": current_user.email,
+            "is_active": current_user.is_active
+        }
 
-    return {"message": "Successfully logged out"}
-
-
-@router.get("/me", response_model=UserResponse)
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
-) -> UserResponse:
-    """
-    Get current user information.
-    """
-    # TODO: Implement actual user lookup
-    # 1. Validate JWT token
-    # 2. Get user from database
-    # 3. Return user information
-
-    # Mock user response for MVP
-    mock_user = UserResponse(
-        id="user_123",
-        email="user@example.com",
-        name="Demo User",
-        tenant_id="tenant_123",
-        is_active=True,
-        created_at=datetime.utcnow(),
-        last_login_at=datetime.utcnow()
-    )
-
-    return mock_user
-
-
-def _create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create JWT access token.
-
-    TODO: Replace with real JWT implementation using python-jose
-    """
-    # Mock token for MVP - replace with real JWT implementation
-    import base64
-    import json
-
-    payload = {
-        **data,
-        "exp": datetime.utcnow() + expires_delta if expires_delta else datetime.utcnow() + timedelta(hours=1),
-        "iat": datetime.utcnow(),
-        "type": "access"
-    }
-
-    # Simple base64 encoding for MVP - NOT SECURE FOR PRODUCTION
-    token_data = base64.b64encode(json.dumps(payload).encode()).decode()
-    return f"mock_access_{token_data}"
-
-
-def _create_refresh_token(data: dict) -> str:
-    """
-    Create JWT refresh token.
-
-    TODO: Replace with real JWT implementation using python-jose
-    """
-    # Mock token for MVP - replace with real JWT implementation
-    import base64
-    import json
-
-    payload = {
-        **data,
-        "exp": datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-        "iat": datetime.utcnow(),
-        "type": "refresh"
-    }
-
-    # Simple base64 encoding for MVP - NOT SECURE FOR PRODUCTION
-    token_data = base64.b64encode(json.dumps(payload).encode()).decode()
-    return f"mock_refresh_{token_data}"
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )

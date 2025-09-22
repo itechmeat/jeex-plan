@@ -10,11 +10,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from structlog import get_logger
+import redis.asyncio as redis
 
 from app.api.routes import health, projects, auth
 from app.core.config import settings
 from app.core.database import create_tables
-from app.core.observability import setup_observability
+# from app.core.observability import setup_observability  # TODO: Fix OpenTelemetry version conflicts
+from app.middleware.tenant import TenantIsolationMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security import SecurityHeadersMiddleware, CSRFProtectionMiddleware, RequestSizeMiddleware
 
 # Configure structured logging
 logger = get_logger()
@@ -30,7 +34,20 @@ async def lifespan(app: FastAPI):
     await create_tables()
 
     # Setup observability
-    setup_observability(app)
+    # setup_observability(app)  # TODO: Fix OpenTelemetry version conflicts
+
+    # Initialize Redis connection for rate limiting
+    redis_client = None
+    try:
+        redis_settings = settings.get_redis_settings()
+        redis_client = redis.Redis(**redis_settings)
+        await redis_client.ping()
+        app.state.redis_client = redis_client
+        logger.info("Redis connection established")
+
+    except Exception as e:
+        logger.warning("Failed to connect to Redis, rate limiting will be disabled", error=str(e))
+        app.state.redis_client = None
 
     logger.info("Application startup complete")
 
@@ -38,6 +55,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down JEEX Plan Backend")
+
+    # Close Redis connection
+    if hasattr(app.state, 'redis_client') and app.state.redis_client:
+        await app.state.redis_client.close()
+        logger.info("Redis connection closed")
 
 
 # Create FastAPI application
@@ -50,7 +72,29 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS
+# Add security middleware stack (order matters - last added is first executed)
+
+# 1. Request size limiting (first check)
+app.add_middleware(RequestSizeMiddleware, max_size=10 * 1024 * 1024)  # 10MB
+
+# 2. Security headers
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 3. CSRF protection
+app.add_middleware(CSRFProtectionMiddleware)
+
+# 4. Rate limiting with Redis
+app.add_middleware(
+    RateLimitMiddleware,
+    redis_client=None,  # Will be populated from app.state during requests
+    default_requests=settings.RATE_LIMIT_REQUESTS,
+    default_window=settings.RATE_LIMIT_WINDOW
+)
+
+# 5. Tenant isolation
+app.add_middleware(TenantIsolationMiddleware)
+
+# 6. CORS (should be close to the end)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -103,7 +147,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include API routers
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
+app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(projects.router, prefix="/api/v1", tags=["projects"])
 
 # Root endpoint

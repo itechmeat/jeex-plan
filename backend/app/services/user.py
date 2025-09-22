@@ -1,0 +1,347 @@
+"""
+User management service with authentication and profile operations.
+"""
+
+import uuid
+from typing import Optional, Dict, Any, List
+from datetime import datetime, timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException, status
+
+from ..core.auth import AuthService
+from ..models.user import User
+from ..models.tenant import Tenant
+from ..repositories.user import UserRepository
+from ..repositories.tenant import TenantRepository
+
+
+class UserService:
+    """Service for user management operations."""
+
+    def __init__(self, db: AsyncSession, tenant_id: Optional[uuid.UUID] = None):
+        self.db = db
+        self.tenant_id = tenant_id
+        # Repositories that require tenant_id
+        if tenant_id:
+            self.user_repo = UserRepository(db, tenant_id)
+        else:
+            self.user_repo = None
+        # Global repositories (no tenant scope)
+        self.tenant_repo = TenantRepository(db)
+        self.auth_service = AuthService(db)
+
+    async def register_user(
+        self,
+        email: str,
+        username: str,
+        password: str,
+        full_name: Optional[str] = None,
+        tenant_id: Optional[uuid.UUID] = None
+    ) -> Dict[str, Any]:
+        """Register a new user with password authentication."""
+
+        # For registration, use default tenant if none provided
+        if not self.user_repo:
+            # Get or create default tenant
+            default_tenant = await self.tenant_repo.get_default_tenant()
+            if not default_tenant:
+                default_tenant = await self.tenant_repo.create_default()
+            self.tenant_id = default_tenant.id
+            self.user_repo = UserRepository(self.db, self.tenant_id)
+
+        # Validate email availability
+        if not await self.user_repo.check_email_availability(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+
+        # Validate username availability
+        if not await self.user_repo.check_username_availability(username):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+
+        # Get or create default tenant if not specified
+        if not tenant_id:
+            tenant_id = await self._get_or_create_default_tenant()
+
+        # Hash password
+        hashed_password = self.auth_service.get_password_hash(password)
+
+        # Create user
+        user = User(
+            tenant_id=tenant_id,
+            email=email,
+            username=username,
+            full_name=full_name,
+            hashed_password=hashed_password,
+            is_active=True,
+            last_login_at=datetime.utcnow()
+        )
+
+        self.db.add(user)
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        # Generate tokens
+        tokens = await self.auth_service.create_tokens_for_user(user)
+
+        return {
+            "user": user,
+            "tokens": tokens
+        }
+
+    async def authenticate_user(
+        self,
+        email: str,
+        password: str,
+        tenant_id: Optional[uuid.UUID] = None
+    ) -> Dict[str, Any]:
+        """Authenticate user with email and password."""
+
+        user = await self.auth_service.authenticate_user(email, password, tenant_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is deactivated"
+            )
+
+        # Update last login
+        user.last_login_at = datetime.utcnow()
+        await self.db.commit()
+
+        # Generate tokens
+        tokens = await self.auth_service.create_tokens_for_user(user)
+
+        return {
+            "user": user,
+            "tokens": tokens
+        }
+
+    async def refresh_tokens(self, refresh_token: str) -> Optional[Dict[str, Any]]:
+        """Refresh access token using refresh token."""
+        tokens = await self.auth_service.refresh_access_token(refresh_token)
+
+        if not tokens:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+
+        return tokens
+
+    async def get_user_profile(self, user_id: uuid.UUID) -> User:
+        """Get user profile by ID."""
+        user = await self.user_repo.get_by_id(user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return user
+
+    async def update_user_profile(
+        self,
+        user_id: uuid.UUID,
+        **updates
+    ) -> User:
+        """Update user profile."""
+
+        # Remove sensitive fields that shouldn't be updated directly
+        sensitive_fields = {
+            'hashed_password', 'tenant_id', 'oauth_provider',
+            'oauth_id', 'is_superuser', 'created_at', 'updated_at'
+        }
+
+        filtered_updates = {
+            k: v for k, v in updates.items()
+            if k not in sensitive_fields and v is not None
+        }
+
+        # Validate email uniqueness if being updated
+        if 'email' in filtered_updates:
+            email_available = await self.user_repo.check_email_availability(
+                filtered_updates['email'],
+                exclude_user_id=user_id
+            )
+            if not email_available:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already in use"
+                )
+
+        # Validate username uniqueness if being updated
+        if 'username' in filtered_updates:
+            username_available = await self.user_repo.check_username_availability(
+                filtered_updates['username'],
+                exclude_user_id=user_id
+            )
+            if not username_available:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken"
+                )
+
+        user = await self.user_repo.update(user_id, **filtered_updates)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return user
+
+    async def change_password(
+        self,
+        user_id: uuid.UUID,
+        current_password: str,
+        new_password: str
+    ) -> bool:
+        """Change user password."""
+
+        user = await self.user_repo.get_by_id(user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Verify current password
+        if not user.hashed_password or not self.auth_service.verify_password(
+            current_password,
+            user.hashed_password
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect"
+            )
+
+        # Hash new password
+        new_hashed_password = self.auth_service.get_password_hash(new_password)
+
+        # Update password
+        await self.user_repo.update(user_id, hashed_password=new_hashed_password)
+
+        return True
+
+    async def deactivate_user(self, user_id: uuid.UUID) -> User:
+        """Deactivate user account."""
+        user = await self.user_repo.deactivate_user(user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return user
+
+    async def activate_user(self, user_id: uuid.UUID) -> User:
+        """Activate user account."""
+        user = await self.user_repo.activate_user(user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return user
+
+    async def get_users_list(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        search: Optional[str] = None,
+        active_only: bool = True
+    ) -> List[User]:
+        """Get list of users with optional search."""
+
+        if search:
+            return await self.user_repo.search_users(search, skip, limit)
+
+        if active_only:
+            return await self.user_repo.get_active_users(skip, limit)
+
+        return await self.user_repo.get_all(skip, limit)
+
+    async def get_user_statistics(self) -> Dict[str, int]:
+        """Get user statistics."""
+        return await self.user_repo.get_user_count_by_status()
+
+    async def link_oauth_account(
+        self,
+        user_id: uuid.UUID,
+        oauth_provider: str,
+        oauth_id: str
+    ) -> User:
+        """Link OAuth account to existing user."""
+
+        # Check if OAuth account is already linked
+        oauth_available = await self.user_repo.check_oauth_availability(
+            oauth_provider,
+            oauth_id,
+            exclude_user_id=user_id
+        )
+
+        if not oauth_available:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="OAuth account already linked to another user"
+            )
+
+        user = await self.user_repo.link_oauth_account(
+            user_id,
+            oauth_provider,
+            oauth_id
+        )
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return user
+
+    async def unlink_oauth_account(self, user_id: uuid.UUID) -> User:
+        """Unlink OAuth account from user."""
+        user = await self.user_repo.unlink_oauth_account(user_id)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return user
+
+    async def _get_or_create_default_tenant(self) -> uuid.UUID:
+        """Get or create default tenant."""
+        default_tenant = await self.tenant_repo.get_by_slug("default")
+
+        if not default_tenant:
+            default_tenant = Tenant(
+                name="Default Tenant",
+                slug="default",
+                description="Default tenant for new users",
+                is_active=True
+            )
+            self.db.add(default_tenant)
+            await self.db.commit()
+            await self.db.refresh(default_tenant)
+
+        return default_tenant.id

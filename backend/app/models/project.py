@@ -36,6 +36,9 @@ class Project(BaseModel):
     # Documents relationship
     documents = relationship("Document", back_populates="project")
 
+    # RBAC relationships
+    members = relationship("ProjectMember", back_populates="project")
+
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_project_tenant_name"),
     )

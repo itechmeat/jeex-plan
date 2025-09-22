@@ -5,7 +5,7 @@ Core application modules.
 from .config import settings
 from .database import get_db, create_tables
 from .logger import get_logger, log_function_call
-from .observability import setup_observability, get_tracer, get_meter
+# from .observability import setup_observability, get_tracer, get_meter  # Temporarily disabled
 
 __all__ = [
     "settings",
@@ -13,7 +13,7 @@ __all__ = [
     "create_tables",
     "get_logger",
     "log_function_call",
-    "setup_observability",
-    "get_tracer",
-    "get_meter",
+    # "setup_observability",
+    # "get_tracer",
+    # "get_meter",
 ]

@@ -161,8 +161,8 @@ npm run test
 
 ### Language Requirements (STRICT)
 - **ALL project files MUST be written in English only** - including code, comments, documentation, variable names, function names, commit messages, and any text within the codebase
-- **Exception**: Non-English markdown files that were originally created in another language (like `docs/specs.md` which is in Russian) should remain in their original language
-- **Chat Communication**: When users communicate in non-English languages in chat, respond in the same language they use - this rule applies ONLY to project files, not chat interactions
+- **Exception**: Non-English markdown files that were originally created in another language should remain in their original language
+- **Chat Communication**: ALWAYS respond in the same language the user is communicating in. If the user writes in any language other than English, respond in that exact language - this rule applies ONLY to project files remaining in English, not chat interactions
 - **No Mixed Languages**: Never mix English and non-English in the same file
 
 ### Package Version Requirements (ABSOLUTE PRIORITY)

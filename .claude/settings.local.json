@@ -38,10 +38,28 @@
       "Bash(timeout:*)",
       "Bash(xargs:*)",
       "Bash(make:*)",
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git clean:*)",
       "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "Bash(docker-compose exec:*)",
+      "Bash(docker-compose:*)",
+      "Bash(for i in {1..3})",
+      "Bash(do echo \"Request $i:\")",
+      "Bash(done)"
     ],
-    "deny": ["Bash(git:*)"],
+    "deny": [
+      "Bash(git:*)"
+    ],
     "ask": []
   }
 }

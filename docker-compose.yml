@@ -11,6 +11,11 @@ services:
       - "5210:8000"  # External:5210 -> Internal:8000
     environment:
       - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://postgres:secure_password@postgres:5432/jeex_plan
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - VAULT_URL=http://vault:8200
+      - VAULT_TOKEN=dev-token-jeex-plan
     volumes:
       - ./backend:/app
     depends_on:
