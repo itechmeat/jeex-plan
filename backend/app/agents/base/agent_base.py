@@ -35,7 +35,7 @@ class AgentBase(ABC):
         backstory: str,
         tools: Optional[List[Any]] = None,
         llm_config: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Initialize base agent."""
         self.name = name
         self.role = role
@@ -89,7 +89,9 @@ class AgentBase(ABC):
             system_template=self.get_system_prompt(context),
         )
 
-    def create_crew_task(self, agent: Agent, input_data: AgentInput, context_data: Dict[str, Any]) -> Task:
+    def create_crew_task(
+        self, agent: Agent, input_data: AgentInput, context_data: Dict[str, Any]
+    ) -> Task:
         """Create CrewAI task for agent execution."""
         task_description = self._build_task_description(input_data, context_data)
 
@@ -100,7 +102,9 @@ class AgentBase(ABC):
         )
 
     @abstractmethod
-    def _build_task_description(self, input_data: AgentInput, context_data: Dict[str, Any]) -> str:
+    def _build_task_description(
+        self, input_data: AgentInput, context_data: Dict[str, Any]
+    ) -> str:
         """Build task description for CrewAI."""
         pass
 
@@ -137,9 +141,12 @@ class AgentBase(ABC):
 
             # Execute the crew
             import math
+
             timeout_s = float(self.llm_config.get("timeout_seconds", 120))
             start = time.perf_counter()
-            result = await asyncio.wait_for(asyncio.to_thread(crew.kickoff), timeout=timeout_s)
+            result = await asyncio.wait_for(
+                asyncio.to_thread(crew.kickoff), timeout=timeout_s
+            )
             execution_time_ms = math.floor((time.perf_counter() - start) * 1000)
 
             # Parse and validate output
@@ -164,7 +171,9 @@ class AgentBase(ABC):
             # Already enriched; propagate as-is.
             raise
         except Exception as e:
-            execution_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            execution_time = int(
+                (datetime.utcnow() - start_time).total_seconds() * 1000
+            )
             self.logger.exception(
                 "Agent execution failed",
                 agent=self.name,
@@ -179,11 +188,15 @@ class AgentBase(ABC):
             ) from e
 
     @abstractmethod
-    async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> AgentOutput:
+    async def _parse_crew_result(
+        self, result: Any, execution_time_ms: int
+    ) -> AgentOutput:
         """Parse CrewAI execution result into typed output."""
         pass
 
-    def emit_progress(self, context: ProjectContext, step: str, progress: float, message: str) -> ProgressUpdate:
+    def emit_progress(
+        self, context: ProjectContext, step: str, progress: float, message: str
+    ) -> ProgressUpdate:
         """Emit progress update for streaming."""
         return ProgressUpdate(
             correlation_id=context.correlation_id,

@@ -77,8 +77,15 @@ class Settings(BaseSettings):
 
     # LLM Settings
     OPENAI_API_KEY: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
+    OPENAI_BASE_URL: Optional[str] = Field(default=None, env="OPENAI_BASE_URL")
     ANTHROPIC_API_KEY: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
     DEFAULT_LLM_MODEL: str = Field(default="gpt-4", env="DEFAULT_LLM_MODEL")
+
+    # Embedding Settings
+    EMBEDDING_MODEL: str = Field(default="text-embedding-3-small", env="EMBEDDING_MODEL")
+    EMBEDDING_MAX_CHUNK_SIZE: int = Field(default=1000, env="EMBEDDING_MAX_CHUNK_SIZE")
+    EMBEDDING_CHUNK_OVERLAP: int = Field(default=200, env="EMBEDDING_CHUNK_OVERLAP")
+    EMBEDDING_BATCH_SIZE: int = Field(default=10, env="EMBEDDING_BATCH_SIZE")
 
     # Observability
     ENABLE_OBSERVABILITY: bool = Field(default=False, env="ENABLE_OBSERVABILITY")

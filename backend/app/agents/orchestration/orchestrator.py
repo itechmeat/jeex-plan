@@ -31,6 +31,7 @@ logger = get_logger()
 
 class WorkflowStep(str, Enum):
     """Workflow step definitions."""
+
     BUSINESS_ANALYSIS = "business_analysis"
     ARCHITECTURE_DESIGN = "architecture_design"
     IMPLEMENTATION_PLANNING = "implementation_planning"
@@ -40,7 +41,7 @@ class WorkflowStep(str, Enum):
 class AgentOrchestrator:
     """Main orchestrator for agent workflow execution."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.agents: Dict[WorkflowStep, AgentBase] = {
             WorkflowStep.BUSINESS_ANALYSIS: BusinessAnalystAgent(),
             WorkflowStep.ARCHITECTURE_DESIGN: SolutionArchitectAgent(),
@@ -60,7 +61,9 @@ class AgentOrchestrator:
             self.logger.error(f"Failed to initialize orchestrator: {e}")
             raise
 
-    def register_progress_callback(self, correlation_id: str, callback: Callable[[ProgressUpdate], None]):
+    def register_progress_callback(
+        self, correlation_id: str, callback: Callable[[ProgressUpdate], None]
+    ):
         """Register progress callback for real-time updates."""
         self.progress_callbacks[correlation_id] = callback
 
@@ -89,7 +92,10 @@ class AgentOrchestrator:
 
             # Emit progress update
             await self._emit_progress(
-                context, f"Starting {step.value}", 0.0, f"Initializing {step.value} agent"
+                context,
+                f"Starting {step.value}",
+                0.0,
+                f"Initializing {step.value} agent",
             )
 
             # Get appropriate agent
@@ -119,7 +125,10 @@ class AgentOrchestrator:
 
             # Store result in vector database for future context
             await self._emit_progress(
-                context, f"Storing results", 0.8, f"Saving {step.value} output for future context"
+                context,
+                f"Storing results",
+                0.8,
+                f"Saving {step.value} output for future context",
             )
 
             await vector_context.store_agent_output(
@@ -145,7 +154,10 @@ class AgentOrchestrator:
             )
 
             await self._emit_progress(
-                context, f"Completed {step.value}", 1.0, f"{agent.name} execution completed successfully"
+                context,
+                f"Completed {step.value}",
+                1.0,
+                f"{agent.name} execution completed successfully",
             )
 
             self.logger.info(
@@ -171,7 +183,7 @@ class AgentOrchestrator:
                     score=0.0,
                     details={"error": str(e)},
                     missing_sections=[],
-                    suggestions=[]
+                    suggestions=[],
                 ),
                 metadata={"error": True, "error_message": str(e)},
                 processing_time_ms=exec_time_ms,
@@ -262,7 +274,9 @@ class AgentOrchestrator:
                 "Full workflow execution completed",
                 correlation_id=context.correlation_id,
                 total_steps=len(workflow_steps),
-                successful_steps=len([r for r in results.values() if r.status == "completed"]),
+                successful_steps=len(
+                    [r for r in results.values() if r.status == "completed"]
+                ),
             )
 
             return results
@@ -276,7 +290,9 @@ class AgentOrchestrator:
             )
             raise
 
-    async def _emit_progress(self, context: ProjectContext, step: str, progress: float, message: str):
+    async def _emit_progress(
+        self, context: ProjectContext, step: str, progress: float, message: str
+    ):
         """Emit progress update to registered callbacks."""
         update = ProgressUpdate(
             correlation_id=context.correlation_id,
@@ -310,8 +326,16 @@ class AgentOrchestrator:
             agent_count = len(self.agents)
 
             return {
-                "status": "healthy" if llm_healthy and vector_health.get("status") == "healthy" else "degraded",
-                "llm_providers": list(llm_manager.clients.keys()) if hasattr(llm_manager, 'clients') else [],
+                "status": (
+                    "healthy"
+                    if llm_healthy and vector_health.get("status") == "healthy"
+                    else "degraded"
+                ),
+                "llm_providers": (
+                    list(llm_manager.clients.keys())
+                    if hasattr(llm_manager, "clients")
+                    else []
+                ),
                 "vector_database": vector_health,
                 "available_agents": agent_count,
                 "workflow_steps": [step.value for step in WorkflowStep],

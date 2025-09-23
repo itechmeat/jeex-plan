@@ -50,7 +50,9 @@ async def test_business_analyst_basic():
             context_data = await agent.get_context_data(context)
             print("✅ Context data retrieval completed")
         except Exception as e:
-            print(f"⚠️  Context data retrieval failed (expected if vector DB not ready): {e}")
+            print(
+                f"⚠️  Context data retrieval failed (expected if vector DB not ready): {e}"
+            )
 
         print("✅ Business Analyst Agent basic tests passed!")
         return True
@@ -97,7 +99,10 @@ async def test_quality_control():
     print("\n🧪 Testing Quality Control...")
 
     try:
-        from app.agents.base.quality_control import MarkdownValidator, ReadabilityValidator
+        from app.agents.base.quality_control import (
+            MarkdownValidator,
+            ReadabilityValidator,
+        )
 
         # Test markdown validation
         md_validator = MarkdownValidator()
@@ -117,7 +122,9 @@ print("Hello, World!")
 ```
 """
         result = await md_validator.validate(test_content)
-        assert result.score > 0.3, f"Markdown validation should pass (got score: {result.score})"
+        assert (
+            result.score > 0.3
+        ), f"Markdown validation should pass (got score: {result.score})"
         print("✅ Markdown validation works")
 
         # Test readability validation
@@ -139,7 +146,12 @@ async def test_llm_client_imports():
     print("\n🧪 Testing LLM Client Imports...")
 
     try:
-        from app.agents.base.llm_client import LLMManager, OpenAIClient, AnthropicClient, CircuitBreaker
+        from app.agents.base.llm_client import (
+            LLMManager,
+            OpenAIClient,
+            AnthropicClient,
+            CircuitBreaker,
+        )
 
         # Test circuit breaker
         cb = CircuitBreaker(failure_threshold=3, timeout=60)

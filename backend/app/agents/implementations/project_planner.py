@@ -3,7 +3,7 @@ Project Planner Agent implementation.
 Handles implementation planning, task breakdown, and project roadmap.
 """
 
-from typing import Type, Dict, Any
+from typing import Type, Dict, Any, List
 
 from ..base.agent_base import AgentBase
 from ..base.vector_context import vector_context
@@ -15,7 +15,7 @@ from ..contracts.project_planner import ProjectPlannerInput, ProjectPlannerOutpu
 class ProjectPlannerAgent(AgentBase):
     """Project Planner specializing in implementation planning and roadmaps."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="Project Planner",
             role="Senior Project Manager & Technical Lead",
@@ -32,12 +32,19 @@ class ProjectPlannerAgent(AgentBase):
         return ProjectPlannerOutput
 
     async def validate_input(self, input_data: ProjectPlannerInput) -> None:
-        if not input_data.project_description or len(input_data.project_description.strip()) < 50:
+        if (
+            not input_data.project_description
+            or len(input_data.project_description.strip()) < 50
+        ):
             raise ValueError("Project description must be substantial for planning")
 
-    async def validate_output(self, output_data: ProjectPlannerOutput) -> ValidationResult:
+    async def validate_output(
+        self, output_data: ProjectPlannerOutput
+    ) -> ValidationResult:
         return await quality_controller.validate_agent_output(
-            output_data, "project_planner", output_data.metadata.get("correlation_id", "unknown")
+            output_data,
+            "project_planner",
+            output_data.metadata.get("correlation_id", "unknown"),
         )
 
     def get_system_prompt(self, context: ProjectContext) -> str:
@@ -86,9 +93,13 @@ class ProjectPlannerAgent(AgentBase):
 Create practical, actionable plans that teams can execute successfully."""
 
     async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
-        return await vector_context.get_previous_steps_context(context, context.current_step)
+        return await vector_context.get_previous_steps_context(
+            context, context.current_step
+        )
 
-    def _build_task_description(self, input_data: ProjectPlannerInput, context_data: Dict[str, Any]) -> str:
+    def _build_task_description(
+        self, input_data: ProjectPlannerInput, context_data: Dict[str, Any]
+    ) -> str:
         # NOTE: Task description uses basic template - could be enhanced with context-aware prompts
         return f"""Create a detailed implementation plan for this project:
 
@@ -101,15 +112,22 @@ Include realistic timelines, dependencies, and risk assessment."""
     def _get_expected_output_format(self) -> str:
         return """A comprehensive implementation plan with epic breakdown, timeline estimates, and risk analysis."""
 
-    async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> ProjectPlannerOutput:
+    async def _parse_crew_result(
+        self, result: Any, execution_time_ms: int
+    ) -> ProjectPlannerOutput:
         content = str(result)
 
         # NOTE: Structured parsing not yet implemented - returns basic output with empty structured fields
         return ProjectPlannerOutput(
             content=content,
             confidence_score=0.0,
-            validation_result=ValidationResult(passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]),
-            metadata={"execution_time_ms": execution_time_ms, "agent_type": "project_planner"},
+            validation_result=ValidationResult(
+                passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]
+            ),
+            metadata={
+                "execution_time_ms": execution_time_ms,
+                "agent_type": "project_planner",
+            },
             processing_time_ms=execution_time_ms,
             overview_strategy="",  # NOTE: Strategy extraction not implemented
             epics=[],  # NOTE: Epic parsing not implemented

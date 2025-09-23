@@ -24,6 +24,8 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
             "/api/v1/health",
             "/api/v1/auth/register",
             "/api/v1/auth/login",
+            "/api/v1/agents/health",
+            "/",
         )
         self.excluded_prefixes = tuple(excluded_path_prefixes or default_prefixes)
 

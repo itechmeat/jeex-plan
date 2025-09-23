@@ -3,19 +3,23 @@ Engineering Standards Agent implementation.
 Handles code quality standards, review processes, and technical guidelines.
 """
 
-from typing import Type, Dict, Any
+from typing import Type, Dict, Any, List
 
 from ..base.agent_base import AgentBase
 from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
 from ..contracts.base import ProjectContext, AgentInput, AgentOutput, ValidationResult
-from ..contracts.engineering_standards import EngineeringStandardsInput, EngineeringStandardsOutput, CodeStandard
+from ..contracts.engineering_standards import (
+    EngineeringStandardsInput,
+    EngineeringStandardsOutput,
+    CodeStandard,
+)
 
 
 class EngineeringStandardsAgent(AgentBase):
     """Engineering Standards specialist for code quality and best practices."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="Engineering Standards",
             role="Senior Software Engineer & Quality Lead",
@@ -33,11 +37,17 @@ class EngineeringStandardsAgent(AgentBase):
 
     async def validate_input(self, input_data: EngineeringStandardsInput) -> None:
         if not input_data.project_description or not input_data.technology_stack:
-            raise ValueError("Project description and technology stack are required for standards generation")
+            raise ValueError(
+                "Project description and technology stack are required for standards generation"
+            )
 
-    async def validate_output(self, output_data: EngineeringStandardsOutput) -> ValidationResult:
+    async def validate_output(
+        self, output_data: EngineeringStandardsOutput
+    ) -> ValidationResult:
         return await quality_controller.validate_agent_output(
-            output_data, "engineering_standards", output_data.metadata.get("correlation_id", "unknown")
+            output_data,
+            "engineering_standards",
+            output_data.metadata.get("correlation_id", "unknown"),
         )
 
     def get_system_prompt(self, context: ProjectContext) -> str:
@@ -89,9 +99,13 @@ class EngineeringStandardsAgent(AgentBase):
 Create practical, enforceable standards that improve quality without hindering productivity."""
 
     async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
-        return await vector_context.get_previous_steps_context(context, context.current_step)
+        return await vector_context.get_previous_steps_context(
+            context, context.current_step
+        )
 
-    def _build_task_description(self, input_data: EngineeringStandardsInput, context_data: Dict[str, Any]) -> str:
+    def _build_task_description(
+        self, input_data: EngineeringStandardsInput, context_data: Dict[str, Any]
+    ) -> str:
         # NOTE: Task description uses basic template - could be enhanced with technology-specific prompts
         tech_stack_str = ", ".join(input_data.technology_stack)
         return f"""Create comprehensive engineering standards for this project:
@@ -105,15 +119,22 @@ Focus on standards that can be automated and enforced through tooling."""
     def _get_expected_output_format(self) -> str:
         return """Complete engineering standards document with code guidelines, testing strategy, and quality processes."""
 
-    async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> EngineeringStandardsOutput:
+    async def _parse_crew_result(
+        self, result: Any, execution_time_ms: int
+    ) -> EngineeringStandardsOutput:
         content = str(result)
 
         # NOTE: Structured parsing not yet implemented - returns basic output with empty structured fields
         return EngineeringStandardsOutput(
             content=content,
             confidence_score=0.0,
-            validation_result=ValidationResult(passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]),
-            metadata={"execution_time_ms": execution_time_ms, "agent_type": "engineering_standards"},
+            validation_result=ValidationResult(
+                passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]
+            ),
+            metadata={
+                "execution_time_ms": execution_time_ms,
+                "agent_type": "engineering_standards",
+            },
             processing_time_ms=execution_time_ms,
             coding_standards=[],  # NOTE: Standards parsing not implemented
             review_process="",  # NOTE: Review process extraction not implemented

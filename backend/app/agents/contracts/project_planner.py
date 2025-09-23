@@ -16,7 +16,9 @@ class Epic(BaseModel):
     description: str = Field(..., description="Epic description and objectives")
     tasks: List[str] = Field(..., description="List of tasks within the epic")
     acceptance_criteria: List[str] = Field(..., description="Epic acceptance criteria")
-    dependencies: List[str] = Field(default_factory=list, description="Dependencies on other epics")
+    dependencies: List[str] = Field(
+        default_factory=list, description="Dependencies on other epics"
+    )
     estimated_effort: str = Field(..., description="Effort estimation (weeks/sprints)")
     risks: List[str] = Field(default_factory=list, description="Epic-specific risks")
 
@@ -25,10 +27,16 @@ class ProjectPlannerInput(AgentInput):
     """Input data for Project Planner agent."""
 
     project_description: str = Field(..., description="Complete project description")
-    architecture_overview: str = Field(..., description="Technical architecture from Solution Architect")
+    architecture_overview: str = Field(
+        ..., description="Technical architecture from Solution Architect"
+    )
     team_size: Optional[int] = Field(None, description="Development team size")
-    timeline_constraints: Optional[str] = Field(None, description="Timeline requirements")
-    priority_features: Optional[List[str]] = Field(None, description="High-priority features")
+    timeline_constraints: Optional[str] = Field(
+        None, description="Timeline requirements"
+    )
+    priority_features: Optional[List[str]] = Field(
+        None, description="High-priority features"
+    )
     mvp_requirements: Optional[str] = Field(None, description="MVP scope definition")
 
     model_config = {"extra": "forbid"}
@@ -37,13 +45,23 @@ class ProjectPlannerInput(AgentInput):
 class ProjectPlannerOutput(AgentOutput):
     """Output from Project Planner agent."""
 
-    overview_strategy: str = Field(..., description="High-level implementation strategy")
+    overview_strategy: str = Field(
+        ..., description="High-level implementation strategy"
+    )
     epics: List[Epic] = Field(..., description="List of implementation epics")
     timeline_estimate: str = Field(..., description="Overall timeline estimation")
-    critical_path: List[str] = Field(..., description="Critical path items and bottlenecks")
-    milestone_schedule: Dict[str, str] = Field(..., description="Key milestones and dates")
-    resource_requirements: List[str] = Field(..., description="Required resources and skills")
+    critical_path: List[str] = Field(
+        ..., description="Critical path items and bottlenecks"
+    )
+    milestone_schedule: Dict[str, str] = Field(
+        ..., description="Key milestones and dates"
+    )
+    resource_requirements: List[str] = Field(
+        ..., description="Required resources and skills"
+    )
     quality_gates: List[str] = Field(..., description="Quality checkpoints and reviews")
-    project_risks: List[str] = Field(..., description="Project-level risks and contingencies")
+    project_risks: List[str] = Field(
+        ..., description="Project-level risks and contingencies"
+    )
 
     model_config = {"extra": "forbid"}

@@ -53,18 +53,16 @@ class VectorContextRetriever:
             search_filter = Filter(
                 must=[
                     FieldCondition(
-                        key="tenant_id",
-                        match=MatchValue(value=context.tenant_id)
+                        key="tenant_id", match=MatchValue(value=context.tenant_id)
                     ),
                     FieldCondition(
-                        key="project_id",
-                        match=MatchValue(value=context.project_id)
+                        key="project_id", match=MatchValue(value=context.project_id)
                     ),
                 ]
             )
 
-            # Perform vector search
-            search_results = await self.client.search(
+            # Perform text-based query search
+            search_results = await self.client.query(
                 collection_name=self.collection_name,
                 query_text=query,
                 query_filter=search_filter,
@@ -89,9 +87,11 @@ class VectorContextRetriever:
                     "version": payload.get("version", "1"),
                     "score": result.score,
                     "metadata": {
-                        k: v for k, v in payload.items()
-                        if k not in ["text", "type", "version", "tenant_id", "project_id"]
-                    }
+                        k: v
+                        for k, v in payload.items()
+                        if k
+                        not in ["text", "type", "version", "tenant_id", "project_id"]
+                    },
                 }
 
                 context_data["documents"].append(document_data)
@@ -237,10 +237,10 @@ class VectorContextRetriever:
                 "collection_name": self.collection_name,
             }
 
-        except Exception as e:
+        except Exception:
+            self.logger.exception("Vector health check failed")
             return {
                 "status": "unhealthy",
-                "error": str(e),
                 "collection_name": self.collection_name,
             }
 

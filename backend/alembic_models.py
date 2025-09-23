@@ -7,7 +7,7 @@ import sys
 import os
 
 # Minimal imports to avoid loading the entire application during migrations
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, DateTime, Boolean, ForeignKey, func, String, Text, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 import uuid

@@ -4,19 +4,23 @@ Specializes in technical architecture, technology stack, and system design.
 """
 
 import json
-from typing import Type, Dict, Any
+from typing import Type, Dict, Any, List
 
 from ..base.agent_base import AgentBase
 from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
 from ..contracts.base import ProjectContext, AgentInput, AgentOutput, ValidationResult
-from ..contracts.solution_architect import SolutionArchitectInput, SolutionArchitectOutput, TechnologyChoice
+from ..contracts.solution_architect import (
+    SolutionArchitectInput,
+    SolutionArchitectOutput,
+    TechnologyChoice,
+)
 
 
 class SolutionArchitectAgent(AgentBase):
     """Solution Architect specializing in technical architecture and system design."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="Solution Architect",
             role="Senior Solution Architect",
@@ -33,12 +37,21 @@ class SolutionArchitectAgent(AgentBase):
         return SolutionArchitectOutput
 
     async def validate_input(self, input_data: SolutionArchitectInput) -> None:
-        if not input_data.project_description or len(input_data.project_description.strip()) < 50:
-            raise ValueError("Project description must be at least 50 characters for architecture analysis")
+        if (
+            not input_data.project_description
+            or len(input_data.project_description.strip()) < 50
+        ):
+            raise ValueError(
+                "Project description must be at least 50 characters for architecture analysis"
+            )
 
-    async def validate_output(self, output_data: SolutionArchitectOutput) -> ValidationResult:
+    async def validate_output(
+        self, output_data: SolutionArchitectOutput
+    ) -> ValidationResult:
         return await quality_controller.validate_agent_output(
-            output_data, "solution_architect", output_data.metadata.get("correlation_id", "unknown")
+            output_data,
+            "solution_architect",
+            output_data.metadata.get("correlation_id", "unknown"),
         )
 
     def get_system_prompt(self, context: ProjectContext) -> str:
@@ -93,9 +106,13 @@ Focus on practical, implementable solutions that balance complexity with busines
 
     async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
         # Get business context from previous step
-        return await vector_context.get_previous_steps_context(context, context.current_step)
+        return await vector_context.get_previous_steps_context(
+            context, context.current_step
+        )
 
-    def _build_task_description(self, input_data: SolutionArchitectInput, context_data: Dict[str, Any]) -> str:
+    def _build_task_description(
+        self, input_data: SolutionArchitectInput, context_data: Dict[str, Any]
+    ) -> str:
         # NOTE: Task description uses basic template - could be enhanced with context-aware prompts
         return f"""Design a comprehensive technical architecture for the following project:
 
@@ -110,15 +127,22 @@ Create a detailed technical architecture document with technology recommendation
     def _get_expected_output_format(self) -> str:
         return """A comprehensive technical architecture document including technology stack, component design, scalability strategy, and deployment approach."""
 
-    async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> SolutionArchitectOutput:
+    async def _parse_crew_result(
+        self, result: Any, execution_time_ms: int
+    ) -> SolutionArchitectOutput:
         content = str(result)
 
         # NOTE: Structured parsing not yet implemented - returns basic output with empty structured fields
         return SolutionArchitectOutput(
             content=content,
             confidence_score=0.0,
-            validation_result=ValidationResult(passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]),
-            metadata={"execution_time_ms": execution_time_ms, "agent_type": "solution_architect"},
+            validation_result=ValidationResult(
+                passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]
+            ),
+            metadata={
+                "execution_time_ms": execution_time_ms,
+                "agent_type": "solution_architect",
+            },
             processing_time_ms=execution_time_ms,
             technology_stack=[],  # NOTE: Structured extraction not implemented
             architecture_pattern="",  # NOTE: Pattern extraction not implemented

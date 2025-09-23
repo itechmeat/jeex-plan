@@ -36,12 +36,14 @@ def _retryable_exc(e: Exception) -> bool:
 
 class LLMProvider(str, Enum):
     """Supported LLM providers."""
+
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
 
 
 class CircuitBreakerState(str, Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -108,7 +110,9 @@ class CircuitBreaker:
 class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
-    def __init__(self, provider: LLMProvider, circuit_breaker: Optional[CircuitBreaker] = None):
+    def __init__(
+        self, provider: LLMProvider, circuit_breaker: Optional[CircuitBreaker] = None
+    ):
         self.provider = provider
         self.circuit_breaker = circuit_breaker or CircuitBreaker()
         self.logger = get_logger(f"llm.{provider}")
@@ -168,7 +172,12 @@ class LLMClient(ABC):
 class OpenAIClient(LLMClient):
     """OpenAI API client with retry and circuit breaker."""
 
-    def __init__(self, api_key: Optional[str] = None, circuit_breaker: Optional[CircuitBreaker] = None, request_timeout_s: float = 30.0):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        circuit_breaker: Optional[CircuitBreaker] = None,
+        request_timeout_s: float = 30.0,
+    ):
         super().__init__(LLMProvider.OPENAI, circuit_breaker)
         self.api_key = api_key
         self.base_url = "https://api.openai.com/v1"
@@ -264,7 +273,10 @@ class OpenAIClient(LLMClient):
                 message=f"OpenAI API HTTP error: {e.response.status_code}",
                 agent_type="openai_client",
                 correlation_id=correlation_id,
-                details={"status_code": e.response.status_code, "response_truncated": truncated},
+                details={
+                    "status_code": e.response.status_code,
+                    "response_truncated": truncated,
+                },
             ) from e
         except httpx.RequestError as e:
             self.logger.exception(
@@ -282,7 +294,12 @@ class OpenAIClient(LLMClient):
 class AnthropicClient(LLMClient):
     """Anthropic/Claude API client with retry and circuit breaker."""
 
-    def __init__(self, api_key: Optional[str] = None, circuit_breaker: Optional[CircuitBreaker] = None, request_timeout_s: float = 30.0):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        circuit_breaker: Optional[CircuitBreaker] = None,
+        request_timeout_s: float = 30.0,
+    ):
         super().__init__(LLMProvider.ANTHROPIC, circuit_breaker)
         self.api_key = api_key
         self.base_url = "https://api.anthropic.com/v1"
@@ -390,7 +407,10 @@ class AnthropicClient(LLMClient):
                 message=f"Anthropic API HTTP error: {e.response.status_code}",
                 agent_type="anthropic_client",
                 correlation_id=correlation_id,
-                details={"status_code": e.response.status_code, "response_truncated": truncated},
+                details={
+                    "status_code": e.response.status_code,
+                    "response_truncated": truncated,
+                },
             ) from e
         except httpx.RequestError as e:
             self.logger.exception(
@@ -492,19 +512,19 @@ class LLMManager:
         if provider == LLMProvider.OPENAI:
             # Try environment variable, then fallback to current recommended models
             return (
-                os.getenv("OPENAI_DEFAULT_MODEL") or
-                "gpt-4o" or  # Current recommended model
-                "gpt-4.1" or  # Alternative if gpt-4o not available
-                "gpt-4"  # Legacy fallback
+                os.getenv("OPENAI_DEFAULT_MODEL")
+                or "gpt-4o"  # Current recommended model
+                or "gpt-4.1"  # Alternative if gpt-4o not available
+                or "gpt-4"  # Legacy fallback
             )
         elif provider == LLMProvider.ANTHROPIC:
             # Try environment variable, then fallback to current recommended models
             return (
-                os.getenv("ANTHROPIC_DEFAULT_MODEL") or
-                "claude-sonnet-4" or  # Current recommended model
-                "claude-opus-4" or  # Alternative high-end model
-                "claude-sonnet-4-20250514" or  # Dated version fallback
-                "claude-3-sonnet-20240229"  # Legacy fallback
+                os.getenv("ANTHROPIC_DEFAULT_MODEL")
+                or "claude-sonnet-4"  # Current recommended model
+                or "claude-opus-4"  # Alternative high-end model
+                or "claude-sonnet-4-20250514"  # Dated version fallback
+                or "claude-3-sonnet-20240229"  # Legacy fallback
             )
         else:
             return "gpt-4"  # Default fallback
