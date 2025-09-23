@@ -87,7 +87,13 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             "/redoc",
             "/openapi.json",
             "/health",
-            "/auth/",  # All auth endpoints are stateless JWT-based
+            # Specific stateless auth endpoints that don't set cookies
+            "/auth/register",
+            "/auth/login",
+            "/auth/refresh",
+            "/auth/validate-token",
+            "/auth/change-password",
+            # Note: /auth/oauth/callback excluded because it sets cookies
         ]
         self.state_changing_methods = {"POST", "PUT", "PATCH", "DELETE"}
 

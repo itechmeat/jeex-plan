@@ -59,9 +59,11 @@ def upgrade() -> None:
         sa.UniqueConstraint('tenant_id', 'name', name='uq_role_tenant_name')
     )
 
-    # Create unique indexes for composite foreign key references (must be before role_permissions table)
+    # Create unique indexes for composite foreign key references (must be before association tables)
     op.create_index('ix_roles_tenant_id_unique', 'roles', ['tenant_id', 'id'], unique=True)
     op.create_index('ix_permissions_tenant_id_unique', 'permissions', ['tenant_id', 'id'], unique=True)
+    op.create_index('ix_users_tenant_id_unique', 'users', ['tenant_id', 'id'], unique=True)
+    op.create_index('ix_projects_tenant_id_unique', 'projects', ['tenant_id', 'id'], unique=True)
 
     # Create role_permissions association table
     op.create_table('role_permissions',
@@ -89,11 +91,11 @@ def upgrade() -> None:
         sa.Column('invited_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('joined_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
-        sa.ForeignKeyConstraint(['invited_by_id'], ['users.id']),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['tenant_id', 'project_id'], ['projects.tenant_id', 'projects.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['tenant_id', 'user_id'], ['users.tenant_id', 'users.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['tenant_id', 'role_id'], ['roles.tenant_id', 'roles.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['tenant_id', 'invited_by_id'], ['users.tenant_id', 'users.id']),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('tenant_id', 'project_id', 'user_id', name='uq_project_member_tenant_project_user')
     )
@@ -199,6 +201,8 @@ def downgrade() -> None:
     # Drop unique composite indexes for foreign keys
     op.drop_index('ix_roles_tenant_id_unique', 'roles')
     op.drop_index('ix_permissions_tenant_id_unique', 'permissions')
+    op.drop_index('ix_users_tenant_id_unique', 'users')
+    op.drop_index('ix_projects_tenant_id_unique', 'projects')
 
     # Drop tables in reverse order (due to foreign keys)
     op.drop_table('project_members')

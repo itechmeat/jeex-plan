@@ -10,7 +10,6 @@ from fastapi import HTTPException, status
 
 from ..core.auth import AuthService
 from ..models.user import User
-from ..models.tenant import Tenant
 from ..repositories.user import UserRepository
 from ..repositories.tenant import TenantRepository
 
@@ -134,6 +133,12 @@ class UserService:
 
     async def get_user_profile(self, user_id: uuid.UUID) -> User:
         """Get user profile by ID."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized"
+            )
+
         user = await self.user_repo.get_by_id(user_id)
 
         if not user:
@@ -150,6 +155,11 @@ class UserService:
         **updates
     ) -> User:
         """Update user profile."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized"
+            )
 
         # Remove sensitive fields that shouldn't be updated directly
         sensitive_fields = {
@@ -203,6 +213,11 @@ class UserService:
         new_password: str
     ) -> bool:
         """Change user password."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized"
+            )
 
         user = await self.user_repo.get_by_id(user_id)
 
@@ -262,6 +277,11 @@ class UserService:
         active_only: bool = True
     ) -> List[User]:
         """Get list of users with optional search."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized"
+            )
 
         if search:
             return await self.user_repo.search_users(search, skip, limit)
@@ -327,14 +347,6 @@ class UserService:
         default_tenant = await self.tenant_repo.get_by_slug("default")
 
         if not default_tenant:
-            default_tenant = Tenant(
-                name="Default Tenant",
-                slug="default",
-                description="Default tenant for new users",
-                is_active=True
-            )
-            self.db.add(default_tenant)
-            await self.db.commit()
-            await self.db.refresh(default_tenant)
+            default_tenant = await self.tenant_repo.create_default()
 
         return default_tenant.id
