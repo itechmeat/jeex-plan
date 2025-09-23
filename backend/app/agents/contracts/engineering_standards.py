@@ -3,8 +3,8 @@ Engineering Standards agent contracts.
 Handles code quality standards, review processes, and technical guidelines.
 """
 
-from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+from typing import Dict, List, Optional, Any, ClassVar
+from pydantic import BaseModel, Field, ConfigDict
 from .base import AgentInput, AgentOutput
 
 
@@ -38,7 +38,7 @@ class EngineeringStandardsInput(AgentInput):
         None, description="Compliance requirements"
     )
 
-    model_config = {"extra": "forbid"}
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 
 class EngineeringStandardsOutput(AgentOutput):
@@ -63,4 +63,4 @@ class EngineeringStandardsOutput(AgentOutput):
         default_factory=dict, description="Recommended tools by category"
     )
 
-    model_config = {"extra": "forbid"}
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")

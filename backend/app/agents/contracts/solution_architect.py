@@ -3,8 +3,8 @@ Solution Architect agent contracts.
 Handles technical architecture, technology stack, and system design.
 """
 
-from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+from typing import Dict, List, Optional, Any, ClassVar
+from pydantic import BaseModel, Field, ConfigDict
 from .base import AgentInput, AgentOutput
 
 
@@ -24,7 +24,7 @@ class SolutionArchitectInput(AgentInput):
     timeline: Optional[str] = Field(None, description="Project timeline constraints")
     budget_constraints: Optional[str] = Field(None, description="Budget limitations")
 
-    model_config = {"extra": "forbid"}
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 
 class TechnologyChoice(BaseModel):
@@ -69,4 +69,4 @@ class SolutionArchitectOutput(AgentOutput):
         ..., description="Technical risks and mitigation strategies"
     )
 
-    model_config = {"extra": "forbid"}
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")

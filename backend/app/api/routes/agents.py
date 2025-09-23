@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional, AsyncGenerator
 from fastapi import APIRouter, HTTPException, Depends, Security, status
 from fastapi.security import APIKeyHeader
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.agents.contracts.base import ProjectContext
@@ -282,18 +282,26 @@ async def agent_health_check():
     """Health check for agent system."""
     try:
         health = await orchestrator.health_check()
-        return {
-            "status": "healthy",
-            "agent_system": health,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+        status_str = health.get("status", "unhealthy")
+        code = 200 if status_str == "healthy" else 503
+        return JSONResponse(
+            content={
+                "status": status_str,
+                "agent_system": health,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            status_code=code,
+        )
     except Exception:
         logger.exception("Agent health check failed")
-        return {
-            "status": "unhealthy",
-            "agent_system": {"status": "unhealthy"},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+        return JSONResponse(
+            content={
+                "status": "unhealthy",
+                "agent_system": {"status": "unhealthy"},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            status_code=503,
+        )
 
 
 class FullWorkflowRequest(BaseModel):

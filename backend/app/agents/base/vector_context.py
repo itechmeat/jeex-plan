@@ -12,6 +12,8 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from app.core.config import settings
 from app.core.logger import get_logger
+# Lazy import of EmbeddingService to avoid initialization issues
+from app.adapters.qdrant import QdrantAdapter
 from ..contracts.base import ProjectContext, ContextRetrievalError
 
 logger = get_logger()
@@ -24,6 +26,8 @@ class VectorContextRetriever:
         self.client: Optional[AsyncQdrantClient] = None
         self.collection_name = settings.QDRANT_COLLECTION
         self.logger = get_logger("vector_context")
+        self._embedding_service = None
+        self._qdrant_adapter: Optional[QdrantAdapter] = None
 
     async def initialize(self):
         """Initialize Qdrant client."""
@@ -175,28 +179,57 @@ class VectorContextRetriever:
         metadata: Optional[Dict[str, Any]] = None,
     ):
         """Store agent output in vector database for future context."""
-        if not self.client:
-            await self.initialize()
-
         try:
-            payload = {
+            # Generate embeddings for the content
+            embedding_metadata = {
                 "tenant_id": context.tenant_id,
                 "project_id": context.project_id,
-                "type": "memory",
-                "agent_type": agent_type,
-                "step": context.current_step,
-                "text": content,
-                "version": "1",
-                "lang": context.language,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "correlation_id": context.correlation_id,
                 **(metadata or {}),
             }
 
-            # Generate embedding and store
-            await self.client.add(
-                collection_name=self.collection_name,
-                documents=[content],
-                metadata=[payload],
+            # Initialize embedding service lazily
+            if self._embedding_service is None:
+                from app.services.embedding import EmbeddingService
+                self._embedding_service = EmbeddingService()
+
+            embedding_result = await self._embedding_service.process_document(
+                text=content, doc_type="memory", metadata=embedding_metadata
+            )
+
+            # Prepare payloads for each chunk
+            payloads = []
+            vectors = []
+
+            for chunk, embedding in zip(
+                embedding_result.chunks, embedding_result.embeddings
+            ):
+                chunk_payload = {
+                    "text": chunk.text,
+                    "agent_type": agent_type,
+                    "step": context.current_step,
+                    "chunk_index": chunk.chunk_index,
+                    "start_char": chunk.start_char,
+                    "end_char": chunk.end_char,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    **(metadata or {}),
+                }
+                payloads.append(chunk_payload)
+                vectors.append(embedding)
+
+            # Initialize Qdrant adapter lazily
+            if self._qdrant_adapter is None:
+                self._qdrant_adapter = QdrantAdapter()
+
+            result = await self._qdrant_adapter.upsert_points(
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                vectors=vectors,
+                payloads=payloads,
+                doc_type="memory",
+                visibility="private",
+                version="1",
+                lang=context.language,
             )
 
             self.logger.info(
@@ -206,6 +239,8 @@ class VectorContextRetriever:
                 project_id=context.project_id,
                 correlation_id=context.correlation_id,
                 content_length=len(content),
+                chunks_count=len(embedding_result.chunks),
+                points_stored=result.get("points_count", 0),
             )
 
         except Exception as e:

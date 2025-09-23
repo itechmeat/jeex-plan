@@ -6,7 +6,7 @@ Defines core types and validation for agent communication.
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Union
 from pydantic import BaseModel, Field, validator
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -101,7 +101,8 @@ class ProgressUpdate(BaseModel):
         None, description="Additional progress details"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Update timestamp"
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Update timestamp",
     )
 
 

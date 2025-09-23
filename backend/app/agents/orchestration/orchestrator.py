@@ -3,7 +3,9 @@ Agent Orchestrator - manages agent execution and workflow coordination.
 """
 
 import asyncio
-from typing import Dict, Any, Optional, Callable
+import inspect
+import os
+from typing import Dict, Any, Callable
 from datetime import datetime
 from enum import Enum
 
@@ -51,6 +53,16 @@ class AgentOrchestrator:
         self.logger = get_logger("agent_orchestrator")
         self.progress_callbacks: Dict[str, Callable] = {}
 
+        # Configurable step pause - can be disabled by setting to 0
+        try:
+            self.step_pause_seconds = float(
+                os.getenv("JEEX_ORCH_STEP_PAUSE_SECONDS", "1.0")
+            )
+            if self.step_pause_seconds < 0:
+                self.step_pause_seconds = 1.0
+        except (ValueError, TypeError):
+            self.step_pause_seconds = 1.0
+
     async def initialize(self):
         """Initialize orchestrator and dependencies."""
         try:
@@ -83,7 +95,7 @@ class AgentOrchestrator:
 
         try:
             self.logger.info(
-                f"Starting workflow step execution",
+                "Starting workflow step execution",
                 step=step.value,
                 correlation_id=correlation_id,
                 tenant_id=context.tenant_id,
@@ -93,9 +105,9 @@ class AgentOrchestrator:
             # Emit progress update
             await self._emit_progress(
                 context,
-                f"Starting {step.value}",
+                "Starting {}".format(step.value),
                 0.0,
-                f"Initializing {step.value} agent",
+                "Initializing {} agent".format(step.value),
             )
 
             # Get appropriate agent
@@ -111,7 +123,11 @@ class AgentOrchestrator:
             expected_input_type = agent.get_input_model()
             if not isinstance(input_data, expected_input_type):
                 raise AgentError(
-                    message=f"Invalid input type for {step.value}: expected {expected_input_type.__name__}",
+                    message=(
+                        "Invalid input type for {}: expected {}".format(
+                            step.value, expected_input_type.__name__
+                        )
+                    ),
                     agent_type="orchestrator",
                     correlation_id=correlation_id,
                 )
@@ -126,9 +142,9 @@ class AgentOrchestrator:
             # Store result in vector database for future context
             await self._emit_progress(
                 context,
-                f"Storing results",
+                "Storing results",
                 0.8,
-                f"Saving {step.value} output for future context",
+                "Saving {} output for future context".format(step.value),
             )
 
             await vector_context.store_agent_output(
@@ -155,13 +171,13 @@ class AgentOrchestrator:
 
             await self._emit_progress(
                 context,
-                f"Completed {step.value}",
+                "Completed {}".format(step.value),
                 1.0,
-                f"{agent.name} execution completed successfully",
+                "{} execution completed successfully".format(agent.name),
             )
 
             self.logger.info(
-                f"Workflow step completed successfully",
+                "Workflow step completed successfully",
                 step=step.value,
                 correlation_id=correlation_id,
                 execution_time_ms=execution_result.execution_time_ms,
@@ -200,7 +216,7 @@ class AgentOrchestrator:
             )
 
             await self._emit_progress(
-                context, f"Failed {step.value}", 0.0, "Execution failed"
+                context, "Failed {}".format(step.value), 0.0, "Execution failed"
             )
 
             self.logger.exception(
@@ -254,11 +270,15 @@ class AgentOrchestrator:
                 # Get input for this step
                 step_input = step_inputs.get(step)
                 if step_input is None:
-                    # NOTE: Automatic input generation from previous steps not implemented
-                    # This requires parsing previous step outputs and extracting relevant information
+                    # NOTE: Automatic input generation from previous steps
+                    #       not implemented
+                    # This requires parsing previous step outputs and extracting
+                    #       relevant information
                     # For now, explicit input is required for each step
                     raise AgentError(
-                        message=f"No input provided for step {step.value}",
+                        message="No input provided for step {}".format(
+                            step.value
+                        ),
                         agent_type="orchestrator",
                         correlation_id=context.correlation_id,
                     )
@@ -267,8 +287,9 @@ class AgentOrchestrator:
                 result = await self.execute_step(step, current_context, step_input)
                 results[step] = result
 
-                # Brief pause between steps for system stability
-                await asyncio.sleep(1)
+                # Optional brief pause between steps for system stability
+                if self.step_pause_seconds > 0:
+                    await asyncio.sleep(self.step_pause_seconds)
 
             self.logger.info(
                 "Full workflow execution completed",
@@ -305,7 +326,12 @@ class AgentOrchestrator:
         callback = self.progress_callbacks.get(context.correlation_id)
         if callback:
             try:
-                await callback(update)
+                if inspect.iscoroutinefunction(callback):
+                    await callback(update)
+                else:
+                    # Handle sync callback in executor to avoid blocking
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, callback, update)
             except Exception as e:
                 self.logger.warning(
                     "Progress callback failed",
