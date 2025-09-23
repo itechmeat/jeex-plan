@@ -77,6 +77,10 @@ class QdrantAdapter(LoggerMixin):
                 # Collection doesn't exist, create it
                 pass
 
+            # Get optimized HNSW configuration for multi-tenancy
+            from app.core.hnsw_config import hnsw_configurator
+            hnsw_config = hnsw_configurator.get_optimized_config_for_tenant_isolation()
+
             # Create collection with multi-tenancy optimized configuration
             self.client.create_collection(
                 collection_name=self.collection_name,
@@ -84,27 +88,47 @@ class QdrantAdapter(LoggerMixin):
                     size=1536,  # OpenAI embedding size
                     distance=Distance.COSINE
                 ),
-                hnsw_config={
-                    "m": 0,  # Disable global graph for multi-tenancy
-                    "payload_m": 16  # Create payload-specific connections
+                hnsw_config=hnsw_config,
+                optimizers_config={
+                    "deleted_threshold": 0.2,
+                    "vacuum_min_vector_number": 1000,
+                    "default_segment_number": 2,
+                    "max_segment_size": None,
+                    "memmap_threshold": 50000,
+                    "indexing_threshold": 10000
                 }
             )
 
-            # Create payload index for tenant isolation
-            self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="tenant_id",
-                field_schema="keyword",
-                field_type="keyword"
+            logger.info(
+                "Collection created with optimized HNSW config",
+                hnsw_config=hnsw_configurator.get_configuration_summary(hnsw_config)
             )
 
-            # Create payload index for project isolation
-            self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="project_id",
-                field_schema="keyword",
-                field_type="keyword"
-            )
+            # Create payload indexes for multi-tenant filtering
+            payload_fields = [
+                ("tenant_id", "keyword"),
+                ("project_id", "keyword"),
+                ("type", "keyword"),
+                ("visibility", "keyword"),
+                ("lang", "keyword"),
+                ("version", "keyword")
+            ]
+
+            for field_name, field_schema in payload_fields:
+                try:
+                    self.client.create_payload_index(
+                        collection_name=self.collection_name,
+                        field_name=field_name,
+                        field_schema=field_schema,
+                        field_type=field_schema
+                    )
+                    logger.info("Created payload index", field=field_name)
+                except Exception as index_error:
+                    logger.warning(
+                        "Failed to create payload index",
+                        field=field_name,
+                        error=str(index_error)
+                    )
 
             logger.info("Collection created successfully", collection=self.collection_name)
 
@@ -117,7 +141,11 @@ class QdrantAdapter(LoggerMixin):
         tenant_id: str,
         project_id: str,
         vectors: List[List[float]],
-        payloads: List[Dict[str, Any]]
+        payloads: List[Dict[str, Any]],
+        doc_type: str = "knowledge",
+        visibility: str = "private",
+        version: str = "1.0",
+        lang: str = "en"
     ) -> Dict[str, Any]:
         """
         Upsert vector points with tenant and project isolation.
@@ -127,6 +155,10 @@ class QdrantAdapter(LoggerMixin):
             project_id: Project identifier
             vectors: List of embedding vectors
             payloads: List of payload dictionaries
+            doc_type: Type of document ('knowledge' or 'memory')
+            visibility: Document visibility ('private' or 'public')
+            version: Document version
+            lang: Document language (ISO 639-1)
         """
         try:
             await self.ensure_collection_exists()
@@ -138,15 +170,20 @@ class QdrantAdapter(LoggerMixin):
                     **payload,
                     "tenant_id": tenant_id,
                     "project_id": project_id,
+                    "type": doc_type,
+                    "visibility": visibility,
+                    "version": version,
+                    "lang": lang,
                     "created_at": self._get_current_timestamp(),
                     "vector_index": i
                 }
                 enriched_payloads.append(enriched_payload)
 
-            # Create point structures
+            # Create point structures with UUID-style IDs
+            import uuid
             points = [
                 PointStruct(
-                    id=f"{tenant_id}_{project_id}_{i}",
+                    id=str(uuid.uuid4()),
                     vector=vector,
                     payload=payload
                 )
@@ -164,13 +201,16 @@ class QdrantAdapter(LoggerMixin):
                 "Points upserted successfully",
                 tenant_id=tenant_id,
                 project_id=project_id,
+                doc_type=doc_type,
                 count=len(points)
             )
 
             return {
                 "status": "success",
                 "points_count": len(points),
-                "operation_id": operation_info.operation_id
+                "operation_id": operation_info.operation_id,
+                "doc_type": doc_type,
+                "visibility": visibility
             }
 
         except Exception as e:

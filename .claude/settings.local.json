@@ -52,7 +52,10 @@
       "Bash(do:*)",
       "Bash(echo:*)",
       "Bash(REDIS_PASSWORD=<REDACTED> docker-compose config:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "WebFetch(domain:qdrant.tech)",
+      "WebFetch(domain:www.pinecone.io)",
+      "WebFetch(domain:weaviate.io)"
     ],
     "deny": [
       "Bash(git checkout:*)",
