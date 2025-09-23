@@ -309,7 +309,7 @@ async def generate_progress_stream(workflow_id: str, context: ProjectContext, in
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 1, 'status': 'completed', 'confidence': ba_result.get('confidence_score', 0.8)})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': 'Business analysis failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Step 2: Architecture Design
@@ -325,7 +325,7 @@ async def generate_progress_stream(workflow_id: str, context: ProjectContext, in
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 2, 'status': 'completed', 'confidence': arch_result.get('confidence_score', 0.8)})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': 'Architecture design failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Step 3: Implementation Planning
@@ -342,7 +342,7 @@ async def generate_progress_stream(workflow_id: str, context: ProjectContext, in
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 3, 'status': 'completed', 'confidence': planning_result.get('confidence_score', 0.8)})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': 'Implementation planning failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Step 4: Engineering Standards
@@ -353,10 +353,44 @@ async def generate_progress_stream(workflow_id: str, context: ProjectContext, in
         try:
             # Extract technology stack from architecture result for standards step
             tech_stack: list[str] = []
-            # NOTE: Technology stack parsing not implemented
             if arch_result.get("content"):
-                # TODO: Parse technology stack from architecture content
-                pass
+                content = arch_result["content"]
+
+                # Try to parse as JSON array first
+                try:
+                    import json
+                    parsed = json.loads(content)
+                    if isinstance(parsed, list) and all(isinstance(item, str) for item in parsed):
+                        tech_stack = parsed
+                except (json.JSONDecodeError, TypeError):
+                    # Parse text content for technology stack section
+                    content_lower = content.lower()
+                    # Look for technology stack indicators
+                    indicators = ["technology stack:", "tech stack:", "technologies:", "stack:", "технологии:"]
+
+                    for indicator in indicators:
+                        if indicator in content_lower:
+                            # Find the indicator and extract content after it
+                            start_idx = content_lower.find(indicator) + len(indicator)
+                            # Find next section or end of content
+                            end_idx = len(content)
+                            for next_section in ["##", "---", "architecture", "implementation", "standards"]:
+                                next_idx = content_lower.find(next_section, start_idx)
+                                if next_idx != -1 and next_idx < end_idx:
+                                    end_idx = next_idx
+
+                            # Extract and clean the technology stack text
+                            tech_text = content[start_idx:end_idx].strip()
+                            # Split by common separators and clean
+                            import re
+                            tech_items = re.split(r'[,;\n\r]|and |& ', tech_text)
+                            tech_stack = [
+                                item.strip().rstrip('.').rstrip(')').rstrip('(')
+                                for item in tech_items
+                                if item.strip() and len(item.strip()) > 2
+                            ]
+                            break
+
             if not tech_stack:
                 raise ValueError("Unable to determine technology stack from architecture result")
 
@@ -368,7 +402,7 @@ async def generate_progress_stream(workflow_id: str, context: ProjectContext, in
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 4, 'status': 'completed', 'confidence': standards_result.get('confidence_score', 0.8)})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': 'Engineering standards failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Workflow complete
@@ -406,12 +440,11 @@ async def execute_full_workflow_stream(
 
     return StreamingResponse(
         generate_progress_stream(workflow_id, context, input_data),
-        media_type="text/plain",
+        media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Content-Type": "text/event-stream",
-        }
+        },
     )
 
 

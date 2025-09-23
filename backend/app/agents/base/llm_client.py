@@ -3,6 +3,7 @@ LLM client with retry logic and circuit breakers.
 Supports multiple LLM providers with failover.
 """
 
+import os
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 from enum import Enum
@@ -167,10 +168,11 @@ class LLMClient(ABC):
 class OpenAIClient(LLMClient):
     """OpenAI API client with retry and circuit breaker."""
 
-    def __init__(self, api_key: Optional[str] = None, circuit_breaker: Optional[CircuitBreaker] = None):
+    def __init__(self, api_key: Optional[str] = None, circuit_breaker: Optional[CircuitBreaker] = None, request_timeout_s: float = 30.0):
         super().__init__(LLMProvider.OPENAI, circuit_breaker)
         self.api_key = api_key
         self.base_url = "https://api.openai.com/v1"
+        self.request_timeout_s = request_timeout_s
 
     async def generate(
         self,
@@ -223,7 +225,7 @@ class OpenAIClient(LLMClient):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.request_timeout_s) as client:
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     json=payload,
@@ -280,10 +282,11 @@ class OpenAIClient(LLMClient):
 class AnthropicClient(LLMClient):
     """Anthropic/Claude API client with retry and circuit breaker."""
 
-    def __init__(self, api_key: Optional[str] = None, circuit_breaker: Optional[CircuitBreaker] = None):
+    def __init__(self, api_key: Optional[str] = None, circuit_breaker: Optional[CircuitBreaker] = None, request_timeout_s: float = 30.0):
         super().__init__(LLMProvider.ANTHROPIC, circuit_breaker)
         self.api_key = api_key
         self.base_url = "https://api.anthropic.com/v1"
+        self.request_timeout_s = request_timeout_s
 
     async def generate(
         self,
@@ -348,7 +351,7 @@ class AnthropicClient(LLMClient):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.request_timeout_s) as client:
                 response = await client.post(
                     f"{self.base_url}/messages",
                     json=payload,
@@ -486,11 +489,25 @@ class LLMManager:
 
     def _get_default_model(self, provider: LLMProvider) -> str:
         """Get default model for provider."""
-        defaults = {
-            LLMProvider.OPENAI: "gpt-4",
-            LLMProvider.ANTHROPIC: "claude-3-sonnet-20240229",
-        }
-        return defaults.get(provider, "gpt-4")
+        if provider == LLMProvider.OPENAI:
+            # Try environment variable, then fallback to current recommended models
+            return (
+                os.getenv("OPENAI_DEFAULT_MODEL") or
+                "gpt-4o" or  # Current recommended model
+                "gpt-4.1" or  # Alternative if gpt-4o not available
+                "gpt-4"  # Legacy fallback
+            )
+        elif provider == LLMProvider.ANTHROPIC:
+            # Try environment variable, then fallback to current recommended models
+            return (
+                os.getenv("ANTHROPIC_DEFAULT_MODEL") or
+                "claude-sonnet-4" or  # Current recommended model
+                "claude-opus-4" or  # Alternative high-end model
+                "claude-sonnet-4-20250514" or  # Dated version fallback
+                "claude-3-sonnet-20240229"  # Legacy fallback
+            )
+        else:
+            return "gpt-4"  # Default fallback
 
 
 # Global LLM manager instance

@@ -116,7 +116,7 @@ class AgentBase(ABC):
 
         try:
             self.logger.info(
-                f"Starting agent execution",
+                "Starting agent execution",
                 agent=self.name,
                 correlation_id=correlation_id,
                 tenant_id=input_data.context.tenant_id,
@@ -151,7 +151,7 @@ class AgentBase(ABC):
 
             # Log success
             self.logger.info(
-                f"Agent execution completed successfully",
+                "Agent execution completed successfully",
                 agent=self.name,
                 correlation_id=correlation_id,
                 execution_time_ms=execution_time_ms,

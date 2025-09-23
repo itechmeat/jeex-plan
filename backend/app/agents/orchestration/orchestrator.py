@@ -21,6 +21,8 @@ from ..contracts.base import (
     AgentExecutionResult,
     ProgressUpdate,
     AgentError,
+    AgentOutput,
+    ValidationResult,
 )
 from app.core.logger import get_logger
 
@@ -158,10 +160,27 @@ class AgentOrchestrator:
             return execution_result
 
         except Exception as e:
+            exec_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+
+            # Create valid empty output data for failed execution
+            empty_output = AgentOutput(
+                content="",
+                confidence_score=0.0,
+                validation_result=ValidationResult(
+                    passed=False,
+                    score=0.0,
+                    details={"error": str(e)},
+                    missing_sections=[],
+                    suggestions=[]
+                ),
+                metadata={"error": True, "error_message": str(e)},
+                processing_time_ms=exec_time_ms,
+            )
+
             execution_result = AgentExecutionResult(
                 agent_type=step.value,
                 input_data=input_data,
-                output_data=None,
+                output_data=empty_output,
                 status="failed",
                 error_message=str(e),
                 started_at=start_time,
@@ -169,23 +188,22 @@ class AgentOrchestrator:
             )
 
             await self._emit_progress(
-                context, f"Failed {step.value}", 0.0, f"Execution failed: {str(e)}"
+                context, f"Failed {step.value}", 0.0, "Execution failed"
             )
 
-            self.logger.error(
-                f"Workflow step execution failed",
+            self.logger.exception(
+                "Workflow step execution failed",
                 step=step.value,
                 correlation_id=correlation_id,
-                error=str(e),
-                execution_time_ms=execution_result.execution_time_ms,
+                execution_time_ms=exec_time_ms,
             )
 
             raise AgentError(
-                message=f"Step {step.value} execution failed: {str(e)}",
+                message=f"Step {step.value} execution failed",
                 agent_type="orchestrator",
                 correlation_id=correlation_id,
-                details={"step": step.value, "execution_time_ms": execution_result.execution_time_ms},
-            )
+                details={"step": step.value, "execution_time_ms": exec_time_ms},
+            ) from e
 
     async def execute_full_workflow(
         self,

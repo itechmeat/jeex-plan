@@ -235,7 +235,6 @@ class VectorContextRetriever:
                 "status": "healthy",
                 "collection_exists": collection_exists,
                 "collection_name": self.collection_name,
-                "qdrant_url": settings.QDRANT_URL,
             }
 
         except Exception as e:
@@ -243,7 +242,6 @@ class VectorContextRetriever:
                 "status": "unhealthy",
                 "error": str(e),
                 "collection_name": self.collection_name,
-                "qdrant_url": settings.QDRANT_URL,
             }
 
 
