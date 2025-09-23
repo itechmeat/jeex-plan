@@ -58,6 +58,11 @@ class CacheKey:
         """Generate tenant-specific cache key"""
         return f"tenant:{tenant_id}:{key_type}"
 
+    @staticmethod
+    def generate_project_index_key(tenant_id: str, project_id: str) -> str:
+        """Generate per-project index key for cache invalidation"""
+        return f"tenant:{tenant_id}:project:{project_id}:index"
+
 
 class VectorCache(LoggerMixin):
     """
@@ -159,8 +164,9 @@ class VectorCache(LoggerMixin):
             )
 
             if success:
-                # Add to tenant cache index for invalidation
+                # Add to tenant and project cache indices for invalidation
                 await self._add_to_tenant_index(tenant_id, cache_key)
+                await self._add_to_project_index(tenant_id, project_id, cache_key)
 
                 logger.debug(
                     "Search results cached",
@@ -324,6 +330,9 @@ class VectorCache(LoggerMixin):
             success = await self.redis.set(cache_key, json.dumps(stats), ex=300)  # 5 minutes
 
             if success:
+                # Add to project index for invalidation
+                await self._add_to_project_index(tenant_id, project_id, cache_key)
+
                 logger.debug(
                     "Stats cached",
                     tenant_id=tenant_id,
@@ -390,28 +399,31 @@ class VectorCache(LoggerMixin):
             Number of cache keys invalidated
         """
         try:
-            # Find keys containing project_id
-            pattern = f"*{project_id}*"
-            keys = await self.redis.keys(pattern)
+            # Use indexed membership instead of KEYS scan
+            index_key = CacheKey.generate_project_index_key(tenant_id, project_id)
+            cache_keys = await self.redis.smembers(index_key)
+            if not cache_keys:
+                return 0
 
             deleted_count = 0
-            for key in keys:
-                # Verify key belongs to the tenant (security check)
-                if tenant_id in key:
-                    if await self.redis.delete(key):
-                        deleted_count += 1
+            for cache_key in cache_keys:
+                if await self.redis.delete(cache_key):
+                    deleted_count += 1
 
-            logger.info(
+            # Clear the project index
+            await self.redis.delete(index_key)
+
+            self.logger.info(
                 "Project cache invalidated",
                 tenant_id=tenant_id,
                 project_id=project_id,
-                keys_deleted=deleted_count
+                keys_deleted=deleted_count,
             )
 
             return deleted_count
 
         except Exception as e:
-            logger.error("Project cache invalidation failed", error=str(e))
+            self.logger.exception("Project cache invalidation failed", error=str(e))
             return 0
 
     async def _add_to_tenant_index(self, tenant_id: str, cache_key: str) -> bool:
@@ -421,6 +433,15 @@ class VectorCache(LoggerMixin):
             return await self.redis.sadd(index_key, cache_key)
         except Exception as e:
             logger.warning("Failed to add to tenant index", error=str(e))
+            return False
+
+    async def _add_to_project_index(self, tenant_id: str, project_id: str, cache_key: str) -> bool:
+        """Add cache key to project index for invalidation"""
+        try:
+            index_key = CacheKey.generate_project_index_key(tenant_id, project_id)
+            return await self.redis.sadd(index_key, cache_key)
+        except Exception as e:
+            logger.warning("Failed to add to project index", error=str(e))
             return False
 
     async def get_cache_stats(self) -> Dict[str, Any]:

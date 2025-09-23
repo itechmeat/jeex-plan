@@ -344,14 +344,10 @@ async def delete_vectors(
 
             # If additional filters specified, we need to use the filtered delete
             if request.doc_types or request.version:
-                delete_filter = VectorOperationFilter.build_delete_filter(
-                    tenant_id=request.tenant_id,
-                    project_id=request.project_id,
-                    doc_types=request.doc_types,
-                    version=request.version
+                raise HTTPException(
+                    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                    detail="Filtered delete is not implemented; omit filters or delete specific point_ids"
                 )
-                # This would need to be implemented in QdrantAdapter
-                # For now, we'll use the basic delete
 
         response = {
             "status": "success",

@@ -81,6 +81,9 @@ class QdrantAdapter(LoggerMixin):
             # Get optimized HNSW configuration for multi-tenancy
             from app.core.hnsw_config import hnsw_configurator
             hnsw_config = hnsw_configurator.get_optimized_config_for_tenant_isolation()
+            # Keep only supported keys for Qdrant
+            _supported = {"m", "ef_construct", "ef", "full_scan_threshold", "max_indexing_threads"}
+            hnsw_config_sanitized = {k: v for k, v in hnsw_config.items() if k in _supported}
 
             # Create collection with multi-tenancy optimized configuration
             self.client.create_collection(
@@ -89,7 +92,7 @@ class QdrantAdapter(LoggerMixin):
                     size=1536,  # OpenAI embedding size
                     distance=Distance.COSINE
                 ),
-                hnsw_config=hnsw_config,
+                hnsw_config=hnsw_config_sanitized,
                 optimizers_config={
                     "deleted_threshold": 0.2,
                     "vacuum_min_vector_number": 1000,
