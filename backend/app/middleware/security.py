@@ -218,7 +218,18 @@ class SecurityService:
         """Basic email format validation."""
         import re
 
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if email.count('@') != 1:
+            return False
+
+        local_part, domain_part = email.split('@', 1)
+
+        if not local_part or not domain_part:
+            return False
+
+        if '..' in local_part or '..' in domain_part:
+            return False
+
+        pattern = r"^[a-zA-Z0-9](?:[a-zA-Z0-9._%+-]{0,62}[a-zA-Z0-9])?@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
         return re.match(pattern, email) is not None
 
     @staticmethod

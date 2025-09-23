@@ -28,7 +28,7 @@ class UserService:
             self.user_repo = None
         # Global repositories (no tenant scope)
         self.tenant_repo = TenantRepository(db)
-        self.auth_service = AuthService(db)
+        self.auth_service = AuthService(db, tenant_id)
 
     async def register_user(
         self,
@@ -48,6 +48,7 @@ class UserService:
                 default_tenant = await self.tenant_repo.create_default()
             self.tenant_id = default_tenant.id
             self.user_repo = UserRepository(self.db, self.tenant_id)
+            self.auth_service = AuthService(self.db, self.tenant_id)
 
         # Validate email availability
         if not await self.user_repo.check_email_availability(email):
@@ -66,13 +67,16 @@ class UserService:
         # Get or create default tenant if not specified
         if not tenant_id:
             tenant_id = await self._get_or_create_default_tenant()
+        elif not self.user_repo or self.tenant_id != tenant_id:
+            self.tenant_id = tenant_id
+            self.user_repo = UserRepository(self.db, tenant_id)
+            self.auth_service = AuthService(self.db, tenant_id)
 
         # Hash password
         hashed_password = self.auth_service.get_password_hash(password)
 
         # Create user
-        user = User(
-            tenant_id=tenant_id,
+        user = await self.user_repo.create(
             email=email,
             username=username,
             full_name=full_name,
@@ -80,10 +84,6 @@ class UserService:
             is_active=True,
             last_login_at=datetime.utcnow()
         )
-
-        self.db.add(user)
-        await self.db.commit()
-        await self.db.refresh(user)
 
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)

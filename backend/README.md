@@ -14,14 +14,14 @@ For local development you can use the same value for both variables.
 1. **Pick a dev token** – e.g. `vault-dev-root-token-123`. Treat it as sensitive.
 2. **Create a local env file** (ignored by git):
    ```bash
-   cat > backend/.env.local <<'ENV'
+   cat > .env.local <<'ENV'
    VAULT_DEV_ROOT_TOKEN_ID=vault-dev-root-token-123
    VAULT_TOKEN=vault-dev-root-token-123
    ENV
    ```
 3. **Load the variables** before starting Docker:
    ```bash
-   source backend/.env.local
+   source .env.local
    docker compose up
    ```
    The `vault` service will boot with `VAULT_DEV_ROOT_TOKEN_ID`, and the backend will read `VAULT_TOKEN`. If you skip `source`, export both variables manually in your shell.
@@ -33,7 +33,7 @@ When the backend starts it logs a warning if `ENVIRONMENT` is set to `developmen
 If you want to rotate the dev token:
 
 1. Stop the stack: `docker compose down`.
-2. Update `VAULT_DEV_ROOT_TOKEN_ID` / `VAULT_TOKEN` in `backend/.env.local` (or your shell exports).
+2. Update `VAULT_DEV_ROOT_TOKEN_ID` / `VAULT_TOKEN` in `.env.local` (or your shell exports).
 3. Start the stack again. The Vault dev container reinitializes itself with the new token.
 
 ## Non-Development Environments

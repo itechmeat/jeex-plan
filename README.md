@@ -50,10 +50,10 @@ This implementation follows a microservices architecture with the following comp
 ### Manual Setup
 
 1. **Copy environment files**
-   ```bash
-   cp backend/.env.example backend/.env
+  ```bash
+   cp .env.example .env
    cp frontend/.env.example frontend/.env
-   ```
+  ```
 
 2. **Start services**
    ```bash
@@ -144,7 +144,7 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ## 🔧 Configuration
 
 ### Environment Variables
-See `.env.example` for all available configuration options.
+See `.env.example` for all available configuration options. Provide real secrets at runtime through Vault or gitignored `.env`/`.env.local` files, and keep helper tooling such as `.claude/settings.local.json` free of credential values.
 
 ### Multi-tenancy
 The system supports tenant isolation through:

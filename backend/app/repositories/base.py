@@ -45,7 +45,7 @@ class BaseRepository(Generic[ModelType], ABC):
         stmt = select(self.model).where(
             and_(
                 self.model.id == entity_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
         result = await self.session.execute(stmt)
@@ -58,12 +58,16 @@ class BaseRepository(Generic[ModelType], ABC):
         filters: Optional[Dict[str, Any]] = None
     ) -> List[ModelType]:
         """Get all entities with optional filtering."""
-        stmt = select(self.model).where(self.model.is_deleted == False)
+        stmt = select(self.model).where(self.model.is_deleted.is_(False))
 
         if filters:
             for field, value in filters.items():
                 if hasattr(self.model, field):
-                    stmt = stmt.where(getattr(self.model, field) == value)
+                    column_attr = getattr(self.model, field)
+                    if isinstance(value, bool):
+                        stmt = stmt.where(column_attr.is_(value))
+                    else:
+                        stmt = stmt.where(column_attr == value)
 
         stmt = stmt.offset(skip).limit(limit)
         result = await self.session.execute(stmt)
@@ -77,7 +81,7 @@ class BaseRepository(Generic[ModelType], ABC):
         eager_loads: Optional[List[str]] = None
     ) -> List[ModelType]:
         """Get all entities with optional filtering and eager loading."""
-        stmt = select(self.model).where(self.model.is_deleted == False)
+        stmt = select(self.model).where(self.model.is_deleted.is_(False))
 
         # Apply eager loading
         if eager_loads:
@@ -88,7 +92,11 @@ class BaseRepository(Generic[ModelType], ABC):
         if filters:
             for field, value in filters.items():
                 if hasattr(self.model, field):
-                    stmt = stmt.where(getattr(self.model, field) == value)
+                    column_attr = getattr(self.model, field)
+                    if isinstance(value, bool):
+                        stmt = stmt.where(column_attr.is_(value))
+                    else:
+                        stmt = stmt.where(column_attr == value)
 
         stmt = stmt.offset(skip).limit(limit)
         result = await self.session.execute(stmt)
@@ -157,12 +165,16 @@ class BaseRepository(Generic[ModelType], ABC):
 
     async def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """Count entities with optional filtering."""
-        stmt = select(func.count(self.model.id)).where(self.model.is_deleted == False)
+        stmt = select(func.count(self.model.id)).where(self.model.is_deleted.is_(False))
 
         if filters:
             for field, value in filters.items():
                 if hasattr(self.model, field):
-                    stmt = stmt.where(getattr(self.model, field) == value)
+                    column_attr = getattr(self.model, field)
+                    if isinstance(value, bool):
+                        stmt = stmt.where(column_attr.is_(value))
+                    else:
+                        stmt = stmt.where(column_attr == value)
 
         result = await self.session.execute(stmt)
         return result.scalar()
@@ -172,7 +184,7 @@ class BaseRepository(Generic[ModelType], ABC):
         stmt = select(self.model.id).where(
             and_(
                 self.model.id == entity_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
         result = await self.session.execute(stmt)
@@ -197,7 +209,7 @@ class TenantRepository(BaseRepository[ModelType]):
             and_(
                 self.model.id == entity_id,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
         result = await self.session.execute(stmt)
@@ -213,14 +225,18 @@ class TenantRepository(BaseRepository[ModelType]):
         stmt = select(self.model).where(
             and_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
 
         if filters:
             for field, value in filters.items():
                 if hasattr(self.model, field):
-                    stmt = stmt.where(getattr(self.model, field) == value)
+                    column_attr = getattr(self.model, field)
+                    if isinstance(value, bool):
+                        stmt = stmt.where(column_attr.is_(value))
+                    else:
+                        stmt = stmt.where(column_attr == value)
 
         stmt = stmt.offset(skip).limit(limit)
         result = await self.session.execute(stmt)
@@ -237,7 +253,7 @@ class TenantRepository(BaseRepository[ModelType]):
         stmt = select(self.model).where(
             and_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
 
@@ -250,7 +266,11 @@ class TenantRepository(BaseRepository[ModelType]):
         if filters:
             for field, value in filters.items():
                 if hasattr(self.model, field):
-                    stmt = stmt.where(getattr(self.model, field) == value)
+                    column_attr = getattr(self.model, field)
+                    if isinstance(value, bool):
+                        stmt = stmt.where(column_attr.is_(value))
+                    else:
+                        stmt = stmt.where(column_attr == value)
 
         stmt = stmt.offset(skip).limit(limit)
         result = await self.session.execute(stmt)
@@ -261,14 +281,18 @@ class TenantRepository(BaseRepository[ModelType]):
         stmt = select(func.count(self.model.id)).where(
             and_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
 
         if filters:
             for field, value in filters.items():
                 if hasattr(self.model, field):
-                    stmt = stmt.where(getattr(self.model, field) == value)
+                    column_attr = getattr(self.model, field)
+                    if isinstance(value, bool):
+                        stmt = stmt.where(column_attr.is_(value))
+                    else:
+                        stmt = stmt.where(column_attr == value)
 
         result = await self.session.execute(stmt)
         return result.scalar()
@@ -278,15 +302,38 @@ class TenantRepository(BaseRepository[ModelType]):
         if not hasattr(self.model, field_name):
             return None
 
+        column_attr = getattr(self.model, field_name)
+        comparison = column_attr.is_(field_value) if isinstance(field_value, bool) else column_attr == field_value
+
         stmt = select(self.model).where(
             and_(
-                getattr(self.model, field_name) == field_value,
+                comparison,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_by_fields(self, **filters: Any) -> List[ModelType]:
+        """Get entities matching multiple fields within tenant."""
+        conditions = [
+            self.model.tenant_id == self.tenant_id,
+            self.model.is_deleted.is_(False)
+        ]
+
+        for field, value in filters.items():
+            if not hasattr(self.model, field):
+                continue
+            column_attr = getattr(self.model, field)
+            if isinstance(value, bool):
+                conditions.append(column_attr.is_(value))
+            else:
+                conditions.append(column_attr == value)
+
+        stmt = select(self.model).where(and_(*conditions))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def search(
         self,
@@ -302,7 +349,7 @@ class TenantRepository(BaseRepository[ModelType]):
         stmt = select(self.model).where(
             and_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
 
@@ -336,8 +383,16 @@ class TenantRepository(BaseRepository[ModelType]):
             updates['updated_at'] = datetime.utcnow()
             updates.pop('tenant_id', None)
 
+            conditions = []
+            for key, value in filters.items():
+                column_attr = getattr(self.model, key)
+                if isinstance(value, bool):
+                    conditions.append(column_attr.is_(value))
+                else:
+                    conditions.append(column_attr == value)
+
             stmt = update(self.model).where(
-                and_(*[getattr(self.model, k) == v for k, v in filters.items()])
+                and_(*conditions)
             ).values(**updates)
 
             result = await self.session.execute(stmt.execution_options(synchronize_session=False))
@@ -356,7 +411,7 @@ class TenantRepository(BaseRepository[ModelType]):
             and_(
                 self.model.id == entity_id,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False)
             )
         )
         result = await self.session.execute(stmt)

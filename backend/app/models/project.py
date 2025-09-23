@@ -10,11 +10,15 @@ from sqlalchemy import (
     UniqueConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    and_,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign, remote
 from sqlalchemy.dialects.postgresql import UUID
 from enum import Enum
 from .base import BaseModel
+from .user import User
+from .tenant import Tenant
+from .document import Document
 
 
 class ProjectStatus(str, Enum):
@@ -40,13 +44,34 @@ class Project(BaseModel):
 
     # Owner relationship
     owner_id = Column(UUID(as_uuid=True), nullable=False)
-    owner = relationship("User", back_populates="projects")
+    owner = relationship(
+        "User",
+        back_populates="projects",
+        primaryjoin=lambda: and_(
+            foreign(Project.owner_id) == remote(User.id),
+            foreign(Project.tenant_id) == remote(User.tenant_id),
+        ),
+        foreign_keys=lambda: [Project.owner_id, Project.tenant_id],
+    )
 
     # Tenant relationship
-    tenant = relationship("Tenant", back_populates="projects")
+    tenant = relationship(
+        "Tenant",
+        back_populates="projects",
+        primaryjoin=lambda: foreign(Project.tenant_id) == remote(Tenant.id),
+        foreign_keys=lambda: [Project.tenant_id],
+    )
 
     # Documents relationship
-    documents = relationship("Document", back_populates="project")
+    documents = relationship(
+        "Document",
+        back_populates="project",
+        primaryjoin=lambda: and_(
+            foreign(Document.project_id) == remote(Project.id),
+            foreign(Document.tenant_id) == remote(Project.tenant_id),
+        ),
+        foreign_keys=lambda: [Document.project_id, Document.tenant_id],
+    )
 
     # RBAC relationships
     members = relationship("ProjectMember", back_populates="project")

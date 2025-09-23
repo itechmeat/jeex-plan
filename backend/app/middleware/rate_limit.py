@@ -4,6 +4,7 @@ Rate limiting middleware with Redis backend for API endpoint protection.
 
 import time
 import hashlib
+import secrets
 from typing import Optional, Tuple, List
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -84,19 +85,33 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         current_time = int(time.time())
         window_start = current_time - time_window
 
-        # Clean old entries and count current requests
+        unique_member = f"{current_time}-{secrets.token_hex(8)}"
         pipe = redis_client.pipeline()
         pipe.zremrangebyscore(key, 0, window_start)
+        pipe.zadd(key, {unique_member: current_time})
         pipe.zcard(key)
-        pipe.zadd(key, {str(current_time): current_time})
         pipe.expire(key, time_window)
 
         results = await pipe.execute()
-        current_requests = results[1]
 
-        # Calculate headers
+        current_requests = 0
+        if isinstance(results, (list, tuple)) and len(results) > 2 and results[2] is not None:
+            current_requests = results[2]
+
+        is_allowed = current_requests <= requests_limit
+        if not is_allowed:
+            try:
+                await redis_client.zrem(key, unique_member)
+            except Exception:
+                pass
+
+        ttl = 0
+        try:
+            ttl = await redis_client.ttl(key)
+        except Exception:
+            ttl = 0
+        reset_time = current_time + (ttl if ttl and ttl > 0 else time_window)
         remaining = max(0, requests_limit - current_requests)
-        reset_time = current_time + time_window
 
         headers = {
             "X-RateLimit-Limit": requests_limit,
@@ -104,9 +119,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "X-RateLimit-Reset": reset_time,
             "X-RateLimit-Window": time_window
         }
-
-        # Check if limit exceeded
-        is_allowed = current_requests < requests_limit
 
         return is_allowed, headers
 
@@ -259,10 +271,9 @@ class RateLimitService:
     async def list_active_limits(self, pattern: str = "*") -> List[dict]:
         """List all active rate limit keys."""
 
-        keys = await self.redis_client.keys(f"rl:{pattern}")
         result = []
 
-        for key in keys:
+        async for key in self.redis_client.scan_iter(match=f"rl:{pattern}"):
             status = await self.get_rate_limit_status(key)
             result.append({
                 "key": key,
@@ -277,10 +288,8 @@ class RateLimitService:
         current_time = int(time.time())
         expired_count = 0
 
-        # Get all rate limit keys
-        keys = await self.redis_client.keys("rl:*")
-
-        for key in keys:
+        # Iterate over rate limit keys without blocking Redis
+        async for key in self.redis_client.scan_iter(match="rl:*"):
             # Remove entries older than maximum window
             removed = await self.redis_client.zremrangebyscore(
                 key,

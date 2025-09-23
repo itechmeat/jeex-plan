@@ -153,7 +153,7 @@ npm run test
 
 ### Configuration
 
-- `backend/.env` - Backend environment variables
+- `.env` - Root environment variables for local development (no service-specific `.env` files)
 - `frontend/.env` - Frontend environment variables
 - `docker-compose.yml` - Service definitions
 - `backend/alembic.ini` - Database migration config

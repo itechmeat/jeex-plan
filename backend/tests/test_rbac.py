@@ -22,7 +22,7 @@ class TestRBACModels:
         """Create test tenant."""
         tenant = Tenant(
             name="Test Tenant",
-            slug="test-rbac-tenant",
+            slug=f"test-rbac-tenant-{uuid.uuid4()}",
             description="Test tenant for RBAC",
             is_active=True
         )
@@ -195,16 +195,16 @@ class TestRBACService:
     """Test RBACService functionality."""
 
     @pytest.fixture
-    async def rbac_service(self, async_db: AsyncSession):
+    async def rbac_service(self, async_db: AsyncSession, test_tenant):
         """Create RBACService instance."""
-        return RBACService(async_db)
+        return RBACService(async_db, tenant_id=test_tenant.id)
 
     @pytest.fixture
     async def test_tenant(self, async_db: AsyncSession):
         """Create test tenant."""
         tenant = Tenant(
             name="RBAC Service Test Tenant",
-            slug="rbac-service-test",
+            slug=f"rbac-service-test-{uuid.uuid4()}",
             description="Test tenant for RBAC service",
             is_active=True
         )

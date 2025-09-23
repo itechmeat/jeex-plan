@@ -70,6 +70,7 @@ make vault-status # Check Vault readiness
 ## Secret Handling & Observability
 
 - Store all secrets in Vault; never hardcode credentials or persist them in source control.
+- Use the root-level `.env` for local development overrides; do not create `backend/.env` files.
 - When debugging cross-agent flows, enable OpenTelemetry exporters within the local stack.
 - Regenerate embeddings and fixtures under `tests/fixtures/` whenever schema payloads evolve.
 

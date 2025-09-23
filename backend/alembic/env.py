@@ -76,14 +76,7 @@ def run_migrations_online() -> None:
 
     # Check if this is an async engine
     if isinstance(connectable, AsyncEngine):
-        # Check if there's already a running event loop
-        try:
-            asyncio.get_running_loop()
-            # If we get here, there's already a running loop, so schedule the coroutine
-            asyncio.create_task(run_async_migrations(connectable))
-        except RuntimeError:
-            # No running loop, so we can use asyncio.run
-            asyncio.run(run_async_migrations(connectable))
+        asyncio.run(run_async_migrations(connectable))
     else:
         with connectable.connect() as connection:
             context.configure(

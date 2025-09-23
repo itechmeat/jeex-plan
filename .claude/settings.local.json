@@ -38,11 +38,9 @@
       "Bash(timeout:*)",
       "Bash(xargs:*)",
       "Bash(make:*)",
-      "Bash(git checkout:*)",
-      "Bash(git pull:*)",
-      "Bash(git reset:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
       "Bash(docker-compose exec:*)",
@@ -53,8 +51,7 @@
       "Bash(for:*)",
       "Bash(do:*)",
       "Bash(echo:*)",
-      "Bash(REDIS_PASSWORD=test_password docker-compose config:*)",
-      "Bash(env:*)"
+      "Bash(REDIS_PASSWORD=<REDACTED> docker-compose config:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",
@@ -62,6 +59,9 @@
       "Bash(git log:*)",
       "Bash(git show:*)",
       "Bash(git ls-files:*)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
       "Bash(git clean:*)"
     ],
     "ask": []

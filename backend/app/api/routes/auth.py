@@ -2,12 +2,12 @@
 Authentication endpoints with OAuth2 support and full JWT implementation.
 """
 
-import uuid
 import secrets
 from datetime import datetime
 from typing import Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
@@ -23,9 +23,9 @@ from ...api.schemas.auth import (
     RefreshTokenRequest, LogoutResponse, TokenData
 )
 from ...middleware.tenant import get_tenant_context
+from ...models.user import User
 
 router = APIRouter()
-security = HTTPBearer()
 logger = get_logger(__name__)
 settings = get_settings()
 
@@ -41,6 +41,13 @@ class OAuthCallbackRequest(BaseModel):
     code: str
     state: str
     provider: str
+
+
+class ChangePasswordRequest(BaseModel):
+    """Password change payload."""
+
+    current_password: str
+    new_password: str
 
 
 @router.post("/register", response_model=LoginResponse)
@@ -181,16 +188,13 @@ async def refresh_access_token(
 
 @router.post("/logout", response_model=LogoutResponse)
 async def logout_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user_dependency)
 ) -> LogoutResponse:
     """
     User logout endpoint.
 
     Invalidates the current session (for future token blacklisting).
     """
-    current_user = await get_current_user(credentials, db)
-
     logger.info("Logout successful", user_id=str(current_user.id))
 
     # TODO: Implement token blacklisting in Redis
@@ -220,8 +224,9 @@ async def get_current_user_profile(
 # OAuth2 Endpoints
 @router.post("/oauth/init")
 async def oauth_init(
+    request: Request,
     oauth_data: OAuthInitRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
     Initialize OAuth2 flow.
@@ -242,8 +247,13 @@ async def oauth_init(
             state
         )
 
-        # Store state in session/cache for validation
-        # TODO: Store state in Redis with expiration
+        # Store state in Redis with short expiration for CSRF protection
+        try:
+            redis_client = getattr(request.app.state, "redis_client", None)
+            if redis_client:
+                await redis_client.setex(f"oauth_state:{state}", 300, "1")
+        except Exception:
+            logger.warning("Failed to persist OAuth state; proceeding without cache")
 
         return {
             "authorization_url": auth_url,
@@ -263,10 +273,11 @@ async def oauth_init(
 
 @router.get("/oauth/callback")
 async def oauth_callback(
+    request: Request,
     code: str = Query(..., description="Authorization code from OAuth provider"),
     state: str = Query(..., description="State parameter for CSRF protection"),
     provider: str = Query(..., description="OAuth provider name"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
     """
     OAuth2 callback endpoint.
@@ -279,7 +290,17 @@ async def oauth_callback(
     auth_service = AuthService(db)
 
     try:
-        # TODO: Validate state parameter from stored session/cache
+        # Validate state parameter
+        redis_client = getattr(request.app.state, "redis_client", None)
+        if redis_client:
+            cache_key = f"oauth_state:{state}"
+            exists = await redis_client.get(cache_key)
+            if not exists:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid OAuth state"
+                )
+            await redis_client.delete(cache_key)
 
         # Authenticate user with OAuth provider
         user = await oauth_service.authenticate_user(
@@ -291,13 +312,36 @@ async def oauth_callback(
         # Generate JWT tokens
         tokens = await auth_service.create_tokens_for_user(user)
 
-        # Redirect to frontend with tokens
         frontend_url = settings.ALLOWED_ORIGINS[0] if settings.ALLOWED_ORIGINS else "http://localhost:3000"
-        redirect_url = f"{frontend_url}/auth/callback?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
+        redirect_url = f"{frontend_url}/auth/callback"
+        response = RedirectResponse(url=redirect_url)
+
+        secure_cookie = settings.is_production
+        access_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        refresh_max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+
+        response.set_cookie(
+            key="access_token",
+            value=tokens["access_token"],
+            max_age=access_max_age,
+            httponly=True,
+            secure=secure_cookie,
+            samesite="lax",
+            path="/",
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=tokens["refresh_token"],
+            max_age=refresh_max_age,
+            httponly=True,
+            secure=secure_cookie,
+            samesite="strict",
+            path="/",
+        )
 
         logger.info("OAuth callback successful", provider=provider, user_id=str(user.id))
 
-        return RedirectResponse(url=redirect_url)
+        return response
 
     except HTTPException:
         raise
@@ -311,8 +355,9 @@ async def oauth_callback(
 
 @router.post("/oauth/callback", response_model=LoginResponse)
 async def oauth_callback_post(
+    request: Request,
     callback_data: OAuthCallbackRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     """
     OAuth2 callback endpoint (POST version for SPA applications).
@@ -325,6 +370,18 @@ async def oauth_callback_post(
     auth_service = AuthService(db)
 
     try:
+        # Validate state parameter
+        redis_client = getattr(request.app.state, "redis_client", None)
+        if redis_client:
+            cache_key = f"oauth_state:{callback_data.state}"
+            exists = await redis_client.get(cache_key)
+            if not exists:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid OAuth state"
+                )
+            await redis_client.delete(cache_key)
+
         # Authenticate user with OAuth provider
         user = await oauth_service.authenticate_user(
             callback_data.provider,
@@ -391,22 +448,22 @@ async def get_available_providers() -> dict:
 # Password management endpoints
 @router.post("/change-password")
 async def change_password(
-    current_password: str,
-    new_password: str,
-    current_user = Depends(get_current_active_user_dependency)
+    payload: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_dependency)
 ) -> dict:
     """
     Change user password.
     """
     logger.info("Password change attempt", user_id=str(current_user.id))
 
-    user_service = UserService(db)
+    user_service = UserService(db, current_user.tenant_id)
 
     try:
         await user_service.change_password(
             current_user.id,
-            current_password,
-            new_password
+            payload.current_password,
+            payload.new_password
         )
 
         logger.info("Password change successful", user_id=str(current_user.id))
@@ -424,25 +481,15 @@ async def change_password(
 
 @router.post("/validate-token")
 async def validate_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_active_user_dependency)
 ) -> dict:
     """
     Validate JWT token and return token information.
     """
-    try:
-        current_user = await get_current_active_user(credentials, db)
-
-        return {
-            "valid": True,
-            "user_id": str(current_user.id),
-            "tenant_id": str(current_user.tenant_id),
-            "email": current_user.email,
-            "is_active": current_user.is_active
-        }
-
-    except HTTPException:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
+    return {
+        "valid": True,
+        "user_id": str(current_user.id),
+        "tenant_id": str(current_user.tenant_id),
+        "email": current_user.email,
+        "is_active": current_user.is_active,
+    }

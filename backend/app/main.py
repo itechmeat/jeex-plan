@@ -37,15 +37,20 @@ async def lifespan(app: FastAPI):
     # setup_observability(app)  # TODO: Fix OpenTelemetry version conflicts
 
     # Initialize Redis connection for rate limiting
-    redis_client = None
     try:
         redis_settings = settings.get_redis_settings()
-        redis_client = redis.Redis(**redis_settings)
+        redis_url = settings.REDIS_URL
+        connection_kwargs = {
+            key: value
+            for key, value in redis_settings.items()
+            if key not in {"host", "port"}
+        }
+        redis_client = redis.from_url(redis_url, **connection_kwargs)
         await redis_client.ping()
         app.state.redis_client = redis_client
         logger.info("Redis connection established")
 
-    except Exception as e:
+    except redis.RedisError as e:
         logger.warning("Failed to connect to Redis, rate limiting will be disabled", error=str(e))
         app.state.redis_client = None
 
@@ -58,7 +63,7 @@ async def lifespan(app: FastAPI):
 
     # Close Redis connection
     if hasattr(app.state, 'redis_client') and app.state.redis_client:
-        await app.state.redis_client.close()
+        await app.state.redis_client.aclose()
         logger.info("Redis connection closed")
 
 

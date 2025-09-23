@@ -3,7 +3,7 @@ Tenant isolation middleware to ensure multi-tenant data separation.
 """
 
 import uuid
-from typing import Optional
+from typing import Optional, Iterable
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -14,25 +14,24 @@ from ..core.database import get_db
 class TenantIsolationMiddleware(BaseHTTPMiddleware):
     """Middleware to enforce tenant isolation for all API requests."""
 
-    def __init__(self, app, excluded_paths: Optional[list] = None):
+    def __init__(self, app, excluded_path_prefixes: Optional[Iterable[str]] = None):
         super().__init__(app)
-        self.excluded_paths = excluded_paths or [
+        default_prefixes = (
             "/docs",
             "/redoc",
             "/openapi.json",
             "/health",
             "/api/v1/health",
-            "/auth/login",
-            "/auth/register",
-            "/auth/oauth",
-            "/auth/callback"
-        ]
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+        )
+        self.excluded_prefixes = tuple(excluded_path_prefixes or default_prefixes)
 
     async def dispatch(self, request: Request, call_next):
         """Process request with tenant isolation checks."""
 
         # Skip tenant isolation for excluded paths
-        if any(request.url.path.startswith(path) for path in self.excluded_paths):
+        if self._is_excluded_path(request.url.path):
             return await call_next(request)
 
         # Extract tenant context from JWT token
@@ -52,6 +51,15 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
+    def _is_excluded_path(self, path: str) -> bool:
+        for prefix in self.excluded_prefixes:
+            normalized = prefix.rstrip("/")
+            if not normalized:
+                continue
+            if path == normalized or path.startswith(f"{normalized}/"):
+                return True
+        return False
+
     async def _extract_tenant_from_request(self, request: Request) -> Optional[uuid.UUID]:
         """Extract tenant ID from JWT token in request."""
         try:
@@ -63,12 +71,13 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
             token = authorization.split(" ")[1]
 
             # Get database session
-            async with get_db() as db:
+            async for db in get_db():
                 auth_service = AuthService(db)
                 user = await auth_service.get_user_by_token(token)
 
                 if user and user.is_active:
                     return user.tenant_id
+                break
 
             return None
 
@@ -82,7 +91,15 @@ class TenantContextManager:
     @staticmethod
     def get_tenant_id(request: Request) -> Optional[uuid.UUID]:
         """Get tenant ID from request state."""
-        return getattr(request.state, 'tenant_id', None)
+        state = getattr(request, 'state', None)
+        if state is None:
+            return None
+        if not hasattr(state, 'tenant_id'):
+            return None
+        tenant_id = state.tenant_id
+        if tenant_id in (None, ''):
+            return None
+        return tenant_id
 
     @staticmethod
     def require_tenant_id(request: Request) -> uuid.UUID:

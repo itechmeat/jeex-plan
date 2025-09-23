@@ -18,14 +18,22 @@ from ..repositories.base import TenantRepository
 class RBACService:
     """Service for RBAC operations."""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.role_repo = TenantRepository(db, Role)
-        self.permission_repo = TenantRepository(db, PermissionModel)
-        self.member_repo = TenantRepository(db, ProjectMember)
+    def __init__(self, db: AsyncSession, tenant_id: uuid.UUID):
+        if tenant_id is None:
+            raise ValueError("tenant_id is required for RBACService")
 
-    async def initialize_default_roles_and_permissions(self, tenant_id: uuid.UUID):
+        self.db = db
+        self.tenant_id = tenant_id
+        self.role_repo = TenantRepository(db, Role, tenant_id)
+        self.permission_repo = TenantRepository(db, PermissionModel, tenant_id)
+        self.member_repo = TenantRepository(db, ProjectMember, tenant_id)
+
+    async def initialize_default_roles_and_permissions(self, tenant_id: Optional[uuid.UUID] = None):
         """Initialize default system roles and permissions for a tenant."""
+
+        tenant_id = tenant_id or getattr(self, "tenant_id", None)
+        if tenant_id is None:
+            raise ValueError("tenant_id is required to initialize roles and permissions")
 
         # Create default permissions
         permissions_data = [
@@ -53,8 +61,24 @@ class RBACService:
             ("EXPORT_DOCUMENTS", "Export Documents", "export", "documents"),
         ]
 
-        created_permissions = {}
+        permission_names = [perm[0] for perm in permissions_data]
+        existing_permissions_result = await self.db.execute(
+            select(PermissionModel)
+            .where(
+                PermissionModel.tenant_id == tenant_id,
+                PermissionModel.name.in_(permission_names)
+            )
+        )
+        created_permissions = {
+            permission.name: permission
+            for permission in existing_permissions_result.scalars().all()
+        }
+
+        permissions_created = False
         for perm_name, display_name, resource_type, action in permissions_data:
+            if perm_name in created_permissions:
+                continue
+
             permission = PermissionModel(
                 tenant_id=tenant_id,
                 name=perm_name,
@@ -66,8 +90,10 @@ class RBACService:
             )
             self.db.add(permission)
             created_permissions[perm_name] = permission
+            permissions_created = True
 
-        await self.db.flush()
+        if permissions_created:
+            await self.db.flush()
 
         # Create default roles with associated permissions
         roles_config = {
@@ -103,22 +129,44 @@ class RBACService:
             }
         }
 
-        for role_name, config in roles_config.items():
-            role = Role(
-                tenant_id=tenant_id,
-                name=role_name,
-                display_name=config["display_name"],
-                description=config["description"],
-                is_system=True,
-                is_active=True
+        role_names = list(roles_config.keys())
+        existing_roles_result = await self.db.execute(
+            select(Role)
+            .options(selectinload(Role.permissions))
+            .where(
+                Role.tenant_id == tenant_id,
+                Role.name.in_(role_names)
             )
+        )
+        created_roles = {
+            role.name: role
+            for role in existing_roles_result.scalars().all()
+        }
 
-            # Add permissions to role
-            for perm_name in config["permissions"]:
-                if perm_name in created_permissions:
-                    role.permissions.append(created_permissions[perm_name])
+        roles_created = False
+        for role_name, config in roles_config.items():
+            role = created_roles.get(role_name)
+            if role is None:
+                role = Role(
+                    tenant_id=tenant_id,
+                    name=role_name,
+                    display_name=config["display_name"],
+                    description=config["description"],
+                    is_system=True,
+                    is_active=True
+                )
+                self.db.add(role)
+                created_roles[role_name] = role
+                roles_created = True
 
-            self.db.add(role)
+            # Add missing permissions to role
+            required_permissions = [created_permissions[perm_name] for perm_name in config["permissions"]]
+            for permission in required_permissions:
+                if permission not in role.permissions:
+                    role.permissions.append(permission)
+
+        if roles_created:
+            await self.db.flush()
 
         await self.db.commit()
 
@@ -189,6 +237,7 @@ class RBACService:
         # Create membership
         from datetime import datetime
         membership = ProjectMember(
+            tenant_id=self.tenant_id,
             project_id=project_id,
             user_id=user_id,
             role_id=role.id,
@@ -278,8 +327,9 @@ class RBACService:
             )
             .where(
                 ProjectMember.project_id == project_id,
-                ProjectMember.is_active == True,
-                ProjectMember.is_deleted == False
+                ProjectMember.tenant_id == self.tenant_id,
+                ProjectMember.is_active.is_(True),
+                ProjectMember.is_deleted.is_(False)
             )
             .offset(skip)
             .limit(limit)

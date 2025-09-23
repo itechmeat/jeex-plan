@@ -23,7 +23,7 @@ class TenantRepository(BaseRepository[Tenant]):
         stmt = select(self.model).where(
             and_(
                 self.model.slug == slug,
-                self.model.is_active == True
+                self.model.is_active.is_(True)
             )
         )
         result = await self.session.execute(stmt)
@@ -36,7 +36,7 @@ class TenantRepository(BaseRepository[Tenant]):
     ) -> List[Tenant]:
         """Get all active tenants."""
         stmt = select(self.model).where(
-            self.model.is_active == True
+            self.model.is_active.is_(True)
         ).offset(skip).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -108,7 +108,7 @@ class TenantRepository(BaseRepository[Tenant]):
         stmt = select(self.model).where(
             and_(
                 self.model.slug == "default",
-                self.model.is_active == True
+                self.model.is_active.is_(True)
             )
         )
         result = await self.session.execute(stmt)

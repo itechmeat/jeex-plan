@@ -54,7 +54,7 @@ api-shell:
 	docker-compose exec api bash
 
 # Redis CLI - requires REDIS_PASSWORD environment variable
-# Set REDIS_PASSWORD in your environment or source backend/.env first
+# Set REDIS_PASSWORD in your environment or source the root .env/.env.local first
 redis-cli:
 	docker-compose exec redis redis-cli -a ${REDIS_PASSWORD}
 

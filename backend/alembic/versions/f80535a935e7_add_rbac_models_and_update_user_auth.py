@@ -20,9 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add RBAC models and update user authentication fields."""
 
-    # Add new fields to users table for authentication
-    op.add_column('users', sa.Column('hashed_password', sa.String(255), nullable=True))
-    op.add_column('users', sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True))
+    # Note: hashed_password and last_login_at fields already exist in the User model
 
     # Create permissions table
     op.create_table('permissions',
@@ -30,14 +28,14 @@ def upgrade() -> None:
         sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('is_deleted', sa.Boolean(), nullable=False, default=False),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('name', sa.String(100), nullable=False),
         sa.Column('display_name', sa.String(255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('resource_type', sa.String(50), nullable=False),
         sa.Column('action', sa.String(50), nullable=False),
-        sa.Column('is_system', sa.Boolean(), nullable=False, default=False),
+        sa.Column('is_system', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('tenant_id', 'name', name='uq_permission_tenant_name')
@@ -49,13 +47,13 @@ def upgrade() -> None:
         sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('is_deleted', sa.Boolean(), nullable=False, default=False),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('name', sa.String(100), nullable=False),
         sa.Column('display_name', sa.String(255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('is_system', sa.Boolean(), nullable=False, default=False),
-        sa.Column('is_active', sa.Boolean(), nullable=False, default=True),
+        sa.Column('is_system', sa.Boolean(), nullable=False, server_default=sa.text('false')),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('tenant_id', 'name', name='uq_role_tenant_name')
@@ -76,7 +74,7 @@ def upgrade() -> None:
         sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('is_deleted', sa.Boolean(), nullable=False, default=False),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('project_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -84,7 +82,7 @@ def upgrade() -> None:
         sa.Column('invited_by_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('invited_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('joined_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False, default=True),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.ForeignKeyConstraint(['invited_by_id'], ['users.id']),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='CASCADE'),
@@ -95,19 +93,16 @@ def upgrade() -> None:
     )
 
     # Create indexes for performance
-    op.create_index('ix_permissions_id', 'permissions', ['id'])
     op.create_index('ix_permissions_tenant_id', 'permissions', ['tenant_id'])
     op.create_index('ix_permissions_is_deleted', 'permissions', ['is_deleted'])
     op.create_index('ix_permissions_resource_type', 'permissions', ['resource_type'])
     op.create_index('ix_permissions_name', 'permissions', ['name'])
 
-    op.create_index('ix_roles_id', 'roles', ['id'])
     op.create_index('ix_roles_tenant_id', 'roles', ['tenant_id'])
     op.create_index('ix_roles_is_deleted', 'roles', ['is_deleted'])
     op.create_index('ix_roles_name', 'roles', ['name'])
     op.create_index('ix_roles_is_active', 'roles', ['is_active'])
 
-    op.create_index('ix_project_members_id', 'project_members', ['id'])
     op.create_index('ix_project_members_tenant_id', 'project_members', ['tenant_id'])
     op.create_index('ix_project_members_is_deleted', 'project_members', ['is_deleted'])
     op.create_index('ix_project_members_project_id', 'project_members', ['project_id'])
@@ -166,8 +161,18 @@ def upgrade() -> None:
         CHECK (
             (hashed_password IS NOT NULL) OR
             (oauth_provider IS NOT NULL AND oauth_id IS NOT NULL)
-        )
+        ) NOT VALID
     """)
+
+    # Backfill legacy rows without any authentication method
+    op.execute("""
+        UPDATE users
+        SET is_active = false
+        WHERE hashed_password IS NULL
+          AND (oauth_provider IS NULL OR oauth_id IS NULL)
+    """)
+
+    op.execute("ALTER TABLE users VALIDATE CONSTRAINT ck_users_auth_method")
 
 
 def downgrade() -> None:
@@ -191,6 +196,4 @@ def downgrade() -> None:
     op.drop_table('roles')
     op.drop_table('permissions')
 
-    # Remove columns from users table
-    op.drop_column('users', 'last_login_at')
-    op.drop_column('users', 'hashed_password')
+    # Note: hashed_password and last_login_at fields are part of User model, not dropped

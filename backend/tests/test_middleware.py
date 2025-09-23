@@ -6,6 +6,7 @@ import pytest
 import uuid
 import time
 from unittest.mock import Mock, AsyncMock, patch
+from types import SimpleNamespace
 from fastapi import Request, HTTPException, status
 from fastapi.testclient import TestClient
 from starlette.responses import Response
@@ -13,6 +14,45 @@ from starlette.responses import Response
 from app.middleware.tenant import TenantIsolationMiddleware, TenantContextManager
 from app.middleware.rate_limit import RateLimitMiddleware, RateLimitService
 from app.middleware.security import SecurityHeadersMiddleware, CSRFProtectionMiddleware, SecurityService
+
+
+class DummyRedisPipeline:
+    """Simple pipeline stub for Redis operations in tests."""
+
+    def __init__(self, results):
+        self._results = results
+
+    def zremrangebyscore(self, *args, **kwargs):
+        return self
+
+    def zcard(self, *args, **kwargs):
+        return self
+
+    def zadd(self, *args, **kwargs):
+        return self
+
+    def expire(self, *args, **kwargs):
+        return self
+
+    async def execute(self):
+        return self._results
+
+
+class DummyRedisClient:
+    """Simple Redis client stub returning pre-defined pipeline results."""
+
+    def __init__(self, results, ttl=60):
+        self._results = results
+        self._ttl = ttl
+
+    def pipeline(self):
+        return DummyRedisPipeline(self._results)
+
+    async def ttl(self, key):
+        return self._ttl
+
+    async def zrem(self, key, member):
+        return 1
 
 
 class TestTenantIsolationMiddleware:
@@ -30,18 +70,26 @@ class TestTenantIsolationMiddleware:
         request = Mock(spec=Request)
         request.url.path = "/api/v1/projects"
         request.headers = {}
-        request.state = Mock()
+        request.state = SimpleNamespace(tenant_id=None)
+        request.app = Mock()
+        request.app.state = Mock()
+        request.app.state.redis_client = None
+        request.client = Mock(host="127.0.0.1")
         return request
 
     def test_excluded_paths(self, middleware):
         """Test that excluded paths are configured correctly."""
-        expected_excluded = [
-            "/docs", "/redoc", "/openapi.json", "/health",
-            "/auth/login", "/auth/register", "/auth/oauth", "/auth/callback"
+        expected_prefixes = [
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+            "/health",
+            "/api/v1/health",
         ]
 
-        for path in expected_excluded:
-            assert path in middleware.excluded_paths
+        for path in expected_prefixes:
+            assert middleware._is_excluded_path(path)
+            assert middleware._is_excluded_path(f"{path}/subpath")
 
     @pytest.mark.asyncio
     async def test_excluded_path_bypass(self, middleware, mock_request):
@@ -61,7 +109,11 @@ class TestTenantIsolationMiddleware:
         mock_request.url.path = "/api/v1/projects"
         mock_request.headers = {}  # No Authorization header
 
-        with patch.object(middleware, '_extract_tenant_from_request', return_value=None):
+        with patch.object(
+            middleware,
+            '_extract_tenant_from_request',
+            new=AsyncMock(return_value=None)
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 await middleware.dispatch(mock_request, AsyncMock())
 
@@ -73,7 +125,11 @@ class TestTenantIsolationMiddleware:
         tenant_id = uuid.uuid4()
         mock_request.url.path = "/api/v1/projects"
 
-        with patch.object(middleware, '_extract_tenant_from_request', return_value=tenant_id):
+        with patch.object(
+            middleware,
+            '_extract_tenant_from_request',
+            new=AsyncMock(return_value=tenant_id)
+        ):
             call_next = AsyncMock(return_value=Response())
             response = await middleware.dispatch(mock_request, call_next)
 
@@ -87,16 +143,19 @@ class TestTenantIsolationMiddleware:
         """Test tenant extraction from valid JWT token."""
         mock_request.headers = {"Authorization": "Bearer valid_token"}
 
-        with patch('app.middleware.tenant.get_database') as mock_get_db:
-            mock_db = AsyncMock()
-            mock_get_db.return_value.__aenter__.return_value = mock_db
+        async def fake_get_db():
+            yield mock_db
+
+        mock_db = AsyncMock()
+
+        with patch('app.middleware.tenant.get_db', side_effect=fake_get_db):
 
             with patch('app.middleware.tenant.AuthService') as mock_auth_service:
                 mock_user = Mock()
                 mock_user.is_active = True
                 mock_user.tenant_id = uuid.uuid4()
 
-                mock_auth_service.return_value.get_user_by_token.return_value = mock_user
+                mock_auth_service.return_value.get_user_by_token = AsyncMock(return_value=mock_user)
 
                 tenant_id = await middleware._extract_tenant_from_request(mock_request)
 
@@ -107,12 +166,17 @@ class TestTenantIsolationMiddleware:
         """Test tenant extraction from invalid token."""
         mock_request.headers = {"Authorization": "Bearer invalid_token"}
 
-        with patch('app.middleware.tenant.get_database') as mock_get_db:
-            mock_db = AsyncMock()
-            mock_get_db.return_value.__aenter__.return_value = mock_db
+        async def fake_get_db():
+            yield mock_db
+
+        mock_db = AsyncMock()
+
+        with patch('app.middleware.tenant.get_db', side_effect=fake_get_db):
 
             with patch('app.middleware.tenant.AuthService') as mock_auth_service:
-                mock_auth_service.return_value.get_user_by_token.return_value = None
+                mock_auth_service.return_value.get_user_by_token = AsyncMock(
+                    side_effect=HTTPException(status_code=401, detail="Invalid token")
+                )
 
                 tenant_id = await middleware._extract_tenant_from_request(mock_request)
 
@@ -131,7 +195,7 @@ class TestTenantIsolationMiddleware:
         """Test TenantContextManager require_tenant_id with valid tenant."""
         request = Mock(spec=Request)
         tenant_id = uuid.uuid4()
-        request.state.tenant_id = tenant_id
+        request.state = SimpleNamespace(tenant_id=tenant_id)
 
         result = TenantContextManager.require_tenant_id(request)
         assert result == tenant_id
@@ -139,7 +203,7 @@ class TestTenantIsolationMiddleware:
     def test_tenant_context_manager_require_tenant_id_missing(self):
         """Test TenantContextManager require_tenant_id with missing tenant."""
         request = Mock(spec=Request)
-        request.state = Mock()
+        request.state = SimpleNamespace()
         # No tenant_id attribute
 
         with pytest.raises(HTTPException) as exc_info:
@@ -153,11 +217,8 @@ class TestRateLimitMiddleware:
 
     @pytest.fixture
     def mock_redis(self):
-        """Create mock Redis client."""
-        redis_mock = AsyncMock()
-        redis_mock.pipeline.return_value = redis_mock
-        redis_mock.execute.return_value = [None, 5, None, None]  # Mock pipeline results
-        return redis_mock
+        """Create dummy Redis client."""
+        return DummyRedisClient([0, 1, 5, 1])
 
     @pytest.fixture
     def middleware(self, mock_redis):
@@ -170,9 +231,10 @@ class TestRateLimitMiddleware:
         """Create mock request."""
         request = Mock(spec=Request)
         request.url.path = "/api/v1/test"
-        request.client.host = "127.0.0.1"
         request.headers = {}
-        request.state = Mock()
+        request.state = SimpleNamespace()
+        request.client = SimpleNamespace(host="127.0.0.1")
+        request.app = SimpleNamespace(state=SimpleNamespace())
         return request
 
     @pytest.mark.asyncio
@@ -193,6 +255,8 @@ class TestRateLimitMiddleware:
         middleware = RateLimitMiddleware(app, None)
         call_next = AsyncMock(return_value=Response())
 
+        mock_request.app.state.redis_client = None
+
         response = await middleware.dispatch(mock_request, call_next)
 
         call_next.assert_called_once()
@@ -201,11 +265,11 @@ class TestRateLimitMiddleware:
     @pytest.mark.asyncio
     async def test_rate_limit_within_bounds(self, middleware, mock_request, mock_redis):
         """Test request within rate limits."""
-        mock_redis.execute.return_value = [None, 50, None, None]  # 50 requests in window
-
         call_next = AsyncMock()
         response_mock = Response()
         call_next.return_value = response_mock
+
+        middleware = RateLimitMiddleware(Mock(), DummyRedisClient([0, 1, 50, 1]))
 
         response = await middleware.dispatch(mock_request, call_next)
 
@@ -219,7 +283,7 @@ class TestRateLimitMiddleware:
     @pytest.mark.asyncio
     async def test_rate_limit_exceeded(self, middleware, mock_request, mock_redis):
         """Test request exceeding rate limits."""
-        mock_redis.execute.return_value = [None, 150, None, None]  # 150 requests in window (over limit)
+        middleware = RateLimitMiddleware(Mock(), DummyRedisClient([0, 1, 150, 1]))
 
         with pytest.raises(HTTPException) as exc_info:
             await middleware.dispatch(mock_request, AsyncMock())
@@ -227,45 +291,54 @@ class TestRateLimitMiddleware:
         assert exc_info.value.status_code == status.HTTP_429_TOO_MANY_REQUESTS
         assert "Rate limit exceeded" in str(exc_info.value.detail)
 
-    def test_get_rate_limit_config_default(self, middleware, mock_request):
+    @pytest.mark.asyncio
+    async def test_get_rate_limit_config_default(self, middleware, mock_request):
         """Test default rate limit configuration."""
-        config = middleware._get_rate_limit_config(mock_request)
+        config = await middleware._get_rate_limit_config(mock_request)
 
         assert config["requests"] == 100  # Default
         assert config["window"] == 60  # Default
 
-    def test_get_rate_limit_config_login_endpoint(self, middleware, mock_request):
+    @pytest.mark.asyncio
+    async def test_get_rate_limit_config_login_endpoint(self, middleware, mock_request):
         """Test rate limit configuration for login endpoint."""
         mock_request.url.path = "/auth/login"
 
-        config = middleware._get_rate_limit_config(mock_request)
+        config = await middleware._get_rate_limit_config(mock_request)
 
         assert config["requests"] == 5  # Stricter for login
         assert config["window"] == 300  # 5 minutes
 
-    def test_generate_rate_limit_key(self, middleware, mock_request):
+    @pytest.mark.asyncio
+    async def test_generate_rate_limit_key(self, middleware, mock_request):
         """Test rate limit key generation."""
-        with patch.object(middleware, '_get_client_identifier', return_value="client_123"):
-            key = middleware._generate_rate_limit_key(mock_request)
+        with patch.object(
+            middleware,
+            '_get_client_identifier',
+            new=AsyncMock(return_value="client_123")
+        ):
+            key = await middleware._generate_rate_limit_key(mock_request)
 
             assert key.startswith("rl:")
             assert len(key) > 10  # Should be a hash
 
-    def test_get_client_identifier_with_tenant(self, middleware, mock_request):
+    @pytest.mark.asyncio
+    async def test_get_client_identifier_with_tenant(self, middleware, mock_request):
         """Test client identifier with tenant context."""
         tenant_id = uuid.uuid4()
         mock_request.state.tenant_id = tenant_id
 
-        identifier = middleware._get_client_identifier(mock_request)
+        identifier = await middleware._get_client_identifier(mock_request)
 
         assert identifier == f"tenant:{tenant_id}"
 
-    def test_get_client_identifier_with_ip(self, middleware, mock_request):
+    @pytest.mark.asyncio
+    async def test_get_client_identifier_with_ip(self, middleware, mock_request):
         """Test client identifier fallback to IP."""
         # No tenant context
-        mock_request.state = Mock()
+        mock_request.state = SimpleNamespace(tenant_id=None)
 
-        identifier = middleware._get_client_identifier(mock_request)
+        identifier = await middleware._get_client_identifier(mock_request)
 
         assert identifier == "ip:127.0.0.1"
 
@@ -337,14 +410,19 @@ class TestRateLimitService:
     @pytest.mark.asyncio
     async def test_cleanup_expired_limits(self, rate_limit_service, mock_redis):
         """Test cleanup of expired rate limits."""
-        mock_redis.keys.return_value = ["rl:key1", "rl:key2"]
-        mock_redis.zremrangebyscore.return_value = 5
-        mock_redis.zcard.return_value = 0
+        async def scan_iter(*args, **kwargs):
+            for key in ["rl:key1", "rl:key2"]:
+                yield key
+
+        mock_redis.scan_iter = scan_iter
+        mock_redis.zremrangebyscore = AsyncMock(return_value=5)
+        mock_redis.zcard = AsyncMock(return_value=0)
+        mock_redis.delete = AsyncMock(return_value=1)
 
         expired_count = await rate_limit_service.cleanup_expired_limits()
 
         assert expired_count == 10  # 5 + 5
-        assert mock_redis.delete.call_count == 2  # Both keys deleted
+        assert mock_redis.delete.await_count == 2  # Both keys deleted
 
 
 class TestSecurityHeadersMiddleware:
@@ -453,31 +531,39 @@ class TestCSRFProtectionMiddleware:
         # Non-API, state-changing request without CSRF token
         mock_request.url.path = "/form-submit"
 
-        with patch.object(middleware, '_validate_csrf_token', return_value=False):
+        with patch.object(
+            middleware,
+            '_validate_csrf_token',
+            new=AsyncMock(return_value=False)
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 await middleware.dispatch(mock_request, AsyncMock())
 
             assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
             assert "CSRF token validation failed" in str(exc_info.value.detail)
 
-    def test_validate_csrf_token_success(self, middleware, mock_request):
+    @pytest.mark.asyncio
+    async def test_validate_csrf_token_success(self, middleware, mock_request):
         """Test successful CSRF token validation."""
         token = "valid_csrf_token"
         mock_request.headers = {"X-CSRF-Token": token}
         mock_request.cookies = {"csrf_token": token}
 
-        with patch('app.middleware.security.secrets.compare_digest', return_value=True):
-            result = middleware._validate_csrf_token(mock_request)
+        with patch('app.middleware.security.secrets.compare_digest', return_value=True) as mock_compare:
+            result = await middleware._validate_csrf_token(mock_request)
             assert result is True
+            mock_compare.assert_called_once_with(token, token)
 
-    def test_validate_csrf_token_mismatch(self, middleware, mock_request):
+    @pytest.mark.asyncio
+    async def test_validate_csrf_token_mismatch(self, middleware, mock_request):
         """Test CSRF token validation with mismatch."""
         mock_request.headers = {"X-CSRF-Token": "token1"}
         mock_request.cookies = {"csrf_token": "token2"}
 
-        with patch('app.middleware.security.secrets.compare_digest', return_value=False):
-            result = middleware._validate_csrf_token(mock_request)
+        with patch('app.middleware.security.secrets.compare_digest', return_value=False) as mock_compare:
+            result = await middleware._validate_csrf_token(mock_request)
             assert result is False
+            mock_compare.assert_called_once_with("token1", "token2")
 
 
 class TestSecurityService:

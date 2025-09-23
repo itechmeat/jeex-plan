@@ -196,19 +196,19 @@ class HealthChecker:
 
         try:
             from app.core.database import get_db_session
-            from app.repositories.tenant import TenantRepository
+            from app.repositories.tenant import TenantRepository as TenantsRepository
             import uuid
 
             async with get_db_session() as session:
                 test_tenant_id = uuid.uuid4()
-                tenant_repo = TenantRepository(session)
+                tenants_repo = TenantsRepository(session)
 
                 operations_tested = ["tenant_repository_init"]
 
-                tenant_lookup = await tenant_repo.get_by_id(test_tenant_id)
+                tenant_lookup = await tenants_repo.get_by_id(test_tenant_id)
                 operations_tested.append("get_by_id")
 
-                active_tenants = await tenant_repo.get_active_tenants(limit=1)
+                active_tenants = await tenants_repo.get_active_tenants(limit=1)
                 operations_tested.append("get_active_tenants")
 
                 logger.info("✅ Multi-tenant operations test completed")

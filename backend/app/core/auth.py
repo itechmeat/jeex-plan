@@ -176,10 +176,21 @@ class AuthService:
             return None
 
         user_id = payload.get("sub")
-        if not user_id:
+        tenant_id = payload.get("tenant_id")
+
+        if not user_id or not tenant_id:
             return None
 
-        user = await self.user_repo.get_by_id(uuid.UUID(user_id))
+        try:
+            user_uuid = uuid.UUID(user_id)
+            tenant_uuid = uuid.UUID(tenant_id)
+        except (ValueError, TypeError):
+            return None
+
+        if self.user_repo is None or getattr(self.user_repo, "tenant_id", None) != tenant_uuid:
+            self.user_repo = UserRepository(self.db, tenant_uuid)
+
+        user = await self.user_repo.get_by_id(user_uuid)
         if not user or not user.is_active:
             return None
 

@@ -9,7 +9,7 @@ import os
 # Minimal imports to avoid loading the entire application during migrations
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, DateTime, Boolean, ForeignKey, func, String, Text, Integer, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID, ENUM as PostgreSQLEnum
+from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
 # Create Base directly here to avoid app imports
@@ -44,8 +44,10 @@ class User(Base):
     email = Column(String(255), nullable=False, index=True)
     username = Column(String(100), nullable=False, index=True)
     full_name = Column(String(255), nullable=True)
+    hashed_password = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
     oauth_provider = Column(String(50), nullable=True)
     oauth_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -64,7 +66,7 @@ class Project(Base):
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(PostgreSQLEnum('DRAFT', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED', name='projectstatus'), nullable=False)
+    status = Column(String(50), nullable=False)
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -79,8 +81,8 @@ class Document(Base):
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=True)
-    document_type = Column(PostgreSQLEnum('ARCHITECTURE', 'PLANNING', 'STANDARDS', 'TECHNICAL_SPEC', name='documenttype'), nullable=False)
-    status = Column(PostgreSQLEnum('PENDING', 'GENERATING', 'COMPLETED', 'FAILED', name='documentstatus'), nullable=False)
+    document_type = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False)
     generation_step = Column(Integer, default=1, nullable=False)
     generation_progress = Column(Integer, default=0, nullable=False)
     error_message = Column(Text, nullable=True)
