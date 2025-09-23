@@ -132,14 +132,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     async def _validate_csrf_token(self, request: Request) -> bool:
         """Validate CSRF token from request."""
 
-        # Get CSRF token from header or form data
+        # Get CSRF token from header (avoid consuming request body)
         csrf_token = request.headers.get("X-CSRF-Token")
-
-        if not csrf_token:
-            # Try to get from form data for form submissions
-            if hasattr(request, 'form'):
-                form = await request.form()
-                csrf_token = form.get("csrf_token")
 
         if not csrf_token:
             return False
