@@ -2,7 +2,7 @@
 User model with multi-tenant support.
 """
 
-from sqlalchemy import Column, String, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, ForeignKey, UniqueConstraint, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from .base import BaseModel
@@ -16,8 +16,12 @@ class User(BaseModel):
     email = Column(String(255), nullable=False, index=True)
     username = Column(String(100), nullable=False, index=True)
     full_name = Column(String(255), nullable=True)
+    hashed_password = Column(String(255), nullable=True)  # Null for OAuth-only users
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
+
+    # Session tracking
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
 
     # OAuth fields
     oauth_provider = Column(String(50), nullable=True)  # google, github, etc.
@@ -28,6 +32,7 @@ class User(BaseModel):
 
     # Projects relationship
     projects = relationship("Project", back_populates="owner")
+    project_memberships = relationship("ProjectMember", foreign_keys="ProjectMember.user_id", back_populates="user")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "email", name="uq_user_tenant_email"),

@@ -23,7 +23,7 @@ class TenantRepository(BaseRepository[Tenant]):
         stmt = select(self.model).where(
             and_(
                 self.model.slug == slug,
-                self.model.is_active == True
+                self.model.is_active.is_(True)
             )
         )
         result = await self.session.execute(stmt)
@@ -36,7 +36,7 @@ class TenantRepository(BaseRepository[Tenant]):
     ) -> List[Tenant]:
         """Get all active tenants."""
         stmt = select(self.model).where(
-            self.model.is_active == True
+            self.model.is_active.is_(True)
         ).offset(skip).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -102,3 +102,22 @@ class TenantRepository(BaseRepository[Tenant]):
 
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is None
+
+    async def get_default_tenant(self) -> Optional[Tenant]:
+        """Get the default tenant."""
+        stmt = select(self.model).where(
+            and_(
+                self.model.slug == "default",
+                self.model.is_active.is_(True)
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_default(self) -> Tenant:
+        """Create default tenant if it doesn't exist."""
+        return await self.create_tenant(
+            name="Default Tenant",
+            slug="default",
+            description="Default tenant for new users"
+        )

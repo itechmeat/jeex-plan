@@ -9,9 +9,9 @@ COPY ../nginx/nginx.conf /etc/nginx/nginx.conf
 # Expose ports
 EXPOSE 80
 
-# Health check
+# Health check (wget is available in busybox by default)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:health || exit 1
+    CMD wget -qO- http://localhost/health >/dev/null 2>&1 || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

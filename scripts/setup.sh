@@ -26,9 +26,9 @@ mkdir -p postgres_data qdrant_data redis_data vault_data
 
 # Copy environment files
 echo "📋 Setting up environment files..."
-if [ ! -f backend/.env ]; then
-    cp backend/.env.example backend/.env
-    echo "✅ Created backend/.env"
+if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "✅ Created .env"
 fi
 
 if [ ! -f frontend/.env ]; then

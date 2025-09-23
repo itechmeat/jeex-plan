@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '5fde290802d2'
-down_revision: Union[str, Sequence[str], None] = '001'
+down_revision: Union[str, Sequence[str], None] = '9e95af11ace6'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -84,10 +84,10 @@ def upgrade() -> None:
         "ON documents(project_id, document_type) WHERE is_deleted = false"
     )
 
-    # Tenants - active tenants only
+    # Tenants - active tenants by slug for efficient lookups
     op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_tenants_active "
-        "ON tenants(id) WHERE is_active = true"
+        "CREATE INDEX IF NOT EXISTS ix_tenants_slug_active "
+        "ON tenants(slug) WHERE is_active = true"
     )
 
 
@@ -105,4 +105,4 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS ix_documents_project_active")
     op.execute("DROP INDEX IF EXISTS ix_documents_tenant_status_active")
     op.execute("DROP INDEX IF EXISTS ix_documents_project_type_active")
-    op.execute("DROP INDEX IF EXISTS ix_tenants_active")
+    op.execute("DROP INDEX IF EXISTS ix_tenants_slug_active")

@@ -7,6 +7,7 @@ from .tenant import Tenant
 from .user import User
 from .project import Project, ProjectStatus
 from .document import Document, DocumentType, DocumentStatus
+from .rbac import Role, PermissionModel, ProjectMember, Permission, ProjectRole, role_permissions
 
 __all__ = [
     "Base",
@@ -21,4 +22,10 @@ __all__ = [
     "Document",
     "DocumentType",
     "DocumentStatus",
+    "Role",
+    "PermissionModel",
+    "ProjectMember",
+    "Permission",
+    "ProjectRole",
+    "role_permissions",
 ]

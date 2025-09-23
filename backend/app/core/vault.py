@@ -12,6 +12,9 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
+DEV_PLACEHOLDER_TOKEN = "development-placeholder-token"
+DEV_ENV_VALUES = {"dev", "development"}
+
 
 class VaultClient:
     """HashiCorp Vault client for secret management."""
@@ -23,7 +26,33 @@ class VaultClient:
         timeout: int = 10,
     ):
         self.vault_url = vault_url.rstrip("/")
-        self.vault_token = vault_token or os.getenv("VAULT_TOKEN", "dev-token-jeex-plan")
+
+        resolved_token = vault_token or os.getenv("VAULT_TOKEN")
+        env_value = next(
+            (
+                value
+                for value in (
+                    os.getenv("ENVIRONMENT"),
+                    os.getenv("APP_ENV"),
+                    os.getenv("FLASK_ENV"),
+                )
+                if value
+            ),
+            "development",
+        ).lower()
+
+        if not resolved_token:
+            if env_value not in DEV_ENV_VALUES:
+                raise RuntimeError(
+                    "VAULT_TOKEN environment variable must be set outside development environments."
+                )
+            logger.warning(
+                "VAULT_TOKEN not provided; using placeholder token because environment=%s",
+                env_value,
+            )
+            resolved_token = DEV_PLACEHOLDER_TOKEN
+
+        self.vault_token = resolved_token
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
 

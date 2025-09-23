@@ -1,19 +1,6 @@
-"""
-OpenTelemetry observability setup for distributed tracing and metrics.
-"""
+"""OpenTelemetry observability helpers with optional instrumentation."""
 
-from opentelemetry import trace, metrics
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader, ConsoleMetricExporter
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
+from typing import Any, Optional
 
 from app.core.config import settings
 from app.core.logger import get_logger
@@ -21,98 +8,222 @@ from app.core.logger import get_logger
 logger = get_logger(__name__)
 
 
-def setup_observability(app):
-    """Setup OpenTelemetry observability for the application"""
+class _NoOpSpan:
+    """Span placeholder used when observability is disabled."""
 
+    def __enter__(self) -> "_NoOpSpan":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    def set_attribute(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def add_event(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def record_exception(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def end(self) -> None:
+        return None
+
+
+class _NoOpTracer:
+    """Tracer facade that returns no-op spans."""
+
+    def start_span(self, *_: Any, **__: Any) -> _NoOpSpan:
+        return _NoOpSpan()
+
+
+class _NoOpCounter:
+    """Counter facade that ignores measurements."""
+
+    def add(self, *_: Any, **__: Any) -> None:
+        return None
+
+
+class _NoOpHistogram:
+    """Histogram facade that ignores measurements."""
+
+    def record(self, *_: Any, **__: Any) -> None:
+        return None
+
+
+class _NoOpUpDownCounter:
+    """Up-down counter facade that ignores measurements."""
+
+    def add(self, *_: Any, **__: Any) -> None:
+        return None
+
+
+class _NoOpMeter:
+    """Meter facade that supplies no-op instruments."""
+
+    def create_counter(self, *_: Any, **__: Any) -> _NoOpCounter:
+        return _NoOpCounter()
+
+    def create_histogram(self, *_: Any, **__: Any) -> _NoOpHistogram:
+        return _NoOpHistogram()
+
+    def create_up_down_counter(self, *_: Any, **__: Any) -> _NoOpUpDownCounter:
+        return _NoOpUpDownCounter()
+
+
+NOOP_TRACER = _NoOpTracer()
+NOOP_METER = _NoOpMeter()
+
+
+def _noop_setup_observability(_: Any) -> None:
+    """Skip instrumentation when observability is disabled."""
+    logger.debug("Observability disabled; instrumentation skipped")
+
+
+def _noop_get_tracer(_: Optional[str] = None) -> _NoOpTracer:
+    return NOOP_TRACER
+
+
+def _noop_get_meter(_: Optional[str] = None) -> _NoOpMeter:
+    return NOOP_METER
+
+
+NOOP_SETUP_OBSERVABILITY = _noop_setup_observability
+NOOP_GET_TRACER = _noop_get_tracer
+NOOP_GET_METER = _noop_get_meter
+
+
+if settings.ENABLE_OBSERVABILITY:
     try:
-        # Create resource with service information
-        resource = Resource.create({
-            SERVICE_NAME: settings.APP_NAME,
-            SERVICE_VERSION: "1.0.0",
-            "environment": settings.ENVIRONMENT,
-        })
-
-        # Setup tracing
-        tracer_provider = TracerProvider(resource=resource)
-
-        # Configure span exporters
-        if settings.OTLP_ENDPOINT:
-            # Export to OTLP collector
-            otlp_exporter = OTLPSpanExporter(endpoint=f"{settings.OTLP_ENDPOINT}/v1/traces")
-            span_processor = BatchSpanProcessor(otlp_exporter)
-        else:
-            # Export to console for development
-            console_exporter = ConsoleSpanExporter()
-            span_processor = BatchSpanProcessor(console_exporter)
-
-        tracer_provider.add_span_processor(span_processor)
-        trace.set_tracer_provider(tracer_provider)
-
-        # Setup metrics
-        metric_reader = PeriodicExportingMetricReader(
-            ConsoleMetricExporter() if not settings.OTLP_ENDPOINT
-            else OTLPMetricExporter(endpoint=f"{settings.OTLP_ENDPOINT}/v1/metrics")
+        from opentelemetry import trace, metrics
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+        from opentelemetry.instrumentation.redis import RedisInstrumentor
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+        from opentelemetry.sdk.metrics import MeterProvider
+        from opentelemetry.sdk.metrics.export import (
+            PeriodicExportingMetricReader,
+            ConsoleMetricExporter,
         )
-        meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
-        metrics.set_meter_provider(meter_provider)
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+        from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
 
-        # Instrument FastAPI
-        FastAPIInstrumentor.instrument_app(
-            app,
-            tracer_provider=tracer_provider,
-            meter_provider=meter_provider,
-            excluded_urls="/health,/metrics",
+    except ImportError as exc:  # pragma: no cover - fallback path
+        logger.warning(
+            "OpenTelemetry packages unavailable (%s); using no-op observability",
+            exc,
         )
+        setup_observability = NOOP_SETUP_OBSERVABILITY
+        get_tracer = NOOP_GET_TRACER
+        get_meter = NOOP_GET_METER
 
-        # Instrument HTTP client
-        HTTPXClientInstrumentor().instrument()
+    else:
 
-        # Instrument SQLAlchemy
-        SQLAlchemyInstrumentor().instrument(
-            tracer_provider=tracer_provider,
-            enable_commenter=True,
-        )
+        def setup_observability(app: Any) -> None:
+            """Configure OpenTelemetry instrumentation for the FastAPI app."""
+            try:
+                resource = Resource.create(
+                    {
+                        SERVICE_NAME: settings.APP_NAME,
+                        SERVICE_VERSION: "1.0.0",
+                        "environment": settings.ENVIRONMENT,
+                    }
+                )
 
-        # Instrument Redis
-        RedisInstrumentor().instrument(tracer_provider=tracer_provider)
+                tracer_provider = TracerProvider(resource=resource)
 
-        logger.info("OpenTelemetry observability configured successfully")
+                if settings.OTLP_ENDPOINT:
+                    otlp_exporter = OTLPSpanExporter(
+                        endpoint=f"{settings.OTLP_ENDPOINT}/v1/traces"
+                    )
+                    span_processor = BatchSpanProcessor(otlp_exporter)
+                else:
+                    console_exporter = ConsoleSpanExporter()
+                    span_processor = BatchSpanProcessor(console_exporter)
 
-    except Exception as e:
-        logger.error("Failed to setup OpenTelemetry", error=str(e))
-        # Don't raise exception - continue without observability
+                tracer_provider.add_span_processor(span_processor)
+                trace.set_tracer_provider(tracer_provider)
+
+                metric_exporter = (
+                    OTLPMetricExporter(endpoint=f"{settings.OTLP_ENDPOINT}/v1/metrics")
+                    if settings.OTLP_ENDPOINT
+                    else ConsoleMetricExporter()
+                )
+                metric_reader = PeriodicExportingMetricReader(metric_exporter)
+                meter_provider = MeterProvider(
+                    resource=resource,
+                    metric_readers=[metric_reader],
+                )
+                metrics.set_meter_provider(meter_provider)
+
+                FastAPIInstrumentor.instrument_app(
+                    app,
+                    tracer_provider=tracer_provider,
+                    meter_provider=meter_provider,
+                    excluded_urls="/health,/metrics",
+                )
+
+                HTTPXClientInstrumentor().instrument()
+                SQLAlchemyInstrumentor().instrument(
+                    tracer_provider=tracer_provider,
+                    enable_commenter=True,
+                )
+                RedisInstrumentor().instrument(tracer_provider=tracer_provider)
+
+                logger.info("OpenTelemetry observability configured successfully")
+            except Exception as error:  # pragma: no cover - defensive
+                logger.error("Failed to setup OpenTelemetry", error=str(error))
 
 
-def get_tracer(name: str = None):
-    """Get a tracer instance"""
-    return trace.get_tracer(name or settings.APP_NAME)
+        def get_tracer(name: str | None = None):
+            """Return a tracer from the configured provider."""
+            return trace.get_tracer(name or settings.APP_NAME)
 
 
-def get_meter(name: str = None):
-    """Get a meter instance"""
-    return metrics.get_meter(name or settings.APP_NAME)
+        def get_meter(name: str | None = None):
+            """Return a meter from the configured provider."""
+            return metrics.get_meter(name or settings.APP_NAME)
+
+else:
+    setup_observability = NOOP_SETUP_OBSERVABILITY
+    get_tracer = NOOP_GET_TRACER
+    get_meter = NOOP_GET_METER
 
 
 class ObservabilityMixin:
-    """Mixin class to add observability to other classes"""
+    """Mixin that provides access to tracer and meter helpers."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.tracer = get_tracer(self.__class__.__name__)
         self.meter = get_meter(self.__class__.__name__)
 
-    def start_span(self, name: str, **attributes):
-        """Start a new span"""
-        return self.tracer.start_span(name, attributes=attributes)
+    def start_span(self, name: str, **attributes: Any):
+        """Start a span with optional attributes."""
+        return self.tracer.start_span(name, **attributes)
 
     def create_counter(self, name: str, description: str, unit: str = ""):
-        """Create a counter metric"""
+        """Create a counter metric."""
         return self.meter.create_counter(name, description=description, unit=unit)
 
     def create_histogram(self, name: str, description: str, unit: str = ""):
-        """Create a histogram metric"""
+        """Create a histogram metric."""
         return self.meter.create_histogram(name, description=description, unit=unit)
 
     def create_up_down_counter(self, name: str, description: str, unit: str = ""):
-        """Create an up-down counter metric"""
+        """Create an up-down counter metric."""
         return self.meter.create_up_down_counter(name, description=description, unit=unit)
+
+
+__all__ = [
+    "setup_observability",
+    "get_tracer",
+    "get_meter",
+    "ObservabilityMixin",
+    "NOOP_SETUP_OBSERVABILITY",
+    "NOOP_GET_TRACER",
+    "NOOP_GET_METER",
+]

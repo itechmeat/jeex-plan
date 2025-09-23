@@ -2,13 +2,20 @@
 Pytest configuration and shared fixtures.
 """
 
+import os
+
+# Set required environment variables before app import
+os.environ.setdefault("VAULT_TOKEN", "test-token")
+os.environ.setdefault("USE_VAULT", "false")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.main import app
-from app.core.database import Base, get_db
+from app.models import Base
+from app.core.database import get_db
 from app.core.config import settings
 
 
@@ -43,6 +50,12 @@ async def test_session(test_db):
     """Create test database session"""
     async with TestSessionLocal() as session:
         yield session
+
+
+@pytest.fixture
+async def async_db(test_session):
+    """Backward-compatible alias for async DB session."""
+    yield test_session
 
 
 @pytest.fixture

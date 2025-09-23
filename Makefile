@@ -22,9 +22,9 @@ status:
 
 health:
 	@echo "Checking service health..."
-	@curl -s http://localhost:5210/health | jq . || echo "API not responding"
-	@curl -s http://localhost:5250/v1/sys/health | jq . || echo "Vault not responding"
-	@curl -s http://localhost:5230/ | jq . || echo "Qdrant not responding"
+	@curl -s http://localhost:5210/api/v1/health | jq .status || echo "API not responding"
+	@curl -s http://localhost:5250/v1/sys/health | jq .initialized || echo "Vault not responding"
+	@curl -s http://localhost:5230/ | jq .title || echo "Qdrant not responding"
 
 # Maintenance commands
 clean:
@@ -53,8 +53,10 @@ api-logs:
 api-shell:
 	docker-compose exec api bash
 
+# Redis CLI - requires REDIS_PASSWORD environment variable
+# Set REDIS_PASSWORD in your environment or source the root .env/.env.local first
 redis-cli:
-	docker-compose exec redis redis-cli -a redis_password
+	docker-compose exec redis redis-cli -a ${REDIS_PASSWORD}
 
 vault-status:
 	docker-compose exec vault vault status

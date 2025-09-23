@@ -1,6 +1,6 @@
 """Create multi-tenant schema
 
-Revision ID: 001
+Revision ID: 9e95af11ace6
 Revises:
 Create Date: 2025-09-21 22:40:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '001'
+revision: str = '9e95af11ace6'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -21,10 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Create multi-tenant schema from scratch."""
 
-    # Create enums (if not exists)
-    op.execute("DO $$ BEGIN CREATE TYPE projectstatus AS ENUM ('DRAFT', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
-    op.execute("DO $$ BEGIN CREATE TYPE documenttype AS ENUM ('ARCHITECTURE', 'PLANNING', 'STANDARDS', 'TECHNICAL_SPEC'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
-    op.execute("DO $$ BEGIN CREATE TYPE documentstatus AS ENUM ('PENDING', 'GENERATING', 'COMPLETED', 'FAILED'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+    # Create enums removed - using string columns for now
 
     # Create tenants table
     op.create_table('tenants',
@@ -32,7 +29,7 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('slug', sa.String(length=100), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column('max_projects', sa.Integer(), nullable=True),
         sa.Column('max_storage_mb', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -49,13 +46,15 @@ def upgrade() -> None:
         sa.Column('email', sa.String(length=255), nullable=False),
         sa.Column('username', sa.String(length=100), nullable=False),
         sa.Column('full_name', sa.String(length=255), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False),
-        sa.Column('is_superuser', sa.Boolean(), nullable=False),
+        sa.Column('hashed_password', sa.String(length=255), nullable=True),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
+        sa.Column('is_superuser', sa.Boolean(), nullable=False, server_default=sa.text('false')),
+        sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('oauth_provider', sa.String(length=50), nullable=True),
         sa.Column('oauth_id', sa.String(length=255), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('is_deleted', sa.Boolean(), nullable=False),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
@@ -74,15 +73,15 @@ def upgrade() -> None:
         sa.Column('tenant_id', sa.UUID(), nullable=False),
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('status', postgresql.ENUM('DRAFT', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED', name='projectstatus'), nullable=False),
+        sa.Column('status', sa.String(50), nullable=False, server_default='DRAFT'),
         sa.Column('owner_id', sa.UUID(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('is_deleted', sa.Boolean(), nullable=False),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id']),
+        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='RESTRICT'),
         sa.UniqueConstraint('tenant_id', 'name', name='uq_project_tenant_name')
     )
     op.create_index('ix_projects_id', 'projects', ['id'], unique=False)
@@ -95,19 +94,19 @@ def upgrade() -> None:
         sa.Column('tenant_id', sa.UUID(), nullable=False),
         sa.Column('title', sa.String(length=255), nullable=False),
         sa.Column('content', sa.Text(), nullable=True),
-        sa.Column('document_type', postgresql.ENUM('ARCHITECTURE', 'PLANNING', 'STANDARDS', 'TECHNICAL_SPEC', name='documenttype'), nullable=False),
-        sa.Column('status', postgresql.ENUM('PENDING', 'GENERATING', 'COMPLETED', 'FAILED', name='documentstatus'), nullable=False),
+        sa.Column('document_type', sa.String(50), nullable=False),
+        sa.Column('status', sa.String(50), nullable=False, server_default='PENDING'),
         sa.Column('generation_step', sa.Integer(), nullable=False),
         sa.Column('generation_progress', sa.Integer(), nullable=False),
         sa.Column('error_message', sa.Text(), nullable=True),
         sa.Column('project_id', sa.UUID(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('is_deleted', sa.Boolean(), nullable=False),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'])
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE')
     )
     op.create_index('ix_documents_id', 'documents', ['id'], unique=False)
     op.create_index('ix_documents_tenant_id', 'documents', ['tenant_id'], unique=False)

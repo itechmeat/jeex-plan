@@ -5,8 +5,8 @@ Document repository for document management operations with tenant isolation.
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, select, func
 
 from app.models.document import Document, DocumentType, DocumentStatus
 from .base import TenantRepository
@@ -15,70 +15,96 @@ from .base import TenantRepository
 class DocumentRepository(TenantRepository[Document]):
     """Repository for document operations with tenant isolation."""
 
-    def __init__(self, session: Session, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, tenant_id: UUID):
         super().__init__(session, Document, tenant_id)
 
-    def get_by_project(
+    async def get_by_project(
         self,
         project_id: UUID,
         skip: int = 0,
         limit: int = 100
     ) -> List[Document]:
         """Get documents by project within tenant."""
-        return self.session.query(self.model).filter(
-            and_(
-                self.model.project_id == project_id,
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+        stmt = (
+            select(self.model)
+            .where(
+                and_(
+                    self.model.project_id == project_id,
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).offset(skip).limit(limit).all()
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
-    def get_by_type(
+    async def get_by_type(
         self,
         document_type: DocumentType,
         skip: int = 0,
         limit: int = 100
     ) -> List[Document]:
         """Get documents by type within tenant."""
-        return self.session.query(self.model).filter(
-            and_(
-                self.model.document_type == document_type,
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+        stmt = (
+            select(self.model)
+            .where(
+                and_(
+                    self.model.document_type == document_type,
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).offset(skip).limit(limit).all()
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
-    def get_by_status(
+    async def get_by_status(
         self,
         status: DocumentStatus,
         skip: int = 0,
         limit: int = 100
     ) -> List[Document]:
         """Get documents by status within tenant."""
-        return self.session.query(self.model).filter(
-            and_(
-                self.model.status == status,
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+        stmt = (
+            select(self.model)
+            .where(
+                and_(
+                    self.model.status == status,
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).offset(skip).limit(limit).all()
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
-    def get_by_project_and_type(
+    async def get_by_project_and_type(
         self,
         project_id: UUID,
         document_type: DocumentType
     ) -> Optional[Document]:
         """Get document by project and type within tenant."""
-        return self.session.query(self.model).filter(
-            and_(
-                self.model.project_id == project_id,
-                self.model.document_type == document_type,
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+        stmt = (
+            select(self.model)
+            .where(
+                and_(
+                    self.model.project_id == project_id,
+                    self.model.document_type == document_type,
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).first()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
 
-    def create_document(
+    async def create_document(
         self,
         title: str,
         project_id: UUID,
@@ -87,7 +113,7 @@ class DocumentRepository(TenantRepository[Document]):
         status: DocumentStatus = DocumentStatus.PENDING
     ) -> Document:
         """Create a new document within tenant."""
-        return self.create(
+        return await self.create(
             title=title,
             project_id=project_id,
             document_type=document_type,
@@ -97,7 +123,7 @@ class DocumentRepository(TenantRepository[Document]):
             generation_progress=0
         )
 
-    def update_status(
+    async def update_status(
         self,
         document_id: UUID,
         status: DocumentStatus,
@@ -108,106 +134,112 @@ class DocumentRepository(TenantRepository[Document]):
         if error_message is not None:
             updates['error_message'] = error_message
 
-        return self.update(document_id, **updates)
+        return await self.update(document_id, **updates)
 
-    def update_progress(
+    async def update_progress(
         self,
         document_id: UUID,
         generation_step: int,
         generation_progress: int
     ) -> Optional[Document]:
         """Update document generation progress."""
-        return self.update(
+        return await self.update(
             document_id,
             generation_step=generation_step,
             generation_progress=generation_progress
         )
 
-    def update_content(self, document_id: UUID, content: str) -> Optional[Document]:
+    async def update_content(self, document_id: UUID, content: str) -> Optional[Document]:
         """Update document content."""
-        return self.update(document_id, content=content)
+        return await self.update(document_id, content=content)
 
-    def mark_completed(
+    async def mark_completed(
         self,
         document_id: UUID,
         content: str
     ) -> Optional[Document]:
         """Mark document as completed with final content."""
-        return self.update(
+        return await self.update(
             document_id,
             status=DocumentStatus.COMPLETED,
             content=content,
             generation_progress=100
         )
 
-    def mark_failed(
+    async def mark_failed(
         self,
         document_id: UUID,
         error_message: str
     ) -> Optional[Document]:
         """Mark document generation as failed."""
-        return self.update(
+        return await self.update(
             document_id,
             status=DocumentStatus.FAILED,
             error_message=error_message
         )
 
-    def search_documents(
+    async def search_documents(
         self,
         search_term: str,
         skip: int = 0,
         limit: int = 100
     ) -> List[Document]:
         """Search documents by title or content within tenant."""
-        return self.search(
+        return await self.search(
             search_fields=['title', 'content'],
             search_term=search_term,
             skip=skip,
             limit=limit
         )
 
-    def get_pending_documents(
+    async def get_pending_documents(
         self,
         skip: int = 0,
         limit: int = 100
     ) -> List[Document]:
         """Get pending documents within tenant."""
-        return self.get_by_status(DocumentStatus.PENDING, skip, limit)
+        return await self.get_by_status(DocumentStatus.PENDING, skip, limit)
 
-    def get_generating_documents(
+    async def get_generating_documents(
         self,
         skip: int = 0,
         limit: int = 100
     ) -> List[Document]:
         """Get documents currently being generated within tenant."""
-        return self.get_by_status(DocumentStatus.GENERATING, skip, limit)
+        return await self.get_by_status(DocumentStatus.GENERATING, skip, limit)
 
-    def count_by_project(self, project_id: UUID) -> int:
+    async def count_by_project(self, project_id: UUID) -> int:
         """Count documents by project within tenant."""
-        return self.session.query(self.model).filter(
+        stmt = select(func.count(self.model.id)).where(
             and_(
                 self.model.project_id == project_id,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False),
             )
-        ).count()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
 
-    def count_by_type(self, document_type: DocumentType) -> int:
+    async def count_by_type(self, document_type: DocumentType) -> int:
         """Count documents by type within tenant."""
-        return self.session.query(self.model).filter(
+        stmt = select(func.count(self.model.id)).where(
             and_(
                 self.model.document_type == document_type,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False),
             )
-        ).count()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
 
-    def count_by_status(self, status: DocumentStatus) -> int:
+    async def count_by_status(self, status: DocumentStatus) -> int:
         """Count documents by status within tenant."""
-        return self.session.query(self.model).filter(
+        stmt = select(func.count(self.model.id)).where(
             and_(
                 self.model.status == status,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                self.model.is_deleted.is_(False),
             )
-        ).count()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0

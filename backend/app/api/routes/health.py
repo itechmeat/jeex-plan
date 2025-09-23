@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.core.database import get_db, DatabaseManager
 from app.core.logger import get_logger
@@ -147,7 +148,7 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     """
     # Check if we can connect to the database
     try:
-        await db.execute("SELECT 1")
+        await db.execute(text("SELECT 1"))
     except Exception as e:
         logger.error("Readiness check failed - database not ready", error=str(e))
         raise HTTPException(status_code=503, detail="Database not ready")

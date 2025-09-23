@@ -196,25 +196,20 @@ class HealthChecker:
 
         try:
             from app.core.database import get_db_session
-            from app.repositories.tenant import TenantRepository
-            from app.models.tenant import Tenant
+            from app.repositories.tenant import TenantRepository as TenantsRepository
             import uuid
 
             async with get_db_session() as session:
-                # Create a temporary tenant for testing
                 test_tenant_id = uuid.uuid4()
-                tenant_repo = TenantRepository(session, test_tenant_id)
+                tenants_repo = TenantsRepository(session)
 
-                # Test basic repository operations
-                test_passed = True
-                operations_tested = []
+                operations_tested = ["tenant_repository_init"]
 
-                try:
-                    # Test tenant creation (this will fail due to base class, but that's expected)
-                    operations_tested.append("tenant_repository_init")
-                except Exception:
-                    # Expected - base repository doesn't support tenant creation
-                    pass
+                tenant_lookup = await tenants_repo.get_by_id(test_tenant_id)
+                operations_tested.append("get_by_id")
+
+                active_tenants = await tenants_repo.get_active_tenants(limit=1)
+                operations_tested.append("get_active_tenants")
 
                 logger.info("✅ Multi-tenant operations test completed")
                 return {
@@ -222,7 +217,9 @@ class HealthChecker:
                     "component": "multi_tenant",
                     "details": {
                         "operations_tested": operations_tested,
-                        "test_tenant_id": str(test_tenant_id)
+                        "test_tenant_id": str(test_tenant_id),
+                        "lookup_result": bool(tenant_lookup),
+                        "active_tenants_sample": len(active_tenants)
                     },
                     "timestamp": time.time()
                 }
