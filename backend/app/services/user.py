@@ -40,37 +40,30 @@ class UserService:
     ) -> Dict[str, Any]:
         """Register a new user with password authentication."""
 
-        # For registration, use default tenant if none provided
-        if not self.user_repo:
-            # Get or create default tenant
-            default_tenant = await self.tenant_repo.get_default_tenant()
-            if not default_tenant:
-                default_tenant = await self.tenant_repo.create_default()
-            self.tenant_id = default_tenant.id
-            self.user_repo = UserRepository(self.db, self.tenant_id)
-            self.auth_service = AuthService(self.db, self.tenant_id)
+        # Compute effective tenant_id first
+        if tenant_id:
+            effective_tenant_id = tenant_id
+        else:
+            effective_tenant_id = await self._get_or_create_default_tenant()
 
-        # Validate email availability
+        # Initialize repositories and auth service with effective tenant
+        self.tenant_id = effective_tenant_id
+        self.user_repo = UserRepository(self.db, self.tenant_id)
+        self.auth_service = AuthService(self.db, self.tenant_id)
+
+        # Validate email availability (against correct tenant)
         if not await self.user_repo.check_email_availability(email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
 
-        # Validate username availability
+        # Validate username availability (against correct tenant)
         if not await self.user_repo.check_username_availability(username):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already taken"
             )
-
-        # Get or create default tenant if not specified
-        if not tenant_id:
-            tenant_id = await self._get_or_create_default_tenant()
-        elif not self.user_repo or self.tenant_id != tenant_id:
-            self.tenant_id = tenant_id
-            self.user_repo = UserRepository(self.db, tenant_id)
-            self.auth_service = AuthService(self.db, tenant_id)
 
         # Hash password
         hashed_password = self.auth_service.get_password_hash(password)

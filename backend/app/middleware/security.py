@@ -315,10 +315,23 @@ class RequestSizeMiddleware(BaseHTTPMiddleware):
 
         # Check Content-Length header
         content_length = request.headers.get("Content-Length")
-        if content_length and int(content_length) > self.max_size:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"Request size exceeds maximum allowed size of {self.max_size} bytes"
-            )
+        if content_length:
+            try:
+                content_length_int = int(content_length)
+                if content_length_int < 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid Content-Length header: value must be non-negative"
+                    )
+                if content_length_int > self.max_size:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Request size exceeds maximum allowed size of {self.max_size} bytes"
+                    )
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid Content-Length header: must be a valid integer"
+                )
 
         return await call_next(request)

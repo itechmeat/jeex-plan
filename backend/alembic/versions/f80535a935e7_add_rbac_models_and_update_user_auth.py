@@ -59,13 +59,19 @@ def upgrade() -> None:
         sa.UniqueConstraint('tenant_id', 'name', name='uq_role_tenant_name')
     )
 
+    # Create unique indexes for composite foreign key references (must be before role_permissions table)
+    op.create_index('ix_roles_tenant_id_unique', 'roles', ['tenant_id', 'id'], unique=True)
+    op.create_index('ix_permissions_tenant_id_unique', 'permissions', ['tenant_id', 'id'], unique=True)
+
     # Create role_permissions association table
     op.create_table('role_permissions',
+        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('role_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('permission_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.ForeignKeyConstraint(['permission_id'], ['permissions.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('role_id', 'permission_id')
+        sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['tenant_id', 'role_id'], ['roles.tenant_id', 'roles.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['tenant_id', 'permission_id'], ['permissions.tenant_id', 'permissions.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('tenant_id', 'role_id', 'permission_id')
     )
 
     # Create project_members table
@@ -189,6 +195,10 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS ix_project_members_project_active")
     op.execute("DROP INDEX IF EXISTS ix_roles_tenant_active")
     op.execute("DROP INDEX IF EXISTS ix_permissions_tenant_resource")
+
+    # Drop unique composite indexes for foreign keys
+    op.drop_index('ix_roles_tenant_id_unique', 'roles')
+    op.drop_index('ix_permissions_tenant_id_unique', 'permissions')
 
     # Drop tables in reverse order (due to foreign keys)
     op.drop_table('project_members')

@@ -67,7 +67,7 @@ services:
             test:
                 - CMD-SHELL
                 - >
-                    wget -q --spider http://localhost:6333/readyz || exit 1
+                    timeout 5 bash -c '</dev/tcp/localhost/6333' || exit 1
             interval: 30s
             timeout: 10s
             retries: 3
@@ -76,7 +76,7 @@ services:
 
     # Redis - Cache and Queue
     redis:
-        image: redis:8.2-alpine
+        image: redis:8.2.1-alpine3.22
         ports:
             - "5240:6379" # External:5240 -> Internal:6379
         env_file:

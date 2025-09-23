@@ -3,7 +3,6 @@ Database configuration and connection management.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 from contextlib import asynccontextmanager
@@ -42,8 +41,8 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
-# Base class for models
-Base = declarative_base()
+# Import canonical Base from models
+from app.models.base import Base
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
