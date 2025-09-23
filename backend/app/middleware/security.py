@@ -108,9 +108,18 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if request.method not in self.state_changing_methods:
             return await call_next(request)
 
-        # Skip for API endpoints using JWT (stateless)
+        # Skip for truly stateless API requests (Bearer token + no cookies)
         if request.url.path.startswith("/api/"):
-            return await call_next(request)
+            # Check for Bearer token in Authorization header
+            auth_header = request.headers.get("authorization", "").lower()
+            has_bearer_token = auth_header.startswith("bearer ")
+
+            # Check if request has no cookies (truly stateless)
+            has_no_cookies = not request.cookies
+
+            # Only skip CSRF for stateless requests
+            if has_bearer_token and has_no_cookies:
+                return await call_next(request)
 
         # Validate CSRF token for cookie-based authentication
         if not await self._validate_csrf_token(request):

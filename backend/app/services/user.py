@@ -81,7 +81,7 @@ class UserService:
         tokens = await self.auth_service.create_tokens_for_user(user)
 
         return {
-            "user": user,
+            "user": self._serialize_user(user),
             "tokens": tokens
         }
 
@@ -115,7 +115,7 @@ class UserService:
         tokens = await self.auth_service.create_tokens_for_user(user)
 
         return {
-            "user": user,
+            "user": self._serialize_user(user),
             "tokens": tokens
         }
 
@@ -303,8 +303,15 @@ class UserService:
     ) -> User:
         """Link OAuth account to existing user."""
 
+        repo = self.user_repo
+
+        if repo is None:
+            raise RuntimeError(
+                "UserService.link_oauth_account requires an initialized user_repo"
+            )
+
         # Check if OAuth account is already linked
-        oauth_available = await self.user_repo.check_oauth_availability(
+        oauth_available = await repo.check_oauth_availability(
             oauth_provider,
             oauth_id,
             exclude_user_id=user_id
@@ -316,7 +323,7 @@ class UserService:
                 detail="OAuth account already linked to another user"
             )
 
-        user = await self.user_repo.link_oauth_account(
+        user = await repo.link_oauth_account(
             user_id,
             oauth_provider,
             oauth_id
@@ -341,6 +348,21 @@ class UserService:
             )
 
         return user
+
+    def _serialize_user(self, user: User) -> Dict[str, Any]:
+        """Serialize user data safely, excluding sensitive fields."""
+        return {
+            "id": str(user.id),
+            "tenant_id": str(user.tenant_id),
+            "email": user.email,
+            "username": user.username,
+            "full_name": user.full_name,
+            "is_active": user.is_active,
+            "is_superuser": user.is_superuser,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+        }
 
     async def _get_or_create_default_tenant(self) -> uuid.UUID:
         """Get or create default tenant."""

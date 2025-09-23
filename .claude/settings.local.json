@@ -51,7 +51,8 @@
       "Bash(for:*)",
       "Bash(do:*)",
       "Bash(echo:*)",
-      "Bash(REDIS_PASSWORD=<REDACTED> docker-compose config:*)"
+      "Bash(REDIS_PASSWORD=<REDACTED> docker-compose config:*)",
+      "Read(//tmp/**)"
     ],
     "deny": [
       "Bash(git checkout:*)",
