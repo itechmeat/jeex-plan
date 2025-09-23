@@ -10,6 +10,10 @@ import asyncio
 import aiohttp
 import time
 from typing import Dict, Any
+from datetime import datetime
+
+# Import agent routes
+from app.api.routes.agents import router as agents_router
 
 app = FastAPI(
     title="JEEX Plan API",
@@ -25,6 +29,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include agent routes
+app.include_router(agents_router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -138,7 +145,13 @@ async def api_info() -> Dict[str, Any]:
             {"path": "/health", "method": "GET", "description": "Health check"},
             {"path": "/ready", "method": "GET", "description": "Readiness check"},
             {"path": "/system/status", "method": "GET", "description": "System services status"},
-            {"path": "/api/v1/info", "method": "GET", "description": "API information"}
+            {"path": "/api/v1/info", "method": "GET", "description": "API information"},
+            {"path": "/api/v1/agents/business-analysis", "method": "POST", "description": "Execute business analysis"},
+            {"path": "/api/v1/agents/architecture-design", "method": "POST", "description": "Execute architecture design"},
+            {"path": "/api/v1/agents/implementation-planning", "method": "POST", "description": "Execute implementation planning"},
+            {"path": "/api/v1/agents/engineering-standards", "method": "POST", "description": "Execute engineering standards"},
+            {"path": "/api/v1/agents/workflow/execute-stream", "method": "POST", "description": "Execute full workflow with SSE"},
+            {"path": "/api/v1/agents/health", "method": "GET", "description": "Agent system health check"}
         ]
     }
 
