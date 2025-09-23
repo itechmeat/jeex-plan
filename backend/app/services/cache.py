@@ -7,8 +7,7 @@ accessed data with automatic tenant isolation and cache management.
 
 import json
 import hashlib
-from typing import Any, Optional, List, Dict, Union
-from datetime import datetime, timedelta
+from typing import Any, Optional, List, Dict
 import asyncio
 
 from app.core.logger import get_logger, LoggerMixin
@@ -153,10 +152,10 @@ class VectorCache(LoggerMixin):
             )
 
             # Store with tenant-specific prefix for easy invalidation
-            success = await self.redis.setex(
+            success = await self.redis.set(
                 cache_key,
-                self.search_ttl,
-                json.dumps(results)
+                json.dumps(results),
+                ex=self.search_ttl
             )
 
             if success:
@@ -241,10 +240,10 @@ class VectorCache(LoggerMixin):
         try:
             cache_key = CacheKey.generate_embedding_key(text, model, normalization)
 
-            success = await self.redis.setex(
+            success = await self.redis.set(
                 cache_key,
-                self.embedding_ttl,
-                json.dumps(embedding)
+                json.dumps(embedding),
+                ex=self.embedding_ttl
             )
 
             if success:
@@ -322,7 +321,7 @@ class VectorCache(LoggerMixin):
             cache_key = CacheKey.generate_stats_key(tenant_id, project_id)
 
             # Shorter TTL for stats as they change more frequently
-            success = await self.redis.setex(cache_key, 300, json.dumps(stats))  # 5 minutes
+            success = await self.redis.set(cache_key, json.dumps(stats), ex=300)  # 5 minutes
 
             if success:
                 logger.debug(

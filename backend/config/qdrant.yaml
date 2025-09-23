@@ -1,66 +1,43 @@
 # Qdrant configuration for JEEX Plan
-# Optimized for multi-tenancy and document embeddings
+# Optimized for multi-tenancy and document embeddings (v1.15.4)
 
 service:
-  http_port: 6333
-  grpc_port: 6334
-  enable_cors: true
-  max_request_size_mb: 32
-  max_workers: 0  # Auto-detect CPU cores
-  enable_tls: false  # Enable for production
-  tls_cert: ./certs/cert.pem
-  tls_key: ./certs/key.pem
-  timeout_sec: 30
-  write_concern: 1  # Faster writes for MVP
-  read_fallback: true
+    http_port: 6333
+    grpc_port: 6334
+    enable_cors: true
+    max_request_size_mb: 32
+    max_workers: 0 # Auto-detect CPU cores
+    enable_tls: false # Enable for production
+    tls_cert: ./certs/cert.pem
+    tls_key: ./certs/key.pem
+    timeout_sec: 30
+    write_concern: 1 # Faster writes for MVP
+    read_fallback: true
 
 log_level: info
 
 # Performance optimizations for multi-tenancy
 storage:
-  storage_path: /qdrant/storage
-  snapshots_path: /qdrant/snapshots
-  # Use SSD-optimized settings
-  wal_capacity_mb: 32
-  wal_segments_ahead: 2
-  # Optimize for document embeddings (~1536 dimensions)
-  vectors:
-    # 1536 dimensions for OpenAI embeddings
-    size: 1536
-    distance: Cosine
+    storage_path: /qdrant/storage
+    snapshots_path: /qdrant/snapshots
+
+    # WAL configuration
+    wal:
+        wal_capacity_mb: 32
+        wal_segments_ahead: 2
+
+    # Optimizers configuration
+    optimizers:
+        deleted_threshold: 0.2
+        vacuum_min_vector_number: 1000
+        default_segment_number: 2
+        max_segment_size: null
+        memmap_threshold: 50000
+        indexing_threshold: 10000
 
 # Cluster configuration (single node for MVP)
 cluster:
-  enabled: false
-
-# Collection configuration defaults
-collections:
-  # Multi-tenancy optimized HNSW parameters
-  hnsw_config:
-    m: 0  # Disable global graph for multi-tenancy
-    payload_m: 16  # Create payload-specific connections
-    ef_construct: 100
-    full_scan_threshold: 10000
-    ef: 64  # Balance between search quality and speed
-    max_indexing_threads: 0  # Use all available threads
-
-  # Optimized for payload filtering
-  payload_indexing:
-    enabled: true
-    # Index tenant and project IDs for fast filtering
-    indexed_fields:
-      - tenant_id
-      - project_id
-      - type
-      - visibility
-      - lang
-      - version
-
-  # Optimized for multi-tenant performance
-  optimizers_config:
-    deleted_threshold: 0.2
-    vacuum_min_vector_number: 1000
-    default_segment_number: 2
-    max_segment_size: null
-    memmap_threshold: 50000
-    indexing_threshold: 10000
+    enabled: false
+# Default collection parameters (used when creating collections)
+# Vector configuration is set per collection, not globally
+# HNSW and payload indexes are configured per collection

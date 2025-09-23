@@ -5,7 +5,7 @@ Redis adapter for caching, rate limiting, and queue management.
 import json
 from typing import Any, Optional, List, Dict
 import redis.asyncio as redis
-from redis.exceptions import RedisError, ConnectionError
+from redis.exceptions import RedisError
 
 from app.core.config import settings
 from app.core.logger import get_logger, LoggerMixin
@@ -142,6 +142,32 @@ class RedisAdapter(LoggerMixin):
         except RedisError as e:
             logger.error("Redis DECR failed", key=key, error=str(e))
             return None
+
+    # Set operations
+    async def smembers(self, key: str) -> List[str]:
+        """Get all members of a set"""
+        try:
+            result = await self.client.smembers(key)
+            return result if result is not None else []
+        except RedisError as e:
+            logger.error("Redis SMEMBERS failed", key=key, error=str(e))
+            return []
+
+    async def sadd(self, key: str, *values: str) -> int:
+        """Add one or more members to a set"""
+        try:
+            return await self.client.sadd(key, *values)
+        except RedisError as e:
+            logger.error("Redis SADD failed", key=key, values=values, error=str(e))
+            return 0
+
+    async def srem(self, key: str, *values: str) -> int:
+        """Remove one or more members from a set"""
+        try:
+            return await self.client.srem(key, *values)
+        except RedisError as e:
+            logger.error("Redis SREM failed", key=key, values=values, error=str(e))
+            return 0
 
     # JSON operations
     async def get_json(self, key: str) -> Optional[Dict[str, Any]]:

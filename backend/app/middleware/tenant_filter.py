@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 import uuid
 
 from app.core.logger import get_logger
-from app.schemas.vector import DocumentType, VisibilityLevel
+from app.schemas.vector import DocumentType
 
 logger = get_logger(__name__)
 
@@ -29,7 +29,8 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
             "/api/v1/vectors/search",
             "/api/v1/vectors/upsert",
             "/api/v1/vectors/delete",
-            "/api/v1/vectors/stats"
+            "/api/v1/vectors/stats",
+            "/api/v1/vectors/embed-and-store"
         }
 
     async def dispatch(self, request: Request, call_next):
@@ -121,23 +122,8 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
                 "source": "headers"
             }
 
-        # For POST/PUT requests, try extracting from body
-        if request.method in ("POST", "PUT", "PATCH"):
-            try:
-                body = await request.json()
-                if isinstance(body, dict):
-                    tenant_id = body.get("tenant_id")
-                    project_id = body.get("project_id")
-
-                    if tenant_id and project_id:
-                        return {
-                            "tenant_id": tenant_id,
-                            "project_id": project_id,
-                            "user_id": body.get("user_id", "unknown"),
-                            "source": "body"
-                        }
-            except Exception:
-                pass
+        # Avoid parsing request body in middleware to prevent consumption issues
+        # Tenant/project context should be extracted from JWT tokens or headers only
 
         return None
 

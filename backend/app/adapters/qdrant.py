@@ -2,7 +2,8 @@
 Qdrant vector database adapter with multi-tenancy support.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
+from app.schemas.vector import DocumentType, VisibilityLevel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
     Distance,
@@ -119,8 +120,7 @@ class QdrantAdapter(LoggerMixin):
                     self.client.create_payload_index(
                         collection_name=self.collection_name,
                         field_name=field_name,
-                        field_schema=field_schema,
-                        field_type=field_schema
+                        field_schema=field_schema
                     )
                     logger.info("Created payload index", field=field_name)
                 except Exception as index_error:
@@ -142,10 +142,10 @@ class QdrantAdapter(LoggerMixin):
         project_id: str,
         vectors: List[List[float]],
         payloads: List[Dict[str, Any]],
-        doc_type: str = "knowledge",
-        visibility: str = "private",
-        version: str = "1.0",
-        lang: str = "en"
+        doc_type: Union[str, "DocumentType"] = "knowledge",
+        visibility: Union[str, "VisibilityLevel"] = "private",
+        version: Union[str, None] = "1.0",
+        lang: Union[str, None] = "en"
     ) -> Dict[str, Any]:
         """
         Upsert vector points with tenant and project isolation.
@@ -166,14 +166,20 @@ class QdrantAdapter(LoggerMixin):
             # Add tenant and project context to all payloads
             enriched_payloads = []
             for i, (vector, payload) in enumerate(zip(vectors, payloads)):
+                # Convert enum values to strings for JSON serialization
+                doc_type_str = doc_type.value if hasattr(doc_type, 'value') else str(doc_type)
+                visibility_str = visibility.value if hasattr(visibility, 'value') else str(visibility)
+                version_str = str(version) if version is not None else version
+                lang_str = str(lang) if lang is not None else lang
+
                 enriched_payload = {
                     **payload,
                     "tenant_id": tenant_id,
                     "project_id": project_id,
-                    "type": doc_type,
-                    "visibility": visibility,
-                    "version": version,
-                    "lang": lang,
+                    "type": doc_type_str,
+                    "visibility": visibility_str,
+                    "version": version_str,
+                    "lang": lang_str,
                     "created_at": self._get_current_timestamp(),
                     "vector_index": i
                 }

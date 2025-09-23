@@ -65,7 +65,7 @@ class VectorBenchmark:
                 doc_embeddings = []
                 doc_payloads = []
 
-                for doc in project_docs:
+                for doc_idx, doc in enumerate(project_docs):
                     try:
                         result = await self.embedding.process_document(
                             text=doc,

@@ -40,7 +40,7 @@ class HNSWConfigurator:
 
     # Multi-tenant optimized base configurations
     MULTI_TENANT_BASE = {
-        "m": 0,  # Disable global graph for multi-tenancy
+        "m": 2,  # Minimum valid value for multi-tenancy
         "payload_m": 16,  # Create payload-specific connections
         "max_indexing_threads": 0,  # Use all available threads
         "full_scan_threshold": 10000,
@@ -143,7 +143,7 @@ class HNSWConfigurator:
             workload_type=WorkloadType.BALANCED,
             dataset_size=DatasetSize.MEDIUM,
             custom_params={
-                "m": 0,  # Critical: disable global graph
+                "m": 2,  # Minimum valid value for small graph degree
                 "payload_m": 24,  # Increase payload connections for better isolation
                 "ef_construct": 120,  # Slightly higher construction quality
                 "ef": 80,  # Better search within tenant scope
@@ -161,7 +161,7 @@ class HNSWConfigurator:
             workload_type=WorkloadType.MEMORY,
             dataset_size=DatasetSize.LARGE,
             custom_params={
-                "m": 0,
+                "m": 2,
                 "payload_m": 12,  # Reduce payload connections
                 "ef_construct": 60,
                 "ef": 32,
@@ -179,7 +179,7 @@ class HNSWConfigurator:
             workload_type=WorkloadType.QUALITY,
             dataset_size=DatasetSize.MEDIUM,
             custom_params={
-                "m": 0,
+                "m": 2,
                 "payload_m": 20,
                 "ef_construct": 200,
                 "ef": 128,
@@ -196,19 +196,15 @@ class HNSWConfigurator:
         Returns:
             True if configuration is valid for multi-tenancy
         """
-        required_params = ["m", "ef_construct", "ef", "payload_m"]
+        required_params = ["m", "ef_construct", "ef"]
 
         for param in required_params:
             if param not in config:
                 return False
 
         # Multi-tenant specific validations
-        if config["m"] != 0:
-            # Global graph should be disabled for multi-tenancy
-            return False
-
-        if config["payload_m"] < 8:
-            # Payload connections should be sufficient for isolation
+        if config["m"] < 2:
+            # Invalid HNSW degree - must be >= 2
             return False
 
         if config["ef_construct"] < config["ef"]:

@@ -15,7 +15,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 from app.core.logger import get_logger, LoggerMixin
 from app.core.config import settings
-from app.schemas.vector import DocumentType, VisibilityLevel
+from app.schemas.vector import DocumentType
 
 logger = get_logger(__name__)
 
@@ -114,6 +114,15 @@ class EmbeddingService(LoggerMixin):
         """
         start_time = asyncio.get_event_loop().time()
 
+        # Bind correlation/request and tenancy context for structured logs
+        _log_meta = metadata or {}
+        log = self.logger.bind(
+            correlation_id=_log_meta.get("correlation_id"),
+            tenant_id=_log_meta.get("tenant_id"),
+            project_id=_log_meta.get("project_id"),
+            doc_type=str(doc_type.value) if hasattr(doc_type, "value") else str(doc_type),
+        )
+
         try:
             # Step 1: Normalize text
             normalized_text = self._normalize_text(text, normalization)
@@ -146,7 +155,7 @@ class EmbeddingService(LoggerMixin):
                 deduplication_stats=dedup_stats
             )
 
-            logger.info(
+            log.info(
                 "Document processed successfully",
                 doc_type=doc_type,
                 chunks_count=len(unique_chunks),
@@ -157,7 +166,7 @@ class EmbeddingService(LoggerMixin):
             return result
 
         except Exception as e:
-            logger.error("Document processing failed", error=str(e))
+            log.exception("Document processing failed", error=str(e))
             raise
 
     def _normalize_text(self, text: str, normalization: TextNormalization) -> str:
@@ -182,11 +191,13 @@ class EmbeddingService(LoggerMixin):
 
     def _minimal_normalization(self, text: str) -> str:
         """Basic text cleaning"""
-        # Remove excessive whitespace
-        text = re.sub(r'\s+', ' ', text)
-        # Normalize line endings
+        # Normalize line endings first
         text = text.replace('\r\n', '\n').replace('\r', '\n')
-        # Strip leading/trailing whitespace
+        # Collapse spaces/tabs but preserve newlines
+        text = re.sub(r'[^\S\n]+', ' ', text)
+        # Normalize multiple blank lines to a single blank line
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        # Trim outer whitespace
         text = text.strip()
         return text
 
@@ -347,6 +358,15 @@ class EmbeddingService(LoggerMixin):
         chunk_size = self.max_chunk_size
         overlap = self.chunk_overlap
 
+        if overlap >= chunk_size:
+            # Avoid non-progress / infinite loop due to misconfiguration
+            self.logger.warning(
+                "Adjusting chunk_overlap to avoid infinite loop",
+                chunk_overlap=overlap,
+                chunk_size=chunk_size,
+            )
+            overlap = max(0, chunk_size // 4)
+
         start_pos = 0
         chunk_index = 0
 
@@ -380,7 +400,12 @@ class EmbeddingService(LoggerMixin):
                 chunks.append(chunk)
                 chunk_index += 1
 
-            start_pos = end_pos - overlap
+            # Advance start based on actual chunk length to guarantee progress
+            produced_len = max(1, end_pos - start_pos)
+            next_start = (end_pos - overlap) if overlap < produced_len else (start_pos + 1)
+            if next_start <= start_pos:
+                next_start = min(end_pos, text_length)
+            start_pos = next_start
 
         return chunks
 
@@ -473,10 +498,14 @@ class EmbeddingService(LoggerMixin):
             batch_texts = [chunk.text for chunk in batch_chunks]
 
             try:
-                # Compute embeddings for batch
-                response = await self._embedding_client.embeddings.create(
+                # Compute embeddings for batch (with timeout)
+                client = self._embedding_client
+                # Prefer per-call timeout if supported; otherwise configure via client options
+                response = await client.with_options(
+                    timeout=getattr(settings, "EMBEDDING_REQUEST_TIMEOUT", None),
+                ).embeddings.create(
                     model=self.embedding_model,
-                    input=batch_texts
+                    input=batch_texts,
                 )
 
                 batch_embeddings = [item.embedding for item in response.data]
@@ -490,9 +519,17 @@ class EmbeddingService(LoggerMixin):
                 )
 
             except Exception as e:
-                logger.error("Batch embedding computation failed", error=str(e))
+                self.logger.exception("Batch embedding computation failed", error=str(e))
                 raise
 
+        # Sanity check: provider must return one vector per input
+        if len(all_embeddings) != len(chunks):
+            self.logger.error(
+                "Embedding count mismatch",
+                expected=len(chunks),
+                actual=len(all_embeddings),
+            )
+            raise RuntimeError("Embedding count mismatch")
         return all_embeddings
 
     async def process_streaming(

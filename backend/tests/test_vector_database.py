@@ -20,13 +20,13 @@ from app.schemas.vector import DocumentType, VisibilityLevel, VectorPayload
 from app.core.hnsw_config import HNSWConfigurator, WorkloadType, DatasetSize
 
 
+@pytest.fixture
+def qdrant_adapter():
+    """Initialize Qdrant adapter for testing"""
+    return QdrantAdapter()
+
 class TestTenantIsolation:
     """Test suite for strict tenant isolation"""
-
-    @pytest.fixture
-    def qdrant_adapter(self):
-        """Initialize Qdrant adapter for testing"""
-        return QdrantAdapter()
 
     @pytest.fixture
     def test_tenants(self):
@@ -138,9 +138,12 @@ class TestTenantIsolation:
         project2_id = test_tenants["tenant1"]["projects"]["project2"]
 
         # Insert data for both projects
+        project_key_map = {
+            project1_id: "tenant1_project1",
+            project2_id: "tenant1_project2",
+        }
         for project_id in [project1_id, project2_id]:
-            project_key = f"tenant1_{project_id.split('_')[-1]}"
-            documents = test_documents[project_key]
+            documents = test_documents[project_key_map[project_id]]
 
             embeddings = [[0.1] * 1536 for _ in documents]
             payloads = [{"text": doc} for doc in documents]
@@ -343,7 +346,7 @@ class TestSearchRelevance:
                         "category": category,
                         "visibility": visibility.value
                     } for _ in result.chunks],
-                    visibility=visibility
+                    visibility=visibility.value
                 )
 
         query_embedding = [0.1] * 1536
@@ -445,7 +448,7 @@ class TestPerformanceAndScalability:
             payloads=payloads
         )
 
-        query_vector = [0.1] * 1533
+        query_vector = [0.1] * 1536
 
         # Perform concurrent searches
         async def search_task(task_id: int):

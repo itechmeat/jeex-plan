@@ -6,7 +6,7 @@ with automatic tenant/project scoping and server-side filtering.
 """
 
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.core.logger import get_logger
@@ -28,7 +28,7 @@ qdrant_adapter = QdrantAdapter()
 embedding_service = EmbeddingService()
 
 
-async def get_tenant_context(request) -> Dict[str, str]:
+async def get_tenant_context(request: Request) -> Dict[str, str]:
     """Extract tenant context from request state (set by middleware)"""
     if not hasattr(request.state, 'tenant_context'):
         raise HTTPException(
@@ -41,7 +41,7 @@ async def get_tenant_context(request) -> Dict[str, str]:
 @router.post("/search", response_model=List[SearchResult])
 async def search_vectors(
     request: SearchRequest,
-    http_request: dict
+    http_request: Request
 ) -> List[SearchResult]:
     """
     Search vectors with strict tenant/project isolation.
@@ -123,15 +123,14 @@ async def search_vectors(
 
 @router.post("/upsert")
 async def upsert_vectors(
-    text: str,
     request: UpsertRequest,
-    http_request: dict
+    http_request: Request
 ) -> Dict[str, Any]:
     """
-    Process text and upsert vectors with automatic embedding computation.
+    Bulk upsert pre-computed vectors with tenant isolation.
 
-    Handles the complete pipeline: text preprocessing → chunking →
-    embedding computation → vector storage with tenant isolation.
+    Accepts pre-computed embedding vectors and payloads, validates them,
+    enriches with metadata, and stores in Qdrant with strict tenant/project isolation.
     """
     try:
         # Get tenant context from middleware
@@ -145,6 +144,13 @@ async def upsert_vectors(
                 detail="Tenant/project context mismatch"
             )
 
+        # Validate vectors and payloads are present
+        if not request.vectors or not request.payloads:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Vectors and payloads are required"
+            )
+
         # Validate vectors and payloads match
         if not request.validate_vectors_payloads():
             raise HTTPException(
@@ -152,32 +158,16 @@ async def upsert_vectors(
                 detail="Vectors and payloads count mismatch"
             )
 
-        # Process text through embedding pipeline
-        embedding_result = await embedding_service.process_document(
-            text=text,
-            doc_type=request.doc_type,
-            chunking_strategy=ChunkingStrategy.PARAGRAPH,
-            normalization=TextNormalization.STANDARD,
-            metadata={"source": "api_upload"}
-        )
-
-        # Enrich payloads with additional metadata
-        enriched_payloads = []
-        for chunk in embedding_result.chunks:
-            payload = {
-                **chunk.metadata,
-                "confidence_score": chunk.confidence_score,
-                "total_chunks": len(embedding_result.chunks),
-                "embedding_model": embedding_result.model_used
-            }
-            enriched_payloads.append(payload)
+        # Enrich payloads with metadata using schema method
+        enriched_payloads = request.enrich_payloads()
+        payload_dicts = [payload.to_dict() for payload in enriched_payloads]
 
         # Upsert vectors to Qdrant
         upsert_result = await qdrant_adapter.upsert_points(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            vectors=embedding_result.embeddings,
-            payloads=enriched_payloads,
+            vectors=request.vectors,
+            payloads=payload_dicts,
             doc_type=request.doc_type,
             visibility=request.visibility,
             version=request.version,
@@ -189,11 +179,12 @@ async def upsert_vectors(
             "message": "Vectors upserted successfully",
             "tenant_id": request.tenant_id,
             "project_id": request.project_id,
-            "chunks_processed": len(embedding_result.chunks),
-            "embedding_model": embedding_result.model_used,
-            "processing_time_ms": embedding_result.processing_time_ms,
-            "total_tokens": embedding_result.total_tokens,
-            "deduplication_stats": embedding_result.deduplication_stats,
+            "vectors_count": len(request.vectors),
+            "payloads_count": len(request.payloads),
+            "doc_type": request.doc_type,
+            "visibility": request.visibility,
+            "version": request.version,
+            "lang": request.lang,
             "upsert_operation": upsert_result
         }
 
@@ -201,8 +192,8 @@ async def upsert_vectors(
             "Vectors upserted successfully",
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            chunks_count=len(embedding_result.chunks),
-            processing_time_ms=embedding_result.processing_time_ms
+            vectors_count=len(request.vectors),
+            payloads_count=len(request.payloads)
         )
 
         return response
@@ -226,7 +217,7 @@ async def embed_and_store(
     visibility: VisibilityLevel = Query(VisibilityLevel.PRIVATE, description="Visibility level"),
     version: str = Query("1.0", description="Document version"),
     lang: str = Query("en", description="Document language"),
-    http_request: dict = None
+    http_request: Request = None
 ) -> Dict[str, Any]:
     """
     Simplified endpoint: process text and store embeddings in one call.
@@ -316,7 +307,7 @@ async def embed_and_store(
 @router.delete("/delete")
 async def delete_vectors(
     request: DeleteRequest,
-    http_request: dict
+    http_request: Request
 ) -> Dict[str, Any]:
     """
     Delete vectors with tenant isolation and optional filtering.
@@ -393,7 +384,7 @@ async def delete_vectors(
 async def get_collection_stats(
     tenant_id: str = Query(..., description="Tenant identifier"),
     project_id: str = Query(..., description="Project identifier"),
-    http_request: dict = None
+    http_request: Request = None
 ) -> CollectionStats:
     """
     Get collection statistics with optional tenant/project filtering.
