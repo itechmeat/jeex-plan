@@ -62,8 +62,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "usb=(), "
                 "magnetometer=(), "
                 "gyroscope=(), "
-                "speaker=(), "
-                "vibrate=(), "
+                "speaker-selection=(), "
                 "fullscreen=()"
             ),
 
