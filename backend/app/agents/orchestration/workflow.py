@@ -47,7 +47,7 @@ class WorkflowEngine:
             "status": result.status,
             "content": result.output_data.content if result.output_data else None,
             "confidence_score": result.output_data.confidence_score if result.output_data else 0.0,
-            "validation_result": result.output_data.validation_result.dict() if result.output_data else None,
+            "validation_result": result.output_data.validation_result.model_dump() if result.output_data else None,
             "execution_time_ms": result.execution_time_ms,
             "error_message": result.error_message,
         }
@@ -75,7 +75,7 @@ class WorkflowEngine:
             "status": result.status,
             "content": result.output_data.content if result.output_data else None,
             "confidence_score": result.output_data.confidence_score if result.output_data else 0.0,
-            "validation_result": result.output_data.validation_result.dict() if result.output_data else None,
+            "validation_result": result.output_data.validation_result.model_dump() if result.output_data else None,
             "execution_time_ms": result.execution_time_ms,
             "error_message": result.error_message,
         }
@@ -105,7 +105,7 @@ class WorkflowEngine:
             "status": result.status,
             "content": result.output_data.content if result.output_data else None,
             "confidence_score": result.output_data.confidence_score if result.output_data else 0.0,
-            "validation_result": result.output_data.validation_result.dict() if result.output_data else None,
+            "validation_result": result.output_data.validation_result.model_dump() if result.output_data else None,
             "execution_time_ms": result.execution_time_ms,
             "error_message": result.error_message,
         }
@@ -135,7 +135,7 @@ class WorkflowEngine:
             "status": result.status,
             "content": result.output_data.content if result.output_data else None,
             "confidence_score": result.output_data.confidence_score if result.output_data else 0.0,
-            "validation_result": result.output_data.validation_result.dict() if result.output_data else None,
+            "validation_result": result.output_data.validation_result.model_dump() if result.output_data else None,
             "execution_time_ms": result.execution_time_ms,
             "error_message": result.error_message,
         }

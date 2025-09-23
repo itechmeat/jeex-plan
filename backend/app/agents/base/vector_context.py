@@ -5,6 +5,7 @@ Integrates with Qdrant for project-specific knowledge retrieval.
 
 from typing import Dict, List, Any, Optional
 import asyncio
+from datetime import datetime, timezone
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -187,7 +188,7 @@ class VectorContextRetriever:
                 "text": content,
                 "version": "1",
                 "lang": context.language,
-                "created_at": "2024-01-01T00:00:00Z",  # Will be set by timestamp
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 **(metadata or {}),
             }
 

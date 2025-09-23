@@ -15,7 +15,7 @@ import redis.asyncio as redis
 from app.api.routes import health, projects, auth
 from app.core.config import settings
 from app.core.database import create_tables
-# from app.core.observability import setup_observability  # TODO: Fix OpenTelemetry version conflicts
+# from app.core.observability import setup_observability  # NOTE: Disabled due to OpenTelemetry version conflicts
 from app.middleware.tenant import TenantIsolationMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, CSRFProtectionMiddleware, RequestSizeMiddleware
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     # await create_tables()
 
     # Setup observability
-    # setup_observability(app)  # TODO: Fix OpenTelemetry version conflicts
+    # setup_observability(app)  # NOTE: Disabled due to OpenTelemetry version conflicts
 
     # Initialize Redis connection for rate limiting
     try:

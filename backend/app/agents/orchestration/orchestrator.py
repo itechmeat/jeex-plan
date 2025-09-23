@@ -224,7 +224,9 @@ class AgentOrchestrator:
                 # Get input for this step
                 step_input = step_inputs.get(step)
                 if step_input is None:
-                    # TODO 04: Implement automatic input generation from previous steps
+                    # NOTE: Automatic input generation from previous steps not implemented
+                    # This requires parsing previous step outputs and extracting relevant information
+                    # For now, explicit input is required for each step
                     raise AgentError(
                         message=f"No input provided for step {step.value}",
                         agent_type="orchestrator",

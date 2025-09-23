@@ -39,7 +39,7 @@ async def list_projects(
     """
     logger.info("Listing projects", skip=skip, limit=limit, status=status)
 
-    # TODO: Implement actual database query with tenant isolation
+    # NOTE: actual database query with tenant isolation
     # 1. Get current tenant from authentication context
     # 2. Query projects with filtering and pagination
     # 3. Return paginated results
@@ -74,7 +74,7 @@ async def create_project(
     """
     logger.info("Creating project", name=project_data.name)
 
-    # TODO: Implement actual project creation
+    # NOTE: actual project creation
     # 1. Validate tenant access and quotas
     # 2. Create project in database
     # 3. Initialize project resources
@@ -126,7 +126,7 @@ async def get_project(
     """
     logger.info("Getting project", project_id=project_id)
 
-    # TODO: Implement actual project lookup with tenant isolation
+    # NOTE: actual project lookup with tenant isolation
     # 1. Validate tenant access to project
     # 2. Get project details from database
     # 3. Get project documents and progress
@@ -164,7 +164,7 @@ async def update_project(
     """
     logger.info("Updating project", project_id=project_id)
 
-    # TODO: Implement actual project update
+    # NOTE: actual project update
     # 1. Validate tenant access to project
     # 2. Update project in database
     # 3. Update project metadata
@@ -211,7 +211,7 @@ async def delete_project(
     """
     logger.info("Deleting project", project_id=project_id)
 
-    # TODO: Implement actual project deletion
+    # NOTE: actual project deletion
     # 1. Validate tenant access to project
     # 2. Soft delete project in database
     # 3. Clean up project resources
@@ -242,7 +242,7 @@ async def generate_description_document(
     """
     logger.info("Generating description document", project_id=project_id)
 
-    # TODO: Implement actual agent orchestration
+    # NOTE: actual agent orchestration
     # 1. Validate project exists and user has access
     # 2. Invoke Business Analyst agent
     # 3. Stream progress updates via SSE
@@ -271,7 +271,7 @@ async def generate_architecture_document(
     """
     logger.info("Generating architecture document", project_id=project_id)
 
-    # TODO: Implement actual agent orchestration
+    # NOTE: actual agent orchestration
     # 1. Validate project exists and has completed step 1
     # 2. Invoke Solution Architect agent
     # 3. Stream progress updates via SSE
@@ -300,7 +300,7 @@ async def generate_implementation_plan(
     """
     logger.info("Generating implementation plan", project_id=project_id)
 
-    # TODO: Implement actual agent orchestration
+    # NOTE: actual agent orchestration
     # 1. Validate project exists and has completed step 2
     # 2. Invoke Project Planner agent
     # 3. Stream progress updates via SSE
@@ -329,7 +329,7 @@ async def generate_standards_document(
     """
     logger.info("Generating standards document", project_id=project_id)
 
-    # TODO: Implement actual agent orchestration
+    # NOTE: actual agent orchestration
     # 1. Validate project exists and has completed step 3
     # 2. Invoke Engineering Standards agent
     # 3. Stream progress updates via SSE
@@ -357,7 +357,7 @@ async def export_project_documents(
     """
     logger.info("Exporting project documents", project_id=project_id)
 
-    # TODO: Implement actual export functionality
+    # NOTE: actual export functionality
     # 1. Validate project exists and has required documents
     # 2. Gather active document versions
     # 3. Generate manifest and structure
@@ -384,7 +384,7 @@ async def get_project_progress(
     """
     logger.info("Getting project progress", project_id=project_id)
 
-    # TODO: Implement actual progress tracking
+    # NOTE: actual progress tracking
     # 1. Validate project exists and user has access
     # 2. Get current step status
     # 3. Get document generation progress

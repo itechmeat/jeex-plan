@@ -89,7 +89,7 @@ Create practical, actionable plans that teams can execute successfully."""
         return await vector_context.get_previous_steps_context(context, context.current_step)
 
     def _build_task_description(self, input_data: ProjectPlannerInput, context_data: Dict[str, Any]) -> str:
-        # TODO 04: Implement comprehensive task building with context integration
+        # NOTE: Task description uses basic template - could be enhanced with context-aware prompts
         return f"""Create a detailed implementation plan for this project:
 
 **Project:** {input_data.project_description[:500]}...
@@ -104,19 +104,19 @@ Include realistic timelines, dependencies, and risk assessment."""
     async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> ProjectPlannerOutput:
         content = str(result)
 
-        # TODO 04: Implement epic parsing and structured data extraction
+        # NOTE: Structured parsing not yet implemented - returns basic output with empty structured fields
         return ProjectPlannerOutput(
             content=content,
-            confidence_score=0.85,
-            validation_result=ValidationResult(passed=True, score=0.8, details={}, missing_sections=[], suggestions=[]),
+            confidence_score=0.0,
+            validation_result=ValidationResult(passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]),
             metadata={"execution_time_ms": execution_time_ms, "agent_type": "project_planner"},
             processing_time_ms=execution_time_ms,
-            overview_strategy="",  # TODO 04: Extract strategy section
-            epics=[],  # TODO 04: Parse epic structures from content
-            timeline_estimate="",  # TODO 04: Extract timeline section
-            critical_path=[],  # TODO 04: Extract critical path items
-            milestone_schedule={},  # TODO 04: Extract milestone data
-            resource_requirements=[],  # TODO 04: Extract resource needs
-            quality_gates=[],  # TODO 04: Extract quality checkpoints
-            project_risks=[],  # TODO 04: Extract risk items
+            overview_strategy="",  # NOTE: Strategy extraction not implemented
+            epics=[],  # NOTE: Epic parsing not implemented
+            timeline_estimate="",  # NOTE: Timeline extraction not implemented
+            critical_path=[],  # NOTE: Critical path extraction not implemented
+            milestone_schedule={},  # NOTE: Milestone extraction not implemented
+            resource_requirements=[],  # NOTE: Resource extraction not implemented
+            quality_gates=[],  # NOTE: Quality gate extraction not implemented
+            project_risks=[],  # NOTE: Risk extraction not implemented
         )

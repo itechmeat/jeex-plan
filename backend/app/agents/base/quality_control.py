@@ -330,8 +330,9 @@ class QualityController:
             validators_to_run = ["markdown", "readability"]
 
             # Add specialized validator based on agent type
-            if agent_type.lower().replace("_", "").replace("-", "") in self.validators:
-                validators_to_run.append(agent_type.lower().replace("_", "").replace("-", ""))
+            normalized = agent_type.lower().replace("-", "_")
+            if normalized in self.validators:
+                validators_to_run.append(normalized)
 
             results = []
             all_suggestions = []

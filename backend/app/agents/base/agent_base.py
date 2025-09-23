@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type
 from datetime import datetime
 import time
+import asyncio
 
 from crewai import Agent, Task, Crew
 
@@ -76,14 +77,16 @@ class AgentBase(ABC):
 
     def create_crew_agent(self, context: ProjectContext) -> Agent:
         """Create CrewAI agent instance."""
+        agent_verbose = bool(self.llm_config.get("agent_verbose", False))
+        agent_memory = bool(self.llm_config.get("agent_memory", False))
         return Agent(
             role=self.role,
             goal=self.goal,
             backstory=self.backstory,
             tools=self.tools,
-            verbose=True,
-            memory=True,
-            system_message=self.get_system_prompt(context),
+            verbose=agent_verbose,
+            memory=agent_memory,
+            system_template=self.get_system_prompt(context),
         )
 
     def create_crew_task(self, agent: Agent, input_data: AgentInput, context_data: Dict[str, Any]) -> Task:
@@ -129,15 +132,20 @@ class AgentBase(ABC):
             # Create CrewAI components
             agent = self.create_crew_agent(input_data.context)
             task = self.create_crew_task(agent, input_data, context_data)
-            crew = Crew(agents=[agent], tasks=[task], verbose=True)
+            crew_verbose = bool(self.llm_config.get("crew_verbose", False))
+            crew = Crew(agents=[agent], tasks=[task], verbose=crew_verbose)
 
             # Execute the crew
-            execution_start = time.time()
-            result = crew.kickoff()
-            execution_time_ms = int((time.time() - execution_start) * 1000)
+            import math
+            timeout_s = float(self.llm_config.get("timeout_seconds", 120))
+            start = time.perf_counter()
+            result = await asyncio.wait_for(asyncio.to_thread(crew.kickoff), timeout=timeout_s)
+            execution_time_ms = math.floor((time.perf_counter() - start) * 1000)
 
             # Parse and validate output
             output_data = await self._parse_crew_result(result, execution_time_ms)
+            # Ensure correlation_id is set before validation
+            output_data.metadata.setdefault("correlation_id", correlation_id)
             validation_result = await self.validate_output(output_data)
             output_data.validation_result = validation_result
 
@@ -152,21 +160,23 @@ class AgentBase(ABC):
 
             return output_data
 
+        except AgentError:
+            # Already enriched; propagate as-is.
+            raise
         except Exception as e:
             execution_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-            self.logger.error(
-                f"Agent execution failed",
+            self.logger.exception(
+                "Agent execution failed",
                 agent=self.name,
                 correlation_id=correlation_id,
-                error=str(e),
                 execution_time_ms=execution_time,
             )
             raise AgentError(
-                message=f"Agent {self.name} execution failed: {str(e)}",
+                message=f"Agent {self.name} execution failed",
                 agent_type=self.name,
                 correlation_id=correlation_id,
-                details={"execution_time_ms": execution_time},
-            )
+                details={"execution_time_ms": execution_time, "error": str(e)},
+            ) from e
 
     @abstractmethod
     async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> AgentOutput:

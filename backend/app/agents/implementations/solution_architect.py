@@ -96,7 +96,7 @@ Focus on practical, implementable solutions that balance complexity with busines
         return await vector_context.get_previous_steps_context(context, context.current_step)
 
     def _build_task_description(self, input_data: SolutionArchitectInput, context_data: Dict[str, Any]) -> str:
-        # TODO 04: Implement detailed task description building for Solution Architect
+        # NOTE: Task description uses basic template - could be enhanced with context-aware prompts
         return f"""Design a comprehensive technical architecture for the following project:
 
 **Project Description:**
@@ -113,20 +113,19 @@ Create a detailed technical architecture document with technology recommendation
     async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> SolutionArchitectOutput:
         content = str(result)
 
-        # TODO 04: Implement comprehensive parsing for all SolutionArchitectOutput fields
-        # For now, providing basic implementation
+        # NOTE: Structured parsing not yet implemented - returns basic output with empty structured fields
         return SolutionArchitectOutput(
             content=content,
-            confidence_score=0.85,
-            validation_result=ValidationResult(passed=True, score=0.8, details={}, missing_sections=[], suggestions=[]),
+            confidence_score=0.0,
+            validation_result=ValidationResult(passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]),
             metadata={"execution_time_ms": execution_time_ms, "agent_type": "solution_architect"},
             processing_time_ms=execution_time_ms,
-            technology_stack=[],  # TODO 04: Extract from content
-            architecture_pattern="",  # TODO 04: Extract from content
-            component_diagram="",  # TODO 04: Extract Mermaid diagrams
-            data_flow_description="",  # TODO 04: Extract data flow section
-            scalability_plan="",  # TODO 04: Extract scalability section
-            security_considerations=[],  # TODO 04: Extract security points
-            deployment_strategy="",  # TODO 04: Extract deployment section
-            technical_risks=[],  # TODO 04: Extract risk items
+            technology_stack=[],  # NOTE: Structured extraction not implemented
+            architecture_pattern="",  # NOTE: Pattern extraction not implemented
+            component_diagram="",  # NOTE: Diagram extraction not implemented
+            data_flow_description="",  # NOTE: Data flow extraction not implemented
+            scalability_plan="",  # NOTE: Scalability extraction not implemented
+            security_considerations=[],  # NOTE: Security extraction not implemented
+            deployment_strategy="",  # NOTE: Deployment extraction not implemented
+            technical_risks=[],  # NOTE: Risk extraction not implemented
         )

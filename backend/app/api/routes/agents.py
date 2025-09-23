@@ -7,7 +7,8 @@ import json
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Security, status
+from fastapi.security import APIKeyHeader
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -75,10 +76,14 @@ class AgentResponse(BaseModel):
     correlation_id: str = Field(..., description="Request correlation ID")
 
 
-# TODO 04: Add proper authentication dependency
-async def get_current_user():
-    """Get current authenticated user - placeholder implementation."""
-    return {"user_id": "demo_user", "tenant_id": "demo_tenant"}
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def get_current_user(api_key: str = Security(api_key_header)):
+    """Simple API key auth; replace with real auth provider."""
+    if not api_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    # NOTE: API key validation not implemented - returning 501
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Authentication not implemented")
 
 
 @router.post("/business-analysis", response_model=AgentResponse)
@@ -121,15 +126,14 @@ async def execute_business_analysis(
         )
 
     except Exception as e:
-        logger.error(
+        logger.exception(
             "Business analysis execution failed",
             correlation_id=correlation_id,
-            error=str(e),
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Business analysis failed: {str(e)}"
-        )
+            detail={"message": "Business analysis failed", "correlation_id": correlation_id},
+        ) from e
 
 
 @router.post("/architecture-design", response_model=AgentResponse)
@@ -162,15 +166,14 @@ async def execute_architecture_design(
         )
 
     except Exception as e:
-        logger.error(
+        logger.exception(
             "Architecture design execution failed",
             correlation_id=correlation_id,
-            error=str(e),
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Architecture design failed: {str(e)}"
-        )
+            detail={"message": "Architecture design failed", "correlation_id": correlation_id},
+        ) from e
 
 
 @router.post("/implementation-planning", response_model=AgentResponse)
@@ -204,15 +207,14 @@ async def execute_implementation_planning(
         )
 
     except Exception as e:
-        logger.error(
+        logger.exception(
             "Implementation planning execution failed",
             correlation_id=correlation_id,
-            error=str(e),
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Implementation planning failed: {str(e)}"
-        )
+            detail={"message": "Implementation planning failed", "correlation_id": correlation_id},
+        ) from e
 
 
 @router.post("/engineering-standards", response_model=AgentResponse)
@@ -246,15 +248,14 @@ async def execute_engineering_standards(
         )
 
     except Exception as e:
-        logger.error(
+        logger.exception(
             "Engineering standards execution failed",
             correlation_id=correlation_id,
-            error=str(e),
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Engineering standards failed: {str(e)}"
-        )
+            detail={"message": "Engineering standards failed", "correlation_id": correlation_id},
+        ) from e
 
 
 @router.get("/health")
@@ -351,13 +352,13 @@ async def generate_progress_stream(workflow_id: str, context: ProjectContext, in
 
         try:
             # Extract technology stack from architecture result for standards step
-            tech_stack = ["FastAPI", "PostgreSQL", "Docker"]  # Default fallback
-            try:
-                if arch_result.get("content"):
-                    # TODO 04: Parse technology stack from architecture content
-                    pass
-            except:
+            tech_stack: list[str] = []
+            # NOTE: Technology stack parsing not implemented
+            if arch_result.get("content"):
+                # TODO: Parse technology stack from architecture content
                 pass
+            if not tech_stack:
+                raise ValueError("Unable to determine technology stack from architecture result")
 
             standards_result = await workflow_engine.execute_engineering_standards(
                 context=context,
@@ -420,13 +421,12 @@ async def get_workflow_status(
     _current_user: dict = Depends(get_current_user)
 ):
     """Get current workflow execution status."""
-    # TODO 04: Implement workflow status tracking with Redis/database
-    return {
-        "workflow_id": workflow_id,
-        "status": "not_implemented",
-        "message": "Status tracking not yet implemented",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    # NOTE: Workflow status tracking not implemented - returns HTTP 501
+                    # Should track workflow execution state in Redis or database
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Workflow status tracking not yet implemented"
+    )
 
 
 @router.get("/history/{project_id}")
@@ -435,10 +435,9 @@ async def get_agent_execution_history(
     _current_user: dict = Depends(get_current_user)
 ):
     """Get agent execution history for a project."""
-    # TODO 04: Implement execution history retrieval from database
-    return {
-        "project_id": project_id,
-        "executions": [],
-        "message": "Execution history not yet implemented",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    # NOTE: Execution history tracking not implemented - returns HTTP 501
+                    # Should store and retrieve execution history from database
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Agent execution history not yet implemented"
+    )

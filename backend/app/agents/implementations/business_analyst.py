@@ -41,11 +41,15 @@ class BusinessAnalystAgent(AgentBase):
 
     async def validate_output(self, output_data: BusinessAnalystOutput) -> ValidationResult:
         """Validate output using quality controller."""
-        return await quality_controller.validate_agent_output(
+        correlation_id = output_data.metadata.get("correlation_id", "unknown")
+        vr = await quality_controller.validate_agent_output(
             output_data,
             "business_analyst",
-            output_data.metadata.get("correlation_id", "unknown"),
+            correlation_id,
         )
+        # Keep output confidence aligned with QC score
+        output_data.confidence_score = vr.score
+        return vr
 
     def get_system_prompt(self, context: ProjectContext) -> str:
         """Generate system prompt for Business Analyst."""
@@ -207,8 +211,8 @@ The document should be professional, well-structured, and actionable. Include sp
 
         return BusinessAnalystOutput(
             content=content,
-            confidence_score=0.85,  # Will be updated by validation
-            validation_result=ValidationResult(passed=True, score=0.8, details={}, missing_sections=[], suggestions=[]),
+            confidence_score=0.0,
+            validation_result=ValidationResult(passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]),
             metadata={"execution_time_ms": execution_time_ms, "agent_type": "business_analyst"},
             processing_time_ms=execution_time_ms,
             key_facts=key_facts,

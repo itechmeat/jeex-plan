@@ -92,7 +92,7 @@ Create practical, enforceable standards that improve quality without hindering p
         return await vector_context.get_previous_steps_context(context, context.current_step)
 
     def _build_task_description(self, input_data: EngineeringStandardsInput, context_data: Dict[str, Any]) -> str:
-        # TODO 04: Implement comprehensive task building with technology stack analysis
+        # NOTE: Task description uses basic template - could be enhanced with technology-specific prompts
         tech_stack_str = ", ".join(input_data.technology_stack)
         return f"""Create comprehensive engineering standards for this project:
 
@@ -108,19 +108,19 @@ Focus on standards that can be automated and enforced through tooling."""
     async def _parse_crew_result(self, result: Any, execution_time_ms: int) -> EngineeringStandardsOutput:
         content = str(result)
 
-        # TODO 04: Implement comprehensive parsing for standards document
+        # NOTE: Structured parsing not yet implemented - returns basic output with empty structured fields
         return EngineeringStandardsOutput(
             content=content,
-            confidence_score=0.85,
-            validation_result=ValidationResult(passed=True, score=0.8, details={}, missing_sections=[], suggestions=[]),
+            confidence_score=0.0,
+            validation_result=ValidationResult(passed=False, score=0.0, details={}, missing_sections=[], suggestions=[]),
             metadata={"execution_time_ms": execution_time_ms, "agent_type": "engineering_standards"},
             processing_time_ms=execution_time_ms,
-            coding_standards=[],  # TODO 04: Parse code standards from content
-            review_process="",  # TODO 04: Extract review process section
-            definition_of_done=[],  # TODO 04: Extract DoD items
-            testing_strategy="",  # TODO 04: Extract testing strategy
-            security_guidelines=[],  # TODO 04: Extract security items
-            performance_standards=[],  # TODO 04: Extract performance requirements
-            documentation_requirements=[],  # TODO 04: Extract doc requirements
-            toolchain_recommendations={},  # TODO 04: Extract tool recommendations
+            coding_standards=[],  # NOTE: Standards parsing not implemented
+            review_process="",  # NOTE: Review process extraction not implemented
+            definition_of_done=[],  # NOTE: DoD extraction not implemented
+            testing_strategy="",  # NOTE: Testing strategy extraction not implemented
+            security_guidelines=[],  # NOTE: Security extraction not implemented
+            performance_standards=[],  # NOTE: Performance extraction not implemented
+            documentation_requirements=[],  # NOTE: Documentation extraction not implemented
+            toolchain_recommendations={},  # NOTE: Toolchain extraction not implemented
         )

@@ -13,7 +13,7 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
+    retry_if_exception,
     before_sleep_log,
 )
 
@@ -22,6 +22,15 @@ from app.core.config import get_vault_settings
 from ..contracts.base import LLMError
 
 logger = get_logger()
+
+
+def _retryable_exc(e: Exception) -> bool:
+    if isinstance(e, httpx.RequestError):
+        return True
+    if isinstance(e, httpx.HTTPStatusError):
+        status = e.response.status_code
+        return status == 429 or 500 <= status < 600
+    return False
 
 
 class LLMProvider(str, Enum):
@@ -118,7 +127,7 @@ class LLMClient(ABC):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=16),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+        retry=retry_if_exception(_retryable_exc),
         before_sleep=before_sleep_log(logger, "WARNING"),
     )
     async def _make_request(
@@ -242,22 +251,22 @@ class OpenAIClient(LLMClient):
                 return content
 
         except httpx.HTTPStatusError as e:
-            self.logger.error(
+            truncated = (e.response.text or "")[:512]
+            self.logger.exception(
                 "OpenAI API HTTP error",
                 status_code=e.response.status_code,
-                response_text=e.response.text,
+                response_text_truncated=truncated,
                 correlation_id=correlation_id,
             )
             raise LLMError(
                 message=f"OpenAI API HTTP error: {e.response.status_code}",
                 agent_type="openai_client",
                 correlation_id=correlation_id,
-                details={"status_code": e.response.status_code, "response": e.response.text},
-            )
+                details={"status_code": e.response.status_code, "response_truncated": truncated},
+            ) from e
         except httpx.RequestError as e:
-            self.logger.error(
+            self.logger.exception(
                 "OpenAI API request error",
-                error=str(e),
                 correlation_id=correlation_id,
             )
             raise LLMError(
@@ -265,7 +274,7 @@ class OpenAIClient(LLMClient):
                 agent_type="openai_client",
                 correlation_id=correlation_id,
                 details={"error": str(e)},
-            )
+            ) from e
 
 
 class AnthropicClient(LLMClient):
@@ -367,22 +376,22 @@ class AnthropicClient(LLMClient):
                 return content
 
         except httpx.HTTPStatusError as e:
-            self.logger.error(
+            truncated = (e.response.text or "")[:512]
+            self.logger.exception(
                 "Anthropic API HTTP error",
                 status_code=e.response.status_code,
-                response_text=e.response.text,
+                response_text_truncated=truncated,
                 correlation_id=correlation_id,
             )
             raise LLMError(
                 message=f"Anthropic API HTTP error: {e.response.status_code}",
                 agent_type="anthropic_client",
                 correlation_id=correlation_id,
-                details={"status_code": e.response.status_code, "response": e.response.text},
-            )
+                details={"status_code": e.response.status_code, "response_truncated": truncated},
+            ) from e
         except httpx.RequestError as e:
-            self.logger.error(
+            self.logger.exception(
                 "Anthropic API request error",
-                error=str(e),
                 correlation_id=correlation_id,
             )
             raise LLMError(
@@ -390,7 +399,7 @@ class AnthropicClient(LLMClient):
                 agent_type="anthropic_client",
                 correlation_id=correlation_id,
                 details={"error": str(e)},
-            )
+            ) from e
 
 
 class LLMManager:
