@@ -62,7 +62,7 @@ services:
             - QDRANT__LOG_LEVEL=INFO
         volumes:
             - qdrant_data:/qdrant/storage
-            - ./backend/config/qdrant-minimal.yaml:/qdrant/config/production.yaml
+            - ./backend/config/qdrant.yaml:/qdrant/config/production.yaml
         healthcheck:
             test:
                 - CMD-SHELL

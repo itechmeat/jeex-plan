@@ -2,7 +2,8 @@
 Qdrant vector database adapter with multi-tenancy support.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
+from app.schemas.vector import DocumentType, VisibilityLevel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
     Distance,
@@ -77,6 +78,13 @@ class QdrantAdapter(LoggerMixin):
                 # Collection doesn't exist, create it
                 pass
 
+            # Get optimized HNSW configuration for multi-tenancy
+            from app.core.hnsw_config import hnsw_configurator
+            hnsw_config = hnsw_configurator.get_optimized_config_for_tenant_isolation()
+            # Keep only supported keys for Qdrant
+            _supported = {"m", "ef_construct", "ef", "full_scan_threshold", "max_indexing_threads"}
+            hnsw_config_sanitized = {k: v for k, v in hnsw_config.items() if k in _supported}
+
             # Create collection with multi-tenancy optimized configuration
             self.client.create_collection(
                 collection_name=self.collection_name,
@@ -84,27 +92,46 @@ class QdrantAdapter(LoggerMixin):
                     size=1536,  # OpenAI embedding size
                     distance=Distance.COSINE
                 ),
-                hnsw_config={
-                    "m": 0,  # Disable global graph for multi-tenancy
-                    "payload_m": 16  # Create payload-specific connections
+                hnsw_config=hnsw_config_sanitized,
+                optimizers_config={
+                    "deleted_threshold": 0.2,
+                    "vacuum_min_vector_number": 1000,
+                    "default_segment_number": 2,
+                    "max_segment_size": None,
+                    "memmap_threshold": 50000,
+                    "indexing_threshold": 10000
                 }
             )
 
-            # Create payload index for tenant isolation
-            self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="tenant_id",
-                field_schema="keyword",
-                field_type="keyword"
+            logger.info(
+                "Collection created with optimized HNSW config",
+                hnsw_config=hnsw_configurator.get_configuration_summary(hnsw_config)
             )
 
-            # Create payload index for project isolation
-            self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="project_id",
-                field_schema="keyword",
-                field_type="keyword"
-            )
+            # Create payload indexes for multi-tenant filtering
+            payload_fields = [
+                ("tenant_id", "keyword"),
+                ("project_id", "keyword"),
+                ("type", "keyword"),
+                ("visibility", "keyword"),
+                ("lang", "keyword"),
+                ("version", "keyword")
+            ]
+
+            for field_name, field_schema in payload_fields:
+                try:
+                    self.client.create_payload_index(
+                        collection_name=self.collection_name,
+                        field_name=field_name,
+                        field_schema=field_schema
+                    )
+                    logger.info("Created payload index", field=field_name)
+                except Exception as index_error:
+                    logger.warning(
+                        "Failed to create payload index",
+                        field=field_name,
+                        error=str(index_error)
+                    )
 
             logger.info("Collection created successfully", collection=self.collection_name)
 
@@ -117,7 +144,11 @@ class QdrantAdapter(LoggerMixin):
         tenant_id: str,
         project_id: str,
         vectors: List[List[float]],
-        payloads: List[Dict[str, Any]]
+        payloads: List[Dict[str, Any]],
+        doc_type: Union[str, "DocumentType"] = "knowledge",
+        visibility: Union[str, "VisibilityLevel"] = "private",
+        version: Union[str, None] = "1.0",
+        lang: Union[str, None] = "en"
     ) -> Dict[str, Any]:
         """
         Upsert vector points with tenant and project isolation.
@@ -127,6 +158,10 @@ class QdrantAdapter(LoggerMixin):
             project_id: Project identifier
             vectors: List of embedding vectors
             payloads: List of payload dictionaries
+            doc_type: Type of document ('knowledge' or 'memory')
+            visibility: Document visibility ('private' or 'public')
+            version: Document version
+            lang: Document language (ISO 639-1)
         """
         try:
             await self.ensure_collection_exists()
@@ -134,19 +169,30 @@ class QdrantAdapter(LoggerMixin):
             # Add tenant and project context to all payloads
             enriched_payloads = []
             for i, (vector, payload) in enumerate(zip(vectors, payloads)):
+                # Convert enum values to strings for JSON serialization
+                doc_type_str = doc_type.value if hasattr(doc_type, 'value') else str(doc_type)
+                visibility_str = visibility.value if hasattr(visibility, 'value') else str(visibility)
+                version_str = str(version) if version is not None else version
+                lang_str = str(lang) if lang is not None else lang
+
                 enriched_payload = {
                     **payload,
                     "tenant_id": tenant_id,
                     "project_id": project_id,
+                    "type": doc_type_str,
+                    "visibility": visibility_str,
+                    "version": version_str,
+                    "lang": lang_str,
                     "created_at": self._get_current_timestamp(),
                     "vector_index": i
                 }
                 enriched_payloads.append(enriched_payload)
 
-            # Create point structures
+            # Create point structures with UUID-style IDs
+            import uuid
             points = [
                 PointStruct(
-                    id=f"{tenant_id}_{project_id}_{i}",
+                    id=str(uuid.uuid4()),
                     vector=vector,
                     payload=payload
                 )
@@ -164,13 +210,16 @@ class QdrantAdapter(LoggerMixin):
                 "Points upserted successfully",
                 tenant_id=tenant_id,
                 project_id=project_id,
+                doc_type=doc_type,
                 count=len(points)
             )
 
             return {
                 "status": "success",
                 "points_count": len(points),
-                "operation_id": operation_info.operation_id
+                "operation_id": operation_info.operation_id,
+                "doc_type": doc_type,
+                "visibility": visibility
             }
 
         except Exception as e:
