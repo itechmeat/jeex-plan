@@ -123,3 +123,8 @@ class TenantContextManager:
 def get_tenant_context(request: Request) -> uuid.UUID:
     """Dependency function to get tenant context from request."""
     return TenantContextManager.require_tenant_id(request)
+
+
+def get_current_tenant_id(request: Request) -> uuid.UUID:
+    """FastAPI dependency to get current tenant ID."""
+    return get_tenant_context(request)

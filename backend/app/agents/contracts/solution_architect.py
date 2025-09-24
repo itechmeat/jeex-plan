@@ -14,6 +14,9 @@ class SolutionArchitectInput(AgentInput):
     project_description: str = Field(
         ..., description="Complete project description from Business Analyst"
     )
+    engineering_standards: Optional[str] = Field(
+        None, description="Engineering standards and specifications from previous step"
+    )
     user_tech_preferences: Optional[Dict[str, Any]] = Field(
         None, description="User's technology preferences or constraints"
     )

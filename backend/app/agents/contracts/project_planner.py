@@ -27,6 +27,9 @@ class ProjectPlannerInput(AgentInput):
     """Input data for Project Planner agent."""
 
     project_description: str = Field(..., description="Complete project description")
+    engineering_standards: str = Field(
+        ..., description="Engineering standards and specifications"
+    )
     architecture_overview: str = Field(
         ..., description="Technical architecture from Solution Architect"
     )

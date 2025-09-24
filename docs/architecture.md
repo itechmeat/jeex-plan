@@ -4,7 +4,7 @@
 
 ## 1) Назначение и границы
 
-- Продукт превращает «сырую» идею в профессиональный пакет Markdown-документов: Description → Architecture → Implementation Plan → Rules & Standards.
+- Продукт превращает «сырую» идею в профессиональный пакет Markdown-документов: Description → Engineering Specs → Architecture → Implementation Plan.
 - Формат работы — диалоговый мастер из 4 шагов с понятным прогрессом и возможностью быстрой итерации (правки в диалоге автоматически попадают в документы).
 - Ценностные требования: изоляция знаний между проектами/тенантами, воспроизводимость (версионирование документов), объяснимость результатов (структурные шаблоны, валидации), скорость отклика (стриминг), расширяемость (подключаемые партнёрские рекомендации).
 
@@ -49,18 +49,18 @@ graph TB
 
     subgraph "Agents"
         BA[Business Analyst]
+        ES[Engineering Standards]
         SA[Solution Architect]
         PP[Project Planner]
-        ES[Engineering Standards]
     end
 
     UI --> RP
     RP --> API
     API --> ORCH
     ORCH --> BA
+    ORCH --> ES
     ORCH --> SA
     ORCH --> PP
-    ORCH --> ES
     ORCH --> EMB
     ORCH --> QA
     EMB --> QDRANT
@@ -69,9 +69,9 @@ graph TB
     API --> REDIS
 
     BA -.-> QDRANT
+    ES -.-> QDRANT
     SA -.-> QDRANT
     PP -.-> QDRANT
-    ES -.-> QDRANT
 
     API --> OBS
     ORCH --> OBS
@@ -83,7 +83,7 @@ graph TB
 
 - **Web Frontend** (React/TS): мастер из 4 шагов, предпросмотр и дифф-подсветка, панель прогресса, скачивание архива.
 - **API-шлюз / Backend** (FastAPI): аутентификация (OAuth2), SSE-стриминг, лимиты, сбор/агрегация телеметрии, экспорт, партнёрские рекомендации.
-- **Оркестратор агентов** (Crew-подход + строгие контрактные модели I/O): роли Business Analyst, Solution Architect, Project Planner, Engineering Standards.
+- **Оркестратор агентов** (Crew-подход + строгие контрактные модели I/O): роли Business Analyst, Engineering Standards, Solution Architect, Project Planner.
 - **Сервис эмбеддингов** (абстракция над выбранной моделью): нормализация текста, чанкинг, дедупликация, вычисление векторов.
 - **Vector Store** (Qdrant): память/контекст проекта, поиск знаний с фильтрами по тенанту/проекту; мультитенантный подход (см. раздел 6).
 - **Primary Store** (документы/версии/настройки): долговременное хранение артефактов и истории.
@@ -126,7 +126,39 @@ sequenceDiagram
 - Черновик сразу сохраняется как версия документа; важные фрагменты и «факты» попадают в память проекта (эмбеддинги в Qdrant) в жёстком серверном скоупе `(tenant_id, project_id)`.
 - SSE отдаёт прогресс (например, чек-пункты шаблона).
 
-### 4.2 Архитектура
+### 4.2 Спецификация
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Web UI
+    participant API as API Gateway
+    participant ES as Engineering Standards
+    participant Q as Qdrant
+    participant PS as Primary Store
+
+    U->>UI: Запрос спецификации
+    UI->>API: POST /projects/{id}/step2
+    API->>ES: Создать спецификацию
+
+    ES->>Q: Поиск контекста<br/>(tenant_id, project_id)
+    Q->>ES: Релевантные факты из Description
+
+    loop Выбор стандартов
+        ES->>U: Предложения стандартов/процессов
+        U->>ES: Выбор/корректировки
+        Note over ES: Пересборка согласованной части
+    end
+
+    ES->>PS: Сохранить Engineering Specs v1
+    API-->>UI: SSE: Progress updates
+    API->>UI: Engineering Specs документ готов
+```
+
+- Engineering Standards извлекает контекст из памяти проекта (поиск только внутри текущего тенанта и проекта), предлагает технические требования и стандарты разработки, собирает документ Engineering Specs.
+- Пользователь может быстро заменить подходы (например, TDD → BDD) — пересобирается согласованная часть документации.
+
+### 4.3 Архитектура
 
 ```mermaid
 sequenceDiagram
@@ -138,11 +170,14 @@ sequenceDiagram
     participant PS as Primary Store
 
     U->>UI: Запрос архитектуры
-    UI->>API: POST /projects/{id}/step2
+    UI->>API: POST /projects/{id}/step3
     API->>SA: Создать архитектуру
 
-    SA->>Q: Поиск контекста<br/>(tenant_id, project_id)
-    Q->>SA: Релевантные факты из Description
+    SA->>Q: Поиск контекста<br/>(Description + Engineering Specs)
+    Q->>SA: Полный контекст проекта
+
+    SA->>PS: Анализ существующих артефактов
+    PS->>SA: Description v1, Engineering Specs v1
 
     loop Выбор решений
         SA->>U: Предложения стека/паттернов
@@ -155,10 +190,10 @@ sequenceDiagram
     API->>UI: Architecture документ готов
 ```
 
-- Solution Architect извлекает контекст из памяти проекта (поиск только внутри текущего тенанта и проекта), предлагает решения (стек, паттерны, компромиссы), собирает документ Architecture.
+- Solution Architect извлекает контекст из памяти проекта (поиск только внутри текущего тенанта и проекта), предлагает решения (стек, паттерны, компромиссы), собирает документ Architecture на основе описания проекта и инженерных спецификаций.
 - Пользователь может быстро заменить решения (например, Postgres → ClickHouse) — пересобирается согласованная часть документации.
 
-### 4.3 Планирование
+### 4.4 Планирование
 
 ```mermaid
 sequenceDiagram
@@ -170,14 +205,14 @@ sequenceDiagram
     participant PS as Primary Store
 
     U->>UI: Запрос плана
-    UI->>API: POST /projects/{id}/step3
+    UI->>API: POST /projects/{id}/step4
     API->>PP: Создать план
 
-    PP->>Q: Поиск контекста<br/>(Description + Architecture)
-    Q->>PP: Полный контекст проекта
+    PP->>Q: Поиск полного контекста проекта
+    Q->>PP: Description + Engineering Specs + Architecture
 
     PP->>PS: Анализ существующих артефактов
-    PS->>PP: Description v1, Architecture v1
+    PS->>PP: Description v1, Engineering Specs v1, Architecture v1
 
     loop Планирование этапов
         Note over PP: Формирование этапов
@@ -193,46 +228,8 @@ sequenceDiagram
     API->>UI: Implementation Plan готов
 ```
 
-- Project Planner строит верхнеуровневый Implementation Plan: этапы, критерии приёмки, риски/зависимости, контрольные события.
+- Project Planner строит верхнеуровневый Implementation Plan: этапы, критерии приёмки, риски/зависимости, контрольные события на основе всех предыдущих документов.
 - Настраиваются «маячки» для последующих напоминаний (например, «вернуться к интеграции партнёра Х»), которые отображаются в UI.
-
-### 4.4 Правила и стандарты
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant UI as Web UI
-    participant API as API Gateway
-    participant ES as Engineering Standards
-    participant Q as Qdrant
-    participant PS as Primary Store
-
-    U->>UI: Запрос стандартов
-    UI->>API: POST /projects/{id}/step4
-    API->>ES: Создать стандарты
-
-    ES->>Q: Поиск полного контекста проекта
-    Q->>ES: Description + Architecture + Plan
-
-    ES->>PS: Анализ технологического стека
-    PS->>ES: Выбранные технологии и паттерны
-
-    loop Формирование стандартов
-        Note over ES: Code guidelines для стека
-        Note over ES: Code Review процессы
-        Note over ES: Definition of Done
-        Note over ES: Тест-подход
-        Note over ES: Security минимумы
-        ES->>U: Предварительные стандарты
-        U->>ES: Корректировки под команду
-    end
-
-    ES->>PS: Сохранить Rules & Standards v1
-    API-->>UI: SSE: Progress updates
-    API->>UI: Rules & Standards готов
-```
-
-- Engineering Standards формирует единый Rules & Standards: код-гайд, Code Review, Definition of Done, тест-подход, секьюрити-минимумы.
 
 ### 4.5 Финал — экспорт пакета
 
@@ -249,7 +246,7 @@ sequenceDiagram
     API->>EXP: Подготовить архив
 
     EXP->>PS: Получить активные версии
-    PS->>EXP: Description v1, Architecture v1, Implementation Plan v1, Rules & Standards v1
+    PS->>EXP: Description v1, Engineering Specs v1, Architecture v1, Implementation Plan v1
 
     loop Сборка пакета
         Note over EXP: Проверка целостности документов
@@ -291,9 +288,9 @@ sequenceDiagram
 **Специализированные роли агентов:**
 
 - **Business Analyst** — эксперт по product discovery и бизнес-анализу: исследует проблемную область, выявляет потребности пользователей, формулирует бизнес-цели и KPI, анализирует риски и ограничения
-- **Solution Architect** — технический архитектор с экспертизой в проектировании систем: выбирает технологический стек, проектирует компоненты и интеграции, обосновывает архитектурные решения и trade-offs
-- **Project Planner** — специалист по планированию разработки и управлению проектами: декомпозирует задачи, оценивает временные рамки, выявляет зависимости и bottlenecks, планирует milestone'ы
-- **Engineering Standards** — senior engineer с экспертизой в code quality и best practices: формирует coding guidelines, определяет процессы code review, устанавливает Definition of Done и тестовые стандарты
+- **Engineering Standards** — senior engineer с экспертизой в code quality и best practices: формирует coding guidelines, определяет процессы code review, устанавливает Definition of Done и тестовые стандарты на основе описания проекта
+- **Solution Architect** — технический архитектор с экспертизой в проектировании систем: выбирает технологический стек, проектирует компоненты и интеграции, обосновывает архитектурные решения и trade-offs с учетом установленных стандартов
+- **Project Planner** — специалист по планированию разработки и управлению проектами: декомпозирует задачи, оценивает временные рамки, выявляет зависимости и bottlenecks, планирует milestone'ы на основе всех предыдущих артефактов
 
 **Принципы работы:**
 

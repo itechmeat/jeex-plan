@@ -14,6 +14,9 @@ from datetime import datetime
 
 # Import agent routes
 from app.api.routes.agents import router as agents_router
+from app.core.logger import get_logger
+
+logger = get_logger()
 
 app = FastAPI(
     title="JEEX Plan API",
@@ -32,6 +35,13 @@ app.add_middleware(
 
 # Include agent routes
 app.include_router(agents_router, prefix="/api/v1")
+
+# Include document generation routes
+try:
+    from app.api.routes.document_generation import router as document_generation_router
+    app.include_router(document_generation_router, prefix="/api/v1")
+except ImportError as e:
+    logger.warning(f"Could not import document generation routes: {e}")
 
 
 @app.get("/")

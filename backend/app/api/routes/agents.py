@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.agents.contracts.base import ProjectContext
 from app.agents.orchestration.workflow import workflow_engine
 from app.agents.orchestration.orchestrator import orchestrator
+from app.core.config import get_settings
 from app.core.logger import get_logger
 
 logger = get_logger()
@@ -170,7 +171,7 @@ async def execute_architecture_design(
         context = ProjectContext(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            current_step=2,
+            current_step=3,
             correlation_id=correlation_id,
             language=request.language,
             user_id=request.user_id,
@@ -209,7 +210,7 @@ async def execute_implementation_planning(
         context = ProjectContext(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            current_step=3,
+            current_step=4,
             correlation_id=correlation_id,
             language=request.language,
             user_id=request.user_id,
@@ -249,7 +250,7 @@ async def execute_engineering_standards(
         context = ProjectContext(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            current_step=4,
+            current_step=2,
             correlation_id=correlation_id,
             language=request.language,
             user_id=request.user_id,
@@ -316,6 +317,9 @@ class FullWorkflowRequest(BaseModel):
     )
     language: str = Field(default="en", description="Target language for documents")
     target_audience: Optional[str] = Field(None, description="Known target audience")
+    technology_stack: Optional[list[str]] = Field(
+        None, description="Technology stack for engineering standards"
+    )
     user_tech_preferences: Optional[Dict[str, Any]] = Field(
         None, description="Technology preferences"
     )
@@ -348,102 +352,15 @@ async def generate_progress_stream(
             yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': 'Business analysis failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
-        # Step 2: Architecture Design
+        # Step 2: Engineering Standards
         context.current_step = 2
-        yield f"data: {json.dumps({'type': 'step_start', 'step': 2, 'name': 'Architecture Design', 'status': 'running'})}\n\n"
+        yield f"data: {json.dumps({'type': 'step_start', 'step': 2, 'name': 'Engineering Standards', 'status': 'running'})}\n\n"
         await asyncio.sleep(0.1)
 
         try:
-            arch_result = await workflow_engine.execute_architecture_design(
-                context=context,
-                project_description=ba_result.get("content", ""),
-                user_tech_preferences=input_data.get("user_tech_preferences"),
-            )
-            yield f"data: {json.dumps({'type': 'step_complete', 'step': 2, 'status': 'completed', 'confidence': arch_result.get('confidence_score', 0.8)})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': 'Architecture design failed', 'correlation_id': context.correlation_id})}\n\n"
-            return
-
-        # Step 3: Implementation Planning
-        context.current_step = 3
-        yield f"data: {json.dumps({'type': 'step_start', 'step': 3, 'name': 'Implementation Planning', 'status': 'running'})}\n\n"
-        await asyncio.sleep(0.1)
-
-        try:
-            planning_result = await workflow_engine.execute_implementation_planning(
-                context=context,
-                project_description=ba_result.get("content", ""),
-                architecture_overview=arch_result.get("content", ""),
-                team_size=input_data.get("team_size"),
-            )
-            yield f"data: {json.dumps({'type': 'step_complete', 'step': 3, 'status': 'completed', 'confidence': planning_result.get('confidence_score', 0.8)})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': 'Implementation planning failed', 'correlation_id': context.correlation_id})}\n\n"
-            return
-
-        # Step 4: Engineering Standards
-        context.current_step = 4
-        yield f"data: {json.dumps({'type': 'step_start', 'step': 4, 'name': 'Engineering Standards', 'status': 'running'})}\n\n"
-        await asyncio.sleep(0.1)
-
-        try:
-            # Extract technology stack from architecture result for standards step
-            tech_stack: list[str] = []
-            if arch_result.get("content"):
-                content = arch_result["content"]
-
-                # Try to parse as JSON array first
-                try:
-                    parsed = json.loads(content)
-                    if isinstance(parsed, list) and all(
-                        isinstance(item, str) for item in parsed
-                    ):
-                        tech_stack = parsed
-                except (json.JSONDecodeError, TypeError):
-                    # Parse text content for technology stack section
-                    content_lower = content.lower()
-                    # Look for technology stack indicators
-                    indicators = [
-                        "technology stack:",
-                        "tech stack:",
-                        "technologies:",
-                        "stack:",
-                    ]
-
-                    for indicator in indicators:
-                        if indicator in content_lower:
-                            # Find the indicator and extract content after it
-                            start_idx = content_lower.find(indicator) + len(indicator)
-                            # Find next section or end of content
-                            end_idx = len(content)
-                            for next_section in [
-                                "##",
-                                "---",
-                                "architecture",
-                                "implementation",
-                                "standards",
-                            ]:
-                                next_idx = content_lower.find(next_section, start_idx)
-                                if next_idx != -1 and next_idx < end_idx:
-                                    end_idx = next_idx
-
-                            # Extract and clean the technology stack text
-                            tech_text = content[start_idx:end_idx].strip()
-                            # Split by common separators and clean
-                            import re
-
-                            tech_items = re.split(r"[,;\n\r]|and |& ", tech_text)
-                            tech_stack = [
-                                item.strip().rstrip(".").rstrip(")").rstrip("(")
-                                for item in tech_items
-                                if item.strip() and len(item.strip()) > 2
-                            ]
-                            break
-
-            if not tech_stack:
-                raise ValueError(
-                    "Unable to determine technology stack from architecture result"
-                )
+            # Get default technology stack from configuration
+            settings = get_settings()
+            tech_stack = input_data.get("technology_stack") or settings.DEFAULT_TECHNOLOGY_STACK
 
             standards_result = await workflow_engine.execute_engineering_standards(
                 context=context,
@@ -451,13 +368,48 @@ async def generate_progress_stream(
                 technology_stack=tech_stack,
                 team_experience_level=input_data.get("team_experience_level"),
             )
-            yield f"data: {json.dumps({'type': 'step_complete', 'step': 4, 'status': 'completed', 'confidence': standards_result.get('confidence_score', 0.8)})}\n\n"
+            yield f"data: {json.dumps({'type': 'step_complete', 'step': 2, 'status': 'completed', 'confidence': standards_result.get('confidence_score', 0.8)})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': 'Engineering standards failed', 'correlation_id': context.correlation_id})}\n\n"
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': 'Engineering standards failed', 'correlation_id': context.correlation_id})}\n\n"
+            return
+
+        # Step 3: Architecture Design
+        context.current_step = 3
+        yield f"data: {json.dumps({'type': 'step_start', 'step': 3, 'name': 'Architecture Design', 'status': 'running'})}\n\n"
+        await asyncio.sleep(0.1)
+
+        try:
+            arch_result = await workflow_engine.execute_architecture_design(
+                context=context,
+                project_description=ba_result.get("content", ""),
+                engineering_standards=standards_result.get("content", ""),
+                user_tech_preferences=input_data.get("user_tech_preferences"),
+            )
+            yield f"data: {json.dumps({'type': 'step_complete', 'step': 3, 'status': 'completed', 'confidence': arch_result.get('confidence_score', 0.8)})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': 'Architecture design failed', 'correlation_id': context.correlation_id})}\n\n"
+            return
+
+        # Step 4: Implementation Planning
+        context.current_step = 4
+        yield f"data: {json.dumps({'type': 'step_start', 'step': 4, 'name': 'Implementation Planning', 'status': 'running'})}\n\n"
+        await asyncio.sleep(0.1)
+
+        try:
+            planning_result = await workflow_engine.execute_implementation_planning(
+                context=context,
+                project_description=ba_result.get("content", ""),
+                engineering_standards=standards_result.get("content", ""),
+                architecture_overview=arch_result.get("content", ""),
+                team_size=input_data.get("team_size"),
+            )
+            yield f"data: {json.dumps({'type': 'step_complete', 'step': 4, 'status': 'completed', 'confidence': planning_result.get('confidence_score', 0.8)})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': 'Implementation planning failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Workflow complete
-        yield f"data: {json.dumps({'type': 'complete', 'workflow_id': workflow_id, 'status': 'completed', 'results': {'business_analysis': ba_result, 'architecture': arch_result, 'planning': planning_result, 'standards': standards_result}})}\n\n"
+        yield f"data: {json.dumps({'type': 'complete', 'workflow_id': workflow_id, 'status': 'completed', 'results': {'business_analysis': ba_result, 'standards': standards_result, 'architecture': arch_result, 'planning': planning_result}})}\n\n"
 
     except Exception:
         logger.exception("Workflow stream error", workflow_id=workflow_id)
@@ -483,6 +435,7 @@ async def execute_full_workflow_stream(
     input_data = {
         "idea_description": request.idea_description,
         "target_audience": request.target_audience,
+        "technology_stack": request.technology_stack,
         "user_tech_preferences": request.user_tech_preferences,
         "team_size": request.team_size,
         "team_experience_level": request.team_experience_level,

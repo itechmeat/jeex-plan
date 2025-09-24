@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="dev-secret-key", env="SECRET_KEY")
     DEBUG: bool = Field(default=False, env="DEBUG")
 
+    # Default Technology Stack
+    DEFAULT_TECHNOLOGY_STACK: List[str] = Field(
+        default=["JavaScript", "Node.js", "React", "PostgreSQL"],
+        env="DEFAULT_TECHNOLOGY_STACK"
+    )
+
     # API Settings
     API_V1_PREFIX: str = "/api/v1"
     ALLOWED_ORIGINS_STR: Optional[str] = Field(default=None, env="ALLOWED_ORIGINS")
@@ -92,9 +98,14 @@ class Settings(BaseSettings):
     OTLP_ENDPOINT: Optional[str] = Field(default=None, env="OTLP_ENDPOINT")
     LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
 
+    # Cache Settings
+    CACHE_DEFAULT_TTL: int = Field(default=3600, env="CACHE_DEFAULT_TTL")  # 1 hour
+    CACHE_SEARCH_TTL: int = Field(default=1800, env="CACHE_SEARCH_TTL")  # 30 minutes
+    CACHE_EMBEDDING_TTL: int = Field(default=86400, env="CACHE_EMBEDDING_TTL")  # 24 hours
+
     # File Storage
-    UPLOAD_DIR: str = Field(default="./uploads", env="UPLOAD_DIR")
-    EXPORT_DIR: str = Field(default="./exports", env="EXPORT_DIR")
+    UPLOAD_DIR: str = Field(default="/app/uploads", env="UPLOAD_DIR")
+    EXPORT_DIR: str = Field(default="/app/exports", env="EXPORT_DIR")
 
     # Multi-tenancy
     DEFAULT_TENANT_ID: str = Field(default="default", env="DEFAULT_TENANT_ID")

@@ -60,12 +60,14 @@ class WorkflowEngine:
         self,
         context: ProjectContext,
         project_description: str,
+        engineering_standards: str,
         user_tech_preferences: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Execute architecture design step."""
+        """Execute architecture design step with engineering standards context."""
         input_data = SolutionArchitectInput(
             context=context,
             project_description=project_description,
+            engineering_standards=engineering_standards,
             user_tech_preferences=user_tech_preferences,
         )
 
@@ -92,13 +94,15 @@ class WorkflowEngine:
         self,
         context: ProjectContext,
         project_description: str,
+        engineering_standards: str,
         architecture_overview: str,
         team_size: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Execute implementation planning step."""
+        """Execute implementation planning step with all previous context."""
         input_data = ProjectPlannerInput(
             context=context,
             project_description=project_description,
+            engineering_standards=engineering_standards,
             architecture_overview=architecture_overview,
             team_size=team_size,
         )

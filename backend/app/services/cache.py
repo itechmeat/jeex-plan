@@ -477,10 +477,11 @@ class VectorCache(LoggerMixin):
             Warm-up statistics
         """
         try:
-            from app.services.embedding import embedding_service
+            from app.services.embedding import get_embedding_service
 
             warmed_count = 0
             failed_count = 0
+            embedding_service = get_embedding_service()
 
             for query in common_queries:
                 try:
