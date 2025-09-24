@@ -8,12 +8,12 @@ from sqlalchemy import (
     String,
     Text,
     Integer,
-    ForeignKey,
+    and_,
     Index,
     JSON,
     ForeignKeyConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign, remote
 from sqlalchemy.dialects.postgresql import UUID
 from enum import Enum
 from .base import BaseModel
@@ -52,8 +52,11 @@ class DocumentVersion(BaseModel):
     project = relationship(
         "Project",
         back_populates="document_versions",
-        primaryjoin="and_(DocumentVersion.project_id==Project.id, DocumentVersion.tenant_id==Project.tenant_id)",
-        foreign_keys=[project_id]
+        primaryjoin=lambda: and_(
+            foreign(DocumentVersion.project_id) == remote(Project.id),
+            foreign(DocumentVersion.tenant_id) == remote(Project.tenant_id),
+        ),
+        foreign_keys=lambda: [DocumentVersion.project_id, DocumentVersion.tenant_id],
     )
 
     # Created by user
