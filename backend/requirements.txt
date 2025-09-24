@@ -16,6 +16,10 @@ redis==6.4.0
 # Vector Database
 qdrant-client==1.15.1
 
+# AI Agents and Frameworks
+crewai==0.193.2
+pydantic-ai==1.0.8
+
 # Authentication & Security
 python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4

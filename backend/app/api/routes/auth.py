@@ -197,7 +197,8 @@ async def logout_user(
     """
     logger.info("Logout successful", user_id=str(current_user.id))
 
-    # TODO: Implement token blacklisting in Redis
+    # NOTE: Token blacklisting in Redis not implemented for security
+                    # Should store invalidated tokens in Redis with expiration for proper logout
     # For now, client should discard the tokens
 
     return LogoutResponse(message="Successfully logged out")

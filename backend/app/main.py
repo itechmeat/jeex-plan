@@ -12,13 +12,17 @@ from fastapi.responses import JSONResponse
 from structlog import get_logger
 import redis.asyncio as redis
 
-from app.api.routes import health, projects, auth
+from app.api.routes import health, projects, auth, agents
 from app.core.config import settings
-from app.core.database import create_tables
-# from app.core.observability import setup_observability  # TODO: Fix OpenTelemetry version conflicts
+
+# from app.core.observability import setup_observability  # NOTE: Disabled due to OpenTelemetry version conflicts
 from app.middleware.tenant import TenantIsolationMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.middleware.security import SecurityHeadersMiddleware, CSRFProtectionMiddleware, RequestSizeMiddleware
+from app.middleware.security import (
+    SecurityHeadersMiddleware,
+    CSRFProtectionMiddleware,
+    RequestSizeMiddleware,
+)
 
 # Configure structured logging
 logger = get_logger()
@@ -30,11 +34,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting JEEX Plan Backend")
 
-    # Initialize database tables - disabled, using migrations instead
-    # await create_tables()
-
     # Setup observability
-    # setup_observability(app)  # TODO: Fix OpenTelemetry version conflicts
+    # setup_observability(app)  # NOTE: Disabled due to OpenTelemetry version conflicts
 
     # Initialize Redis connection for rate limiting
     try:
@@ -51,7 +52,9 @@ async def lifespan(app: FastAPI):
         logger.info("Redis connection established")
 
     except redis.RedisError as e:
-        logger.warning("Failed to connect to Redis, rate limiting will be disabled", error=str(e))
+        logger.warning(
+            "Failed to connect to Redis, rate limiting will be disabled", error=str(e)
+        )
         app.state.redis_client = None
 
     logger.info("Application startup complete")
@@ -62,7 +65,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down JEEX Plan Backend")
 
     # Close Redis connection
-    if hasattr(app.state, 'redis_client') and app.state.redis_client:
+    if hasattr(app.state, "redis_client") and app.state.redis_client:
         await app.state.redis_client.aclose()
         logger.info("Redis connection closed")
 
@@ -74,7 +77,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Add security middleware stack (order matters - last added is first executed)
@@ -93,7 +96,7 @@ app.add_middleware(
     RateLimitMiddleware,
     redis_client=None,  # Will be populated from app.state during requests
     default_requests=settings.RATE_LIMIT_REQUESTS,
-    default_window=settings.RATE_LIMIT_WINDOW
+    default_window=settings.RATE_LIMIT_WINDOW,
 )
 
 # 5. Tenant isolation
@@ -107,6 +110,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Add request logging middleware
 @app.middleware("http")
@@ -130,6 +134,7 @@ async def log_requests(request: Request, call_next):
 
     return response
 
+
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -150,10 +155,13 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
+
 # Include API routers
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(projects.router, prefix="/api/v1", tags=["projects"])
+app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
+
 
 # Root endpoint
 @app.get("/")
@@ -170,6 +178,7 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
