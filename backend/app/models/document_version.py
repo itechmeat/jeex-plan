@@ -69,6 +69,12 @@ class DocumentVersion(BaseModel):
             ["projects.id", "projects.tenant_id"],
             ondelete="CASCADE",
         ),
+        # Author (tenant-scoped)
+        ForeignKeyConstraint(
+            ["created_by", "tenant_id"],
+            ["users.id", "users.tenant_id"],
+            ondelete="RESTRICT",
+        ),
         # Indexes for performance
         Index("idx_document_versions_project_type", "project_id", "document_type"),
         Index("idx_document_versions_project_version", "project_id", "version"),
@@ -87,10 +93,12 @@ class DocumentVersion(BaseModel):
             "uq_document_version_tenant_project_epic_version",
             "tenant_id",
             "project_id",
-            "document_type",
             "epic_number",
             "version",
             unique=True,
-            postgresql_where=epic_number.isnot(None),
+            postgresql_where=and_(
+                epic_number.isnot(None),
+                document_type == DocumentType.PLAN_EPIC.value,
+            ),
         ),
     )
