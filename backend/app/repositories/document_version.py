@@ -30,9 +30,20 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         created_by: UUID,
         epic_number: Optional[int] = None,
         epic_name: Optional[str] = None,
-        document_metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None
     ) -> DocumentVersion:
-        """Create a new document version."""
+        """Create a new document version.
+
+        Args:
+            project_id: Project UUID
+            document_type: Type of document
+            title: Document title
+            content: Document content
+            created_by: User UUID who created the document
+            epic_number: Epic number for PLAN_EPIC documents
+            epic_name: Epic name for PLAN_EPIC documents
+            metadata: Additional metadata to store with the document
+        """
         # Get next version number for this document type
         next_version = await self.get_next_version(project_id, document_type, epic_number)
 
@@ -43,7 +54,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
             "title": title,
             "content": content,
             "created_by": created_by,
-            "metadata": document_metadata or {}
+            "document_metadata": metadata or {}
         }
 
         # Add epic fields if this is a plan epic document
