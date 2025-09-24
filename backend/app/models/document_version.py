@@ -46,7 +46,7 @@ class DocumentVersion(BaseModel):
     epic_name = Column(String(255), nullable=True)  # For PLAN_EPIC documents
 
     # Generation metadata
-    metadata = Column(JSON, default=dict, nullable=False)
+    document_metadata = Column("metadata", JSON, default=dict, nullable=False)
 
     # Project relationship
     project_id = Column(UUID(as_uuid=True), nullable=False)

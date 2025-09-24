@@ -149,7 +149,11 @@ class ExportService:
 
         # Create temporary directory for file structure
         with tempfile.TemporaryDirectory() as temp_dir:
-            project_name = manifest["project"]["name"].replace(" ", "-").lower()
+            raw_project_name = (manifest.get("project", {}).get("name")) or "project"
+            project_name = "".join(
+                (c.lower() if (c.isalnum() or c in "-_ ") else "-")
+                for c in raw_project_name
+            ).strip().replace(" ", "-") or "project"
             project_dir = Path(temp_dir) / project_name
 
             # Create directory structure
@@ -162,8 +166,53 @@ class ExportService:
             # Generate README.md
             await self._create_readme(project_dir, manifest)
 
-            # Get and save documents
-            documents = await self.doc_repo.get_project_documents(project_id)
+            # Get and save documents from manifest snapshot for determinism
+            ordered_doc_ids: List[str] = []
+            uuid_doc_ids: List[UUID] = []
+
+            for doc_data in manifest.get("documents", {}).values():
+                doc_id = doc_data.get("id")
+                if not doc_id:
+                    continue
+                try:
+                    uuid_doc_ids.append(UUID(doc_id))
+                    ordered_doc_ids.append(doc_id)
+                except ValueError:
+                    logger.warning(
+                        "Invalid document id in export manifest",
+                        document_id=doc_id,
+                        export_id=str(export.id),
+                        project_id=str(project_id),
+                        tenant_id=str(self.tenant_id)
+                    )
+
+            for epic_data in manifest.get("epics", []):
+                doc_id = epic_data.get("id")
+                if not doc_id:
+                    continue
+                try:
+                    uuid_doc_ids.append(UUID(doc_id))
+                    ordered_doc_ids.append(doc_id)
+                except ValueError:
+                    logger.warning(
+                        "Invalid epic document id in export manifest",
+                        document_id=doc_id,
+                        export_id=str(export.id),
+                        project_id=str(project_id),
+                        tenant_id=str(self.tenant_id)
+                    )
+
+            documents = await self.doc_repo.get_by_ids(uuid_doc_ids)
+            retrieved_ids = {str(doc.id) for doc in documents}
+            missing_ids = [doc_id for doc_id in ordered_doc_ids if doc_id not in retrieved_ids]
+            if missing_ids:
+                logger.warning(
+                    "Manifest references missing documents",
+                    document_ids=missing_ids,
+                    export_id=str(export.id),
+                    project_id=str(project_id),
+                    tenant_id=str(self.tenant_id)
+                )
 
             for doc in documents:
                 if doc.document_type == DocumentType.ABOUT.value:
@@ -268,8 +317,8 @@ This is an AI-generated documentation package for {project_info["name"]}.
         if doc.epic_name:
             meta["epic_name"] = doc.epic_name
         # Only include non-internal metadata
-        if doc.metadata:
-            for key, value in doc.metadata.items():
+        if doc.document_metadata:
+            for key, value in doc.document_metadata.items():
                 if key not in ["correlation_id"]:
                     meta[key] = value
 

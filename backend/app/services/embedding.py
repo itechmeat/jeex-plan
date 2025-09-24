@@ -602,5 +602,12 @@ class EmbeddingService(LoggerMixin):
         return await self._compute_embeddings(chunks)
 
 
-# Singleton instance for application-wide use
-embedding_service = EmbeddingService()
+# Lazy-loaded singleton instance for application-wide use
+_embedding_service_instance = None
+
+def get_embedding_service():
+    """Get or create the embedding service instance."""
+    global _embedding_service_instance
+    if _embedding_service_instance is None:
+        _embedding_service_instance = EmbeddingService()
+    return _embedding_service_instance

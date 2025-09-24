@@ -30,7 +30,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         created_by: UUID,
         epic_number: Optional[int] = None,
         epic_name: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        document_metadata: Optional[Dict[str, Any]] = None
     ) -> DocumentVersion:
         """Create a new document version."""
         # Get next version number for this document type
@@ -43,7 +43,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
             "title": title,
             "content": content,
             "created_by": created_by,
-            "metadata": metadata or {}
+            "metadata": document_metadata or {}
         }
 
         # Add epic fields if this is a plan epic document
@@ -247,6 +247,24 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_by_ids(self, ids: List[UUID]) -> List[DocumentVersion]:
+        """Get documents by IDs preserving input order."""
+        if not ids:
+            return []
+
+        stmt = select(self.model).where(
+            self.model.tenant_id == self.tenant_id,
+            self.model.is_deleted.is_(False),
+            self.model.id.in_(ids)
+        )
+
+        result = await self.session.execute(stmt)
+        documents = list(result.scalars().all())
+
+        order_map = {document_id: index for index, document_id in enumerate(ids)}
+        documents.sort(key=lambda doc: order_map.get(doc.id, len(order_map)))
+        return documents
 
     async def delete_document_versions(
         self,

@@ -80,6 +80,21 @@ class DocumentGenerationService:
                 target_audience=target_audience
             )
 
+            # Short-circuit on failed workflow response
+            if result.get("status") not in ("completed", "success"):
+                msg = result.get("error_message") or "Business analysis did not complete successfully"
+                await self.exec_repo.fail_execution(execution.id, msg)
+                logger.error(
+                    "Business analysis returned non-completed status",
+                    correlation_id=str(correlation_id),
+                    status=result.get("status"),
+                    error=msg,
+                    project_id=str(project_id),
+                    tenant_id=str(self.tenant_id),
+                )
+                await self.session.commit()
+                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
+
             # Save document version
             doc_version = await self.doc_repo.create_version(
                 project_id=project_id,
@@ -115,7 +130,7 @@ class DocumentGenerationService:
             await self.project_repo.update(
                 project_id,
                 current_step=2,
-                status=ProjectStatus.IN_PROGRESS.value
+                status=ProjectStatus.IN_PROGRESS
             )
 
             await self.session.commit()
@@ -185,6 +200,21 @@ class DocumentGenerationService:
                 technology_stack=technology_stack,
                 team_experience_level=team_experience_level
             )
+
+            # Short-circuit on failed workflow response
+            if result.get("status") not in ("completed", "success"):
+                msg = result.get("error_message") or "Engineering standards did not complete successfully"
+                await self.exec_repo.fail_execution(execution.id, msg)
+                logger.error(
+                    "Engineering standards returned non-completed status",
+                    correlation_id=str(correlation_id),
+                    status=result.get("status"),
+                    error=msg,
+                    project_id=str(project_id),
+                    tenant_id=str(self.tenant_id),
+                )
+                await self.session.commit()
+                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
 
             # Save document version
             doc_version = await self.doc_repo.create_version(
@@ -292,6 +322,21 @@ class DocumentGenerationService:
                 user_tech_preferences=user_tech_preferences
             )
 
+            # Short-circuit on failed workflow response
+            if result.get("status") not in ("completed", "success"):
+                msg = result.get("error_message") or "Architecture design did not complete successfully"
+                await self.exec_repo.fail_execution(execution.id, msg)
+                logger.error(
+                    "Architecture design returned non-completed status",
+                    correlation_id=str(correlation_id),
+                    status=result.get("status"),
+                    error=msg,
+                    project_id=str(project_id),
+                    tenant_id=str(self.tenant_id),
+                )
+                await self.session.commit()
+                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
+
             # Save document version
             doc_version = await self.doc_repo.create_version(
                 project_id=project_id,
@@ -394,6 +439,21 @@ class DocumentGenerationService:
                 team_size=team_size
             )
 
+            # Short-circuit on failed workflow response
+            if result.get("status") not in ("completed", "success"):
+                msg = result.get("error_message") or "Implementation planning did not complete successfully"
+                await self.exec_repo.fail_execution(execution.id, msg)
+                logger.error(
+                    "Implementation planning returned non-completed status",
+                    correlation_id=str(correlation_id),
+                    status=result.get("status"),
+                    error=msg,
+                    project_id=str(project_id),
+                    tenant_id=str(self.tenant_id),
+                )
+                await self.session.commit()
+                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
+
             # Save overview document
             overview_doc = await self.doc_repo.create_version(
                 project_id=project_id,
@@ -474,7 +534,7 @@ class DocumentGenerationService:
             # Update project status to completed
             await self.project_repo.update(
                 project_id,
-                status=ProjectStatus.COMPLETED.value
+                status=ProjectStatus.COMPLETED
             )
 
             await self.session.commit()
@@ -573,15 +633,23 @@ class DocumentGenerationService:
                 "project_id": str(project_id),
                 "document_type": document_type,
                 "type": document_type,
+                "category": "knowledge",
                 "visibility": "private",
                 **metadata
             }
 
             await self.qdrant_service.upsert_documents(
                 documents=content_chunks,
-                metadata_list=[base_metadata for _ in content_chunks]
+                metadata_list=[base_metadata.copy() for _ in content_chunks]
             )
 
         except Exception as e:
-            logger.warning("Failed to store knowledge vectors", error=str(e))
+            logger.warning(
+                "Failed to store knowledge vectors",
+                error=str(e),
+                correlation_id=metadata.get("correlation_id"),
+                project_id=str(project_id),
+                tenant_id=str(self.tenant_id),
+                document_type=document_type,
+            )
             # Don't fail the main operation if vector storage fails
