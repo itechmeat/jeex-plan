@@ -225,7 +225,11 @@ This is an AI-generated documentation package for {project_info["name"]}.
         if manifest.get("epics"):
             readme_content += "\n#### Epic Documentation\n\n"
             for epic in sorted(manifest["epics"], key=lambda x: x["epic_number"]):
-                filename = f"{epic['epic_number']:02d}-{epic['epic_name'].lower().replace(' ', '-')}.md"
+                safe_name = "".join(
+                    (c.lower() if (c.isalnum() or c in "-_ ") else "-")
+                    for c in (epic.get("epic_name") or "")
+                ).strip().replace(" ", "-") or "epic"
+                filename = f"{epic['epic_number']:02d}-{safe_name}.md"
                 readme_content += f"- **[docs/plans/{filename}](docs/plans/{filename})** - {epic['title']}\n"
 
         readme_content += f"""

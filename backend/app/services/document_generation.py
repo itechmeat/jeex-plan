@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
-from app.models.document_version import DocumentVersion, DocumentType
+from app.models.document_version import DocumentVersion, DocumentType, DocumentType
 from app.models.agent_execution import AgentExecution, AgentType, ExecutionStatus
 from app.models.project import Project, ProjectStatus
 from app.repositories.document_version import DocumentVersionRepository
@@ -98,7 +98,7 @@ class DocumentGenerationService:
             if "key_facts" in result:
                 await self._store_knowledge_vectors(
                     project_id=project_id,
-                    document_type="about",
+                    document_type=DocumentType.ABOUT.value,
                     content_chunks=result["key_facts"],
                     metadata={
                         "document_id": str(doc_version.id),
@@ -308,7 +308,7 @@ class DocumentGenerationService:
             if "technical_decisions" in result:
                 await self._store_knowledge_vectors(
                     project_id=project_id,
-                    document_type="architecture",
+                    document_type=DocumentType.ARCHITECTURE.value,
                     content_chunks=result["technical_decisions"],
                     metadata={
                         "document_id": str(doc_version.id),
@@ -428,7 +428,7 @@ class DocumentGenerationService:
             # Overview
             await self._store_knowledge_vectors(
                 project_id=project_id,
-                document_type="planning_overview",
+                document_type=DocumentType.PLAN_OVERVIEW.value,
                 content_chunks=[result["overview_content"]],
                 metadata={
                     "document_id": str(overview_doc.id),
@@ -455,7 +455,7 @@ class DocumentGenerationService:
                         {
                             "tenant_id": str(self.tenant_id),
                             "project_id": str(project_id),
-                            "document_type": "planning_epic",
+                            "document_type": DocumentType.PLAN_EPIC.value,
                             "type": "knowledge",
                             "visibility": "private",
                             **md

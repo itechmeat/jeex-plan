@@ -145,7 +145,9 @@ class QdrantService:
                     "lang": metadata.get("lang", "en"),
                     "version": metadata.get("version", "1"),
                     "visibility": metadata.get("visibility", "private"),
-                    "tags": metadata.get("tags", [])
+                    "tags": metadata.get("tags", []),
+                    # Ensure payload contains a stable identifier for deletes/joins
+                    "document_id": metadata.get("document_id", ids[i]),
                 }
 
                 point = PointStruct(
@@ -195,7 +197,7 @@ class QdrantService:
             # Add document type filter if specified
             if document_type:
                 filter_conditions.append(
-                    FieldCondition(key="document_type", match=MatchValue(value=document_type))
+                    FieldCondition(key="type", match=MatchValue(value=document_type))
                 )
 
             # Add additional filters
@@ -255,7 +257,7 @@ class QdrantService:
 
             for content, metadata, score in search_results:
                 # Add document type and score info
-                doc_info = f"[{metadata.get('document_type', 'unknown')} - score: {score:.2f}]"
+                doc_info = f"[{metadata.get('type', 'unknown')} - score: {score:.2f}]"
                 full_content = f"{doc_info}\n{content}\n"
 
                 if total_length + len(full_content) > max_context_length:

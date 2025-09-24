@@ -210,7 +210,7 @@ class StreamingService:
                 if message["type"] == "message":
                     try:
                         event_data = json.loads(message["data"])
-                        yield self._format_sse_event("message", event_data)
+                        yield self._format_sse_event(event_data.get("type", "message"), event_data)
                     except json.JSONDecodeError:
                         logger.warning("Failed to decode message data")
                         continue
