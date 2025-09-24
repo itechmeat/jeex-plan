@@ -7,6 +7,7 @@ import os
 import zipfile
 import tempfile
 import shutil
+import yaml
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -73,9 +74,11 @@ class ExportService:
         if export.status != ExportStatus.PENDING.value:
             raise ValueError(f"Export is not in pending status: {export.status}")
 
-        # Mark as generating
-        await self.export_repo.start_generation(export_id)
+        # Mark as generating (atomically)
+        updated = await self.export_repo.start_generation(export_id)
         await self.session.commit()
+        if not updated:
+            raise ValueError("Export already in progress or not pending")
 
         try:
             # Generate ZIP file
@@ -88,8 +91,9 @@ class ExportService:
             return file_path
 
         except Exception as e:
-            # Mark as failed
-            await self.export_repo.fail_export(export_id, str(e))
+            # Mark as failed with tenant-safe message; log full error
+            logger.exception("export.generation_failed", export_id=str(export_id))
+            await self.export_repo.fail_export(export_id, "Export failed. Please retry later.")
             await self.session.commit()
             raise
 
@@ -252,25 +256,24 @@ This is an AI-generated documentation package for {project_info["name"]}.
 
     async def _save_document(self, file_path: Path, doc: DocumentVersion) -> None:
         """Save a document to file with metadata header."""
-        # Create metadata header
-        header = f"""---
-title: {doc.title}
-type: {doc.document_type}
-version: {doc.version}
-created: {doc.created_at.isoformat()}
-"""
-
+        # Create metadata header (safe YAML)
+        meta = {
+            "title": doc.title,
+            "type": doc.document_type,
+            "version": doc.version,
+            "created": doc.created_at.isoformat(),
+        }
         if doc.epic_number is not None:
-            header += f"epic_number: {doc.epic_number}\n"
+            meta["epic_number"] = doc.epic_number
         if doc.epic_name:
-            header += f"epic_name: {doc.epic_name}\n"
-
+            meta["epic_name"] = doc.epic_name
+        # Only include non-internal metadata
         if doc.metadata:
             for key, value in doc.metadata.items():
-                if key not in ['correlation_id']:  # Skip internal metadata
-                    header += f"{key}: {value}\n"
+                if key not in ["correlation_id"]:
+                    meta[key] = value
 
-        header += "---\n\n"
+        header = "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True) + "---\n\n"
 
         # Write file
         with open(file_path, "w", encoding="utf-8") as f:

@@ -41,11 +41,27 @@ class ExportRepository(TenantRepository[Export]):
         )
 
     async def start_generation(self, export_id: UUID) -> Optional[Export]:
-        """Mark export as generating."""
-        return await self.update(
-            export_id,
-            status=ExportStatus.GENERATING.value
+        """Atomically mark export as generating if currently pending."""
+        from sqlalchemy import update
+
+        stmt = (
+            update(self.model)
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.id == export_id,
+                    self.model.status == ExportStatus.PENDING.value,
+                    self.model.is_deleted.is_(False),
+                )
+            )
+            .values(
+                status=ExportStatus.GENERATING.value,
+                updated_at=datetime.now(timezone.utc)
+            )
+            .returning(self.model)
         )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def complete_export(
         self,

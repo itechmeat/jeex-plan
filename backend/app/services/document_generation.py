@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
-from app.models.document_version import DocumentVersion, DocumentType, DocumentType
+from app.models.document_version import DocumentVersion, DocumentType
 from app.models.agent_execution import AgentExecution, AgentType, ExecutionStatus
 from app.models.project import Project, ProjectStatus
 from app.repositories.document_version import DocumentVersionRepository
@@ -103,7 +103,8 @@ class DocumentGenerationService:
                     metadata={
                         "document_id": str(doc_version.id),
                         "version": doc_version.version,
-                        "step": 1
+                        "step": 1,
+                        "correlation_id": str(correlation_id)
                     }
                 )
 
@@ -209,7 +210,8 @@ class DocumentGenerationService:
                     metadata={
                         "document_id": str(doc_version.id),
                         "version": doc_version.version,
-                        "step": 2
+                        "step": 2,
+                        "correlation_id": str(correlation_id)
                     }
                 )
 
@@ -313,7 +315,8 @@ class DocumentGenerationService:
                     metadata={
                         "document_id": str(doc_version.id),
                         "version": doc_version.version,
-                        "step": 3
+                        "step": 3,
+                        "correlation_id": str(correlation_id)
                     }
                 )
 
@@ -433,7 +436,8 @@ class DocumentGenerationService:
                 metadata={
                     "document_id": str(overview_doc.id),
                     "version": overview_doc.version,
-                    "step": 4
+                    "step": 4,
+                    "correlation_id": str(correlation_id)
                 }
             )
             # Epics
@@ -448,6 +452,7 @@ class DocumentGenerationService:
                         "step": 4,
                         "epic_number": doc.epic_number,
                         "epic_name": doc.epic_name,
+                        "correlation_id": str(correlation_id)
                     })
                 await self.qdrant_service.upsert_documents(
                     documents=epic_chunks,
@@ -456,7 +461,7 @@ class DocumentGenerationService:
                             "tenant_id": str(self.tenant_id),
                             "project_id": str(project_id),
                             "document_type": DocumentType.PLAN_EPIC.value,
-                            "type": "knowledge",
+                            "type": DocumentType.PLAN_EPIC.value,
                             "visibility": "private",
                             **md
                         } for md in epic_metadata
@@ -567,7 +572,7 @@ class DocumentGenerationService:
                 "tenant_id": str(self.tenant_id),
                 "project_id": str(project_id),
                 "document_type": document_type,
-                "type": "knowledge",
+                "type": document_type,
                 "visibility": "private",
                 **metadata
             }
