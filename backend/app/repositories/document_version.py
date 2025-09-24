@@ -6,6 +6,7 @@ Handles document versioning for the four-stage generation workflow.
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from sqlalchemy import and_, select, desc, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document_version import DocumentVersion, DocumentType
@@ -44,13 +45,9 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
             epic_name: Epic name for PLAN_EPIC documents
             metadata: Additional metadata to store with the document
         """
-        # Get next version number for this document type
-        next_version = await self.get_next_version(project_id, document_type, epic_number)
-
-        version_data = {
+        base_data = {
             "project_id": project_id,
             "document_type": document_type.value,
-            "version": next_version,
             "title": title,
             "content": content,
             "created_by": created_by,
@@ -61,10 +58,27 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         if document_type == DocumentType.PLAN_EPIC:
             if epic_number is None:
                 raise ValueError("epic_number is required for PLAN_EPIC documents")
-            version_data["epic_number"] = epic_number
-            version_data["epic_name"] = epic_name
+            base_data["epic_number"] = epic_number
+            base_data["epic_name"] = epic_name
 
-        return await self.create(**version_data)
+        last_error: Optional[IntegrityError] = None
+        for attempt in range(3):
+            next_version = await self.get_next_version(project_id, document_type, epic_number)
+            try:
+                return await self.create(**{**base_data, "version": next_version})
+            except IntegrityError as exc:
+                last_error = exc
+                await self.session.rollback()
+                logger.warning(
+                    "Retrying document version creation after integrity error",
+                    attempt=attempt + 1,
+                    project_id=str(project_id),
+                    document_type=document_type.value,
+                    epic_number=epic_number,
+                    tenant_id=str(self.tenant_id)
+                )
+
+        raise RuntimeError("Concurrent document version creation conflict") from last_error
 
     async def get_next_version(
         self,

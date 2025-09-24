@@ -566,7 +566,7 @@ async def get_project_documents(
                     "epic_name": doc.epic_name,
                     "created_at": doc.created_at.isoformat(),
                     "created_by": str(doc.created_by),
-                    "metadata": doc.metadata
+                    "metadata": doc.document_metadata
                 }
                 for doc in documents
             ]
@@ -611,7 +611,7 @@ async def get_document_content(
             "epic_number": document.epic_number,
             "epic_name": document.epic_name,
             "created_at": document.created_at.isoformat(),
-            "metadata": document.metadata
+            "metadata": document.document_metadata
         }
 
     except HTTPException:

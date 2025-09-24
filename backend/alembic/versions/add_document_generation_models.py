@@ -36,9 +36,7 @@ def upgrade() -> None:
         sa.Column('created_by', postgresql.UUID(as_uuid=True), nullable=False),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
-        sa.UniqueConstraint('tenant_id', 'project_id', 'document_type', 'version', name='uq_document_version_tenant_project_type_version'),
-        sa.UniqueConstraint('tenant_id', 'project_id', 'epic_number', 'version', name='uq_document_version_tenant_project_epic_version')
+        sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE')
     )
 
     # Create indexes for document_versions
@@ -48,6 +46,20 @@ def upgrade() -> None:
     op.create_index('idx_document_versions_epic', 'document_versions', ['project_id', 'epic_number'])
     op.create_index('idx_document_versions_tenant_id', 'document_versions', ['tenant_id'])
     op.create_index('idx_document_versions_is_deleted', 'document_versions', ['is_deleted'])
+    op.create_index(
+        'uq_document_version_tenant_project_type_version',
+        'document_versions',
+        ['tenant_id', 'project_id', 'document_type', 'version'],
+        unique=True,
+        postgresql_where=sa.text('epic_number IS NULL')
+    )
+    op.create_index(
+        'uq_document_version_tenant_project_epic_version',
+        'document_versions',
+        ['tenant_id', 'project_id', 'document_type', 'epic_number', 'version'],
+        unique=True,
+        postgresql_where=sa.text('epic_number IS NOT NULL')
+    )
 
     # Create agent_executions table
     op.create_table('agent_executions',

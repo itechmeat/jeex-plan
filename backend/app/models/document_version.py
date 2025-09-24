@@ -10,7 +10,6 @@ from sqlalchemy import (
     Integer,
     ForeignKey,
     Index,
-    UniqueConstraint,
     JSON,
     ForeignKeyConstraint,
 )
@@ -45,7 +44,7 @@ class DocumentVersion(BaseModel):
     epic_number = Column(Integer, nullable=True)  # For PLAN_EPIC documents
     epic_name = Column(String(255), nullable=True)  # For PLAN_EPIC documents
 
-    # Generation metadata
+    # Generation metadata (stored in "metadata" column)
     document_metadata = Column("metadata", JSON, default=dict, nullable=False)
 
     # Project relationship
@@ -61,16 +60,6 @@ class DocumentVersion(BaseModel):
     created_by = Column(UUID(as_uuid=True), nullable=False)
 
     __table_args__ = (
-        # Unique constraint for document type and version per project
-        UniqueConstraint(
-            "tenant_id", "project_id", "document_type", "version",
-            name="uq_document_version_tenant_project_type_version"
-        ),
-        # Unique constraint for epic documents (tenant, project, epic_number, version)
-        UniqueConstraint(
-            "tenant_id", "project_id", "epic_number", "version",
-            name="uq_document_version_tenant_project_epic_version"
-        ),
         # Tenant-scoped FK constraint
         ForeignKeyConstraint(
             ["project_id", "tenant_id"],
@@ -82,4 +71,23 @@ class DocumentVersion(BaseModel):
         Index("idx_document_versions_project_version", "project_id", "version"),
         Index("idx_document_versions_tenant_created", "tenant_id", "created_at"),
         Index("idx_document_versions_epic", "project_id", "epic_number"),
+        Index(
+            "uq_document_version_tenant_project_type_version",
+            "tenant_id",
+            "project_id",
+            "document_type",
+            "version",
+            unique=True,
+            postgresql_where=epic_number.is_(None),
+        ),
+        Index(
+            "uq_document_version_tenant_project_epic_version",
+            "tenant_id",
+            "project_id",
+            "document_type",
+            "epic_number",
+            "version",
+            unique=True,
+            postgresql_where=epic_number.isnot(None),
+        ),
     )
