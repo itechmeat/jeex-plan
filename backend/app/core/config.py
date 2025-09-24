@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="dev-secret-key", env="SECRET_KEY")
     DEBUG: bool = Field(default=False, env="DEBUG")
 
+    # Default Technology Stack
+    DEFAULT_TECHNOLOGY_STACK: List[str] = Field(
+        default=["JavaScript", "Node.js", "React", "PostgreSQL"],
+        env="DEFAULT_TECHNOLOGY_STACK"
+    )
+
     # API Settings
     API_V1_PREFIX: str = "/api/v1"
     ALLOWED_ORIGINS_STR: Optional[str] = Field(default=None, env="ALLOWED_ORIGINS")

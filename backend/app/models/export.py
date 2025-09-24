@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     JSON,
+    ForeignKeyConstraint,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -57,7 +58,8 @@ class Export(BaseModel):
     project = relationship(
         "Project",
         back_populates="exports",
-        foreign_keys="Export.project_id"
+        primaryjoin="and_(Export.project_id==Project.id, Export.tenant_id==Project.tenant_id)",
+        foreign_keys=[project_id]
     )
 
     # User who requested the export
@@ -78,7 +80,12 @@ class Export(BaseModel):
         )
 
     __table_args__ = (
-        ForeignKey("projects.id", ondelete="CASCADE"),
+        # Tenant-scoped FK constraint
+        ForeignKeyConstraint(
+            ["project_id", "tenant_id"],
+            ["projects.id", "projects.tenant_id"],
+            ondelete="CASCADE",
+        ),
         Index("idx_exports_project", "project_id"),
         Index("idx_exports_expires", "expires_at"),
         Index("idx_exports_status", "status"),

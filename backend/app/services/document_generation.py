@@ -204,7 +204,7 @@ class DocumentGenerationService:
             if "coding_standards" in result:
                 await self._store_knowledge_vectors(
                     project_id=project_id,
-                    document_type="standards",
+                    document_type=DocumentType.SPECS.value,
                     content_chunks=result["coding_standards"],
                     metadata={
                         "document_id": str(doc_version.id),
@@ -425,20 +425,43 @@ class DocumentGenerationService:
                     epic_docs.append(epic_doc)
 
             # Store planning knowledge in vector database
-            planning_chunks = [result["overview_content"]]
-            if "epics" in result:
-                planning_chunks.extend([epic["content"] for epic in result["epics"]])
-
+            # Overview
             await self._store_knowledge_vectors(
                 project_id=project_id,
-                document_type="planning",
-                content_chunks=planning_chunks,
+                document_type="planning_overview",
+                content_chunks=[result["overview_content"]],
                 metadata={
-                    "overview_document_id": str(overview_doc.id),
-                    "epic_count": len(epic_docs),
+                    "document_id": str(overview_doc.id),
+                    "version": overview_doc.version,
                     "step": 4
                 }
             )
+            # Epics
+            if "epics" in result and epic_docs:
+                epic_chunks = []
+                epic_metadata = []
+                for epic, doc in zip(result["epics"], epic_docs):
+                    epic_chunks.append(epic["content"])
+                    epic_metadata.append({
+                        "document_id": str(doc.id),
+                        "version": doc.version,
+                        "step": 4,
+                        "epic_number": doc.epic_number,
+                        "epic_name": doc.epic_name,
+                    })
+                await self.qdrant_service.upsert_documents(
+                    documents=epic_chunks,
+                    metadata_list=[
+                        {
+                            "tenant_id": str(self.tenant_id),
+                            "project_id": str(project_id),
+                            "document_type": "planning_epic",
+                            "type": "knowledge",
+                            "visibility": "private",
+                            **md
+                        } for md in epic_metadata
+                    ]
+                )
 
             # Complete execution
             await self.exec_repo.complete_execution(execution.id, result)
@@ -473,7 +496,14 @@ class DocumentGenerationService:
 
         # Get document versions
         documents = await self.doc_repo.get_project_documents(project_id)
-        doc_by_type = {doc.document_type: doc for doc in documents}
+        # Normalize keys and preserve multiple epics
+        doc_by_type: Dict[str, Any] = {}
+        for doc in documents:
+            key = doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type)
+            if key == DocumentType.PLAN_EPIC.value:
+                doc_by_type.setdefault(key, []).append(doc)
+            else:
+                doc_by_type[key] = doc
 
         # Get execution stats
         exec_stats = await self.exec_repo.get_execution_stats(project_id)
@@ -498,13 +528,27 @@ class DocumentGenerationService:
             "progress_percentage": progress_percentage,
             "steps_completed": steps_completed,
             "documents": {
-                doc_type: {
-                    "id": str(doc.id),
-                    "version": doc.version,
-                    "title": doc.title,
-                    "created_at": doc.created_at.isoformat()
-                }
-                for doc_type, doc in doc_by_type.items()
+                doc_type: (
+                    [
+                        {
+                            "id": str(d.id),
+                            "version": d.version,
+                            "title": d.title,
+                            "epic_number": d.epic_number,
+                            "epic_name": d.epic_name,
+                            "created_at": d.created_at.isoformat(),
+                        }
+                        for d in docs
+                    ]
+                    if isinstance(docs, list)
+                    else {
+                        "id": str(docs.id),
+                        "version": docs.version,
+                        "title": docs.title,
+                        "created_at": docs.created_at.isoformat(),
+                    }
+                )
+                for doc_type, docs in doc_by_type.items()
             },
             "execution_stats": exec_stats,
             "updated_at": project.updated_at.isoformat()

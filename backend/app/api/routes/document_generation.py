@@ -154,19 +154,31 @@ async def execute_business_analysis(
 
         return DocumentGenerationResponse(**result)
 
+    except ValueError as e:
+        await streaming.publish_step_error(
+            tenant_id=str(tenant_id),
+            project_id=str(project_id),
+            step=1,
+            step_name="Business Analysis",
+            error_message="Invalid request"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request parameters"
+        ) from e
     except Exception as e:
         await streaming.publish_step_error(
             tenant_id=str(tenant_id),
             project_id=str(project_id),
             step=1,
             step_name="Business Analysis",
-            error_message=str(e)
+            error_message="Internal server error"
         )
         logger.exception("Business analysis failed", project_id=str(project_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Business analysis failed: {str(e)}"
-        )
+            detail="Business analysis failed"
+        ) from e
 
 
 @router.post("/{project_id}/step2", response_model=DocumentGenerationResponse)
@@ -207,19 +219,31 @@ async def execute_engineering_standards(
 
         return DocumentGenerationResponse(**result)
 
+    except ValueError as e:
+        await streaming.publish_step_error(
+            tenant_id=str(tenant_id),
+            project_id=str(project_id),
+            step=2,
+            step_name="Engineering Standards",
+            error_message="Invalid request"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Precondition failed"
+        ) from e
     except Exception as e:
         await streaming.publish_step_error(
             tenant_id=str(tenant_id),
             project_id=str(project_id),
             step=2,
             step_name="Engineering Standards",
-            error_message=str(e)
+            error_message="Internal server error"
         )
         logger.exception("Engineering standards failed", project_id=str(project_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Engineering standards failed: {str(e)}"
-        )
+            detail="Engineering standards failed"
+        ) from e
 
 
 @router.post("/{project_id}/step3", response_model=DocumentGenerationResponse)
@@ -259,19 +283,31 @@ async def execute_architecture_design(
 
         return DocumentGenerationResponse(**result)
 
+    except ValueError as e:
+        await streaming.publish_step_error(
+            tenant_id=str(tenant_id),
+            project_id=str(project_id),
+            step=3,
+            step_name="Architecture Design",
+            error_message="Invalid request"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Precondition failed"
+        ) from e
     except Exception as e:
         await streaming.publish_step_error(
             tenant_id=str(tenant_id),
             project_id=str(project_id),
             step=3,
             step_name="Architecture Design",
-            error_message=str(e)
+            error_message="Internal server error"
         )
         logger.exception("Architecture design failed", project_id=str(project_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Architecture design failed: {str(e)}"
-        )
+            detail="Architecture design failed"
+        ) from e
 
 
 @router.post("/{project_id}/step4", response_model=DocumentGenerationResponse)
@@ -318,19 +354,31 @@ async def execute_implementation_planning(
 
         return DocumentGenerationResponse(**result)
 
+    except ValueError as e:
+        await streaming.publish_step_error(
+            tenant_id=str(tenant_id),
+            project_id=str(project_id),
+            step=4,
+            step_name="Implementation Planning",
+            error_message="Invalid request"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Precondition failed"
+        ) from e
     except Exception as e:
         await streaming.publish_step_error(
             tenant_id=str(tenant_id),
             project_id=str(project_id),
             step=4,
             step_name="Implementation Planning",
-            error_message=str(e)
+            error_message="Internal server error"
         )
         logger.exception("Implementation planning failed", project_id=str(project_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Implementation planning failed: {str(e)}"
-        )
+            detail="Implementation planning failed"
+        ) from e
 
 
 @router.get("/{project_id}/progress", response_model=ProgressResponse)
@@ -346,14 +394,14 @@ async def get_project_progress(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+            detail="Project not found"
+        ) from e
     except Exception as e:
         logger.exception("Failed to get project progress", project_id=str(project_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get progress: {str(e)}"
-        )
+            detail="Failed to get progress"
+        ) from e
 
 
 @router.get("/{project_id}/events")
@@ -406,7 +454,7 @@ async def create_project_export(
     request: ExportRequest,
     background_tasks: BackgroundTasks,
     export_service: ExportService = Depends(get_export_service),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user_dependency)
 ):
     """Create ZIP export of project documents."""
     try:
@@ -432,12 +480,18 @@ async def create_project_export(
             manifest=export.manifest
         )
 
+    except ValueError as e:
+        logger.exception("Invalid export request", project_id=str(project_id))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid export parameters"
+        ) from e
     except Exception as e:
         logger.exception("Failed to create export", project_id=str(project_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create export: {str(e)}"
-        )
+            detail="Failed to create export"
+        ) from e
 
 
 @router.get("/exports/{export_id}")
@@ -467,12 +521,18 @@ async def download_export(
 
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.exception("Invalid export ID", export_id=str(export_id))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Export not found"
+        ) from e
     except Exception as e:
         logger.exception("Failed to download export", export_id=str(export_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to download export: {str(e)}"
-        )
+            detail="Failed to download export"
+        ) from e
 
 
 async def _generate_export_background(export_service: ExportService, export_id: UUID) -> None:
@@ -512,12 +572,18 @@ async def get_project_documents(
             ]
         }
 
+    except ValueError as e:
+        logger.exception("Invalid project ID", project_id=str(project_id))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        ) from e
     except Exception as e:
         logger.exception("Failed to get project documents", project_id=str(project_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get documents: {str(e)}"
-        )
+            detail="Failed to get documents"
+        ) from e
 
 
 @router.get("/{project_id}/documents/{document_id}/content")
@@ -550,9 +616,15 @@ async def get_document_content(
 
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.exception("Invalid document ID", document_id=str(document_id))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        ) from e
     except Exception as e:
         logger.exception("Failed to get document content", document_id=str(document_id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get document: {str(e)}"
-        )
+            detail="Failed to get document"
+        ) from e

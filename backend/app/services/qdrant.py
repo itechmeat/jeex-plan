@@ -286,7 +286,7 @@ class QdrantService:
             # Delete points
             await asyncio.get_event_loop().run_in_executor(
                 None, self.client.delete,
-                self.collection_name, project_filter
+                self.collection_name, models.FilterSelector(filter=project_filter)
             )
 
             logger.info(f"Deleted all documents for project {project_id}")
@@ -317,7 +317,7 @@ class QdrantService:
             # Delete points
             await asyncio.get_event_loop().run_in_executor(
                 None, self.client.delete,
-                self.collection_name, document_filter
+                self.collection_name, models.FilterSelector(filter=document_filter)
             )
 
             logger.info(f"Deleted document {document_id}")

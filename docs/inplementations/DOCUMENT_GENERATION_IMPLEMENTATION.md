@@ -52,9 +52,9 @@ This document outlines the implementation of the four-stage document generation 
 **DocumentGenerationService** (`app/services/document_generation.py`)
 - Four-stage workflow orchestration:
   1. **Business Analysis** - Project description generation
-  2. **Architecture Design** - Technical architecture documents
-  3. **Implementation Planning** - Overview + epic documents
-  4. **Engineering Standards** - Development standards
+  2. **Engineering Standards** - Development standards
+  3. **Architecture Design** - Technical architecture documents
+  4. **Implementation Planning** - Overview + epic documents
 - Vector storage integration for context retrieval
 - Progress tracking and status management
 - Error handling and rollback capabilities
@@ -82,14 +82,14 @@ This document outlines the implementation of the four-stage document generation 
 
 **Document Generation Routes** (`app/api/routes/document_generation.py`)
 - `POST /projects/{id}/step1` - Business Analysis
-- `POST /projects/{id}/step2` - Architecture Design
-- `POST /projects/{id}/step3` - Implementation Planning
-- `POST /projects/{id}/step4` - Engineering Standards
+- `POST /projects/{id}/step2` - Engineering Standards
+- `POST /projects/{id}/step3` - Architecture Design
+- `POST /projects/{id}/step4` - Implementation Planning
 - `GET /projects/{id}/progress` - Current progress status
 - `GET /projects/{id}/events` - SSE event stream
 - `GET /projects/{id}/progress/stream` - SSE progress stream
 - `POST /projects/{id}/export` - Create export
-- `GET /exports/{export_id}` - Download export
+- `GET /projects/exports/{export_id}` - Download export
 - `GET /projects/{id}/documents` - List project documents
 - `GET /projects/{id}/documents/{document_id}/content` - Get document content
 

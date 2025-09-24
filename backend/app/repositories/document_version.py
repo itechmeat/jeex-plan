@@ -127,7 +127,14 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         if document_type == DocumentType.PLAN_EPIC and epic_number is not None:
             filters["epic_number"] = epic_number
 
-        return await self.get_by_fields(**filters)
+        conditions = [
+            self.model.tenant_id == self.tenant_id,
+            self.model.is_deleted.is_(False),
+            *[getattr(self.model, k) == v for k, v in filters.items()],
+        ]
+        stmt = select(self.model).where(and_(*conditions)).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_all_versions(
         self,
@@ -176,34 +183,70 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         ).subquery()
 
         # Main query to get the actual documents
-        stmt = select(self.model).select_from(
-            self.model.join(
+        stmt = (
+            select(self.model)
+            .join(
                 subquery,
                 and_(
                     self.model.document_type == subquery.c.document_type,
                     self.model.version == subquery.c.max_version,
                     # Handle NULL epic_number comparison
-                    (self.model.epic_number == subquery.c.epic_number) |
-                    (and_(self.model.epic_number.is_(None), subquery.c.epic_number.is_(None)))
+                    (self.model.epic_number == subquery.c.epic_number)
+                    | (and_(self.model.epic_number.is_(None), subquery.c.epic_number.is_(None))),
+                ),
+            )
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.project_id == project_id,
+                    self.model.is_deleted.is_(False)
                 )
             )
-        ).where(
-            and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.project_id == project_id,
-                self.model.is_deleted.is_(False)
-            )
-        ).order_by(self.model.created_at)
+            .order_by(self.model.created_at)
+        )
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_epic_documents(self, project_id: UUID) -> List[DocumentVersion]:
-        """Get all latest epic documents for a project."""
-        return await self.get_by_fields(
-            project_id=project_id,
-            document_type=DocumentType.PLAN_EPIC.value
+        """Get latest PLAN_EPIC documents (one per epic)."""
+        subq = (
+            select(
+                self.model.epic_number,
+                func.max(self.model.version).label("max_version"),
+            )
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.project_id == project_id,
+                    self.model.document_type == DocumentType.PLAN_EPIC.value,
+                    self.model.is_deleted.is_(False),
+                )
+            )
+            .group_by(self.model.epic_number)
+            .subquery()
         )
+        stmt = (
+            select(self.model)
+            .join(
+                subq,
+                and_(
+                    self.model.epic_number == subq.c.epic_number,
+                    self.model.version == subq.c.max_version,
+                ),
+            )
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.project_id == project_id,
+                    self.model.document_type == DocumentType.PLAN_EPIC.value,
+                    self.model.is_deleted.is_(False),
+                )
+            )
+            .order_by(self.model.epic_number)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def delete_document_versions(
         self,

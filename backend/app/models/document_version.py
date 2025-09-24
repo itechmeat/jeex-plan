@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     UniqueConstraint,
     JSON,
+    ForeignKeyConstraint,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -52,7 +53,8 @@ class DocumentVersion(BaseModel):
     project = relationship(
         "Project",
         back_populates="document_versions",
-        foreign_keys="DocumentVersion.project_id"
+        primaryjoin="and_(DocumentVersion.project_id==Project.id, DocumentVersion.tenant_id==Project.tenant_id)",
+        foreign_keys=[project_id]
     )
 
     # Created by user
@@ -69,8 +71,12 @@ class DocumentVersion(BaseModel):
             "tenant_id", "project_id", "epic_number", "version",
             name="uq_document_version_tenant_project_epic_version"
         ),
-        # Foreign key constraint
-        ForeignKey("projects.id", ondelete="CASCADE"),
+        # Tenant-scoped FK constraint
+        ForeignKeyConstraint(
+            ["project_id", "tenant_id"],
+            ["projects.id", "projects.tenant_id"],
+            ondelete="CASCADE",
+        ),
         # Indexes for performance
         Index("idx_document_versions_project_type", "project_id", "document_type"),
         Index("idx_document_versions_project_version", "project_id", "version"),

@@ -91,7 +91,16 @@ class StreamingService:
                 **(additional_data or {})
             }
 
-            await self.publish_event(tenant_id, project_id, "progress", data)
+            redis_client = await self.get_redis()
+            channel = self._get_progress_channel(tenant_id, project_id)
+            event_data = {
+                "type": "progress",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "project_id": project_id,
+                "tenant_id": tenant_id,
+                **data
+            }
+            await redis_client.publish(channel, json.dumps(event_data))
 
         except Exception as e:
             logger.error(f"Failed to publish progress: {e}")

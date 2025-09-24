@@ -61,7 +61,8 @@ class AgentExecution(BaseModel):
     project = relationship(
         "Project",
         back_populates="agent_executions",
-        foreign_keys="AgentExecution.project_id"
+        primaryjoin="and_(AgentExecution.project_id==Project.id, AgentExecution.tenant_id==Project.tenant_id)",
+        foreign_keys=[project_id]
     )
 
     # User who initiated the execution
@@ -75,8 +76,12 @@ class AgentExecution(BaseModel):
         return 0
 
     __table_args__ = (
-        # Foreign key constraint
-        ForeignKey("projects.id", ondelete="CASCADE"),
+        # Tenant-scoped FK constraint
+        ForeignKeyConstraint(
+            ["project_id", "tenant_id"],
+            ["projects.id", "projects.tenant_id"],
+            ondelete="CASCADE",
+        ),
         # Indexes for performance
         Index("idx_agent_executions_project_started", "project_id", "started_at"),
         Index("idx_agent_executions_correlation", "correlation_id"),

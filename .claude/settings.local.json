@@ -55,7 +55,8 @@
       "Read(//tmp/**)",
       "WebFetch(domain:qdrant.tech)",
       "WebFetch(domain:www.pinecone.io)",
-      "WebFetch(domain:weaviate.io)"
+      "WebFetch(domain:weaviate.io)",
+      "Bash(gh pr:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",

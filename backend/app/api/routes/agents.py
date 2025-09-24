@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.agents.contracts.base import ProjectContext
 from app.agents.orchestration.workflow import workflow_engine
 from app.agents.orchestration.orchestrator import orchestrator
+from app.core.config import get_settings
 from app.core.logger import get_logger
 
 logger = get_logger()
@@ -357,9 +358,9 @@ async def generate_progress_stream(
         await asyncio.sleep(0.1)
 
         try:
-            # Use default technology stack from input or fallback to common web technologies
-            default_tech_stack = ["JavaScript", "Node.js", "React", "PostgreSQL"]
-            tech_stack = input_data.get("technology_stack", default_tech_stack)
+            # Get default technology stack from configuration
+            settings = get_settings()
+            tech_stack = input_data.get("technology_stack") or settings.DEFAULT_TECHNOLOGY_STACK
 
             standards_result = await workflow_engine.execute_engineering_standards(
                 context=context,

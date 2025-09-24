@@ -171,7 +171,11 @@ class ExportService:
                 elif doc.document_type == DocumentType.PLAN_OVERVIEW.value:
                     await self._save_document(plans_dir / "overview.md", doc)
                 elif doc.document_type == DocumentType.PLAN_EPIC.value:
-                    filename = f"{doc.epic_number:02d}-{doc.epic_name.lower().replace(' ', '-')}.md"
+                    safe_name = "".join(
+                        (c.lower() if (c.isalnum() or c in "-_ ") else "-")
+                        for c in (doc.epic_name or "")
+                    ).strip().replace(" ", "-") or "epic"
+                    filename = f"{doc.epic_number:02d}-{safe_name}.md"
                     await self._save_document(plans_dir / filename, doc)
 
             # Create ZIP file

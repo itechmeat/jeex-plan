@@ -5,8 +5,8 @@ Handles audit trail for agent executions in the document generation workflow.
 
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime, timezone
-from sqlalchemy import and_, select, desc, func
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import and_, select, desc, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_execution import AgentExecution, AgentType, ExecutionStatus
@@ -165,15 +165,25 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
 
     async def cleanup_old_executions(self, days_old: int = 30) -> int:
         """Soft delete old completed/failed executions."""
-        cutoff_date = datetime.now(timezone.utc) - timezone.timedelta(days=days_old)
-
-        return await self.bulk_update(
-            filters={
-                "status": [ExecutionStatus.COMPLETED.value, ExecutionStatus.FAILED.value],
-                "completed_at": {"lt": cutoff_date}
-            },
-            updates={"is_deleted": True}
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+        stmt = (
+            update(self.model)
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                    self.model.status.in_(
+                        [ExecutionStatus.COMPLETED.value, ExecutionStatus.FAILED.value]
+                    ),
+                    self.model.completed_at.is_not(None),
+                    self.model.completed_at < cutoff_date,
+                )
+            )
+            .values(is_deleted=True, updated_at=datetime.utcnow())
         )
+        result = await self.session.execute(stmt.execution_options(synchronize_session=False))
+        await self.session.commit()
+        return result.rowcount or 0
 
     async def get_recent_executions(
         self,

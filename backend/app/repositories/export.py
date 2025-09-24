@@ -128,22 +128,50 @@ class ExportRepository(TenantRepository[Export]):
         if not export_ids:
             return 0
 
-        return await self.bulk_update(
-            filters={"id": export_ids},
-            updates={"status": ExportStatus.EXPIRED.value}
+        from sqlalchemy import update
+
+        stmt = (
+            update(self.model)
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                    self.model.id.in_(export_ids),
+                )
+            )
+            .values(
+                status=ExportStatus.EXPIRED.value,
+                updated_at=datetime.utcnow()
+            )
         )
+        result = await self.session.execute(stmt.execution_options(synchronize_session=False))
+        await self.session.commit()
+        return result.rowcount or 0
 
     async def cleanup_old_exports(self, days_old: int = 7) -> int:
         """Soft delete old expired exports."""
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
-        return await self.bulk_update(
-            filters={
-                "status": ExportStatus.EXPIRED.value,
-                "expires_at": {"lt": cutoff_date}
-            },
-            updates={"is_deleted": True}
+        from sqlalchemy import update
+
+        stmt = (
+            update(self.model)
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.status == ExportStatus.EXPIRED.value,
+                    self.model.expires_at < cutoff_date,
+                    self.model.is_deleted.is_(False),
+                )
+            )
+            .values(
+                is_deleted=True,
+                updated_at=datetime.utcnow()
+            )
         )
+        result = await self.session.execute(stmt.execution_options(synchronize_session=False))
+        await self.session.commit()
+        return result.rowcount or 0
 
     async def get_user_exports(
         self,

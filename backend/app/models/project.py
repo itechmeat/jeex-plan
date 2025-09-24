@@ -77,21 +77,24 @@ class Project(BaseModel):
     document_versions = relationship(
         "DocumentVersion",
         back_populates="project",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     # Agent executions relationship
     agent_executions = relationship(
         "AgentExecution",
         back_populates="project",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     # Exports relationship
     exports = relationship(
         "Export",
         back_populates="project",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     # RBAC relationships
