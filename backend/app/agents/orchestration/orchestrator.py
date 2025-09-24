@@ -242,9 +242,9 @@ class AgentOrchestrator:
         results = {}
         workflow_steps = [
             WorkflowStep.BUSINESS_ANALYSIS,
+            WorkflowStep.ENGINEERING_STANDARDS,
             WorkflowStep.ARCHITECTURE_DESIGN,
             WorkflowStep.IMPLEMENTATION_PLANNING,
-            WorkflowStep.ENGINEERING_STANDARDS,
         ]
 
         try:

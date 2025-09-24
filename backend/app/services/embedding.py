@@ -573,5 +573,34 @@ class EmbeddingService(LoggerMixin):
             yield result
 
 
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """
+        Simple interface to embed a list of texts.
+
+        Args:
+            texts: List of texts to embed
+
+        Returns:
+            List of embedding vectors
+        """
+        if not texts:
+            return []
+
+        # Create dummy chunks for the existing interface
+        chunks = []
+        for i, text in enumerate(texts):
+            chunk = TextChunk(
+                text=text,
+                chunk_index=i,
+                start_char=0,
+                end_char=len(text),
+                metadata={},
+                hash=self._compute_hash(text)
+            )
+            chunks.append(chunk)
+
+        return await self._compute_embeddings(chunks)
+
+
 # Singleton instance for application-wide use
 embedding_service = EmbeddingService()

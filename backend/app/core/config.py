@@ -93,8 +93,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
 
     # File Storage
-    UPLOAD_DIR: str = Field(default="./uploads", env="UPLOAD_DIR")
-    EXPORT_DIR: str = Field(default="./exports", env="EXPORT_DIR")
+    UPLOAD_DIR: str = Field(default="/app/uploads", env="UPLOAD_DIR")
+    EXPORT_DIR: str = Field(default="/app/exports", env="EXPORT_DIR")
 
     # Multi-tenancy
     DEFAULT_TENANT_ID: str = Field(default="default", env="DEFAULT_TENANT_ID")

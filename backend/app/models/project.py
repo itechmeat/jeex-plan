@@ -73,6 +73,27 @@ class Project(BaseModel):
         foreign_keys=lambda: [Document.project_id, Document.tenant_id],
     )
 
+    # Document versions relationship
+    document_versions = relationship(
+        "DocumentVersion",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
+
+    # Agent executions relationship
+    agent_executions = relationship(
+        "AgentExecution",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
+
+    # Exports relationship
+    exports = relationship(
+        "Export",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
+
     # RBAC relationships
     members = relationship("ProjectMember", back_populates="project")
 

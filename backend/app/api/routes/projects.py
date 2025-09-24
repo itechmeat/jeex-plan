@@ -259,20 +259,49 @@ async def generate_description_document(
 
 
 @router.post("/{project_id}/step2")
+async def generate_standards_document(
+    project_id: str,
+    input_data: dict,
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    Step 2: Generate Engineering Standards document.
+
+    Engineering Standards agent creates development guidelines and specifications.
+    """
+    logger.info("Generating engineering standards document", project_id=project_id)
+
+    # NOTE: actual agent orchestration
+    # 1. Validate project exists and has completed step 1
+    # 2. Invoke Engineering Standards agent
+    # 3. Stream progress updates via SSE
+    # 4. Save generated document
+
+    # Mock response for MVP
+    return {
+        "message": "Engineering standards generation started",
+        "project_id": project_id,
+        "step": 2,
+        "status": "processing",
+        "estimated_duration": 40  # seconds
+    }
+
+
+@router.post("/{project_id}/step3")
 async def generate_architecture_document(
     project_id: str,
     input_data: dict,
     db: AsyncSession = Depends(get_db)
 ) -> dict:
     """
-    Step 2: Generate Architecture document.
+    Step 3: Generate Architecture document.
 
     Solution Architect agent creates technical architecture document.
     """
     logger.info("Generating architecture document", project_id=project_id)
 
     # NOTE: actual agent orchestration
-    # 1. Validate project exists and has completed step 1
+    # 1. Validate project exists and has completed steps 1-2
     # 2. Invoke Solution Architect agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
@@ -281,27 +310,27 @@ async def generate_architecture_document(
     return {
         "message": "Architecture generation started",
         "project_id": project_id,
-        "step": 2,
+        "step": 3,
         "status": "processing",
         "estimated_duration": 45  # seconds
     }
 
 
-@router.post("/{project_id}/step3")
+@router.post("/{project_id}/step4")
 async def generate_implementation_plan(
     project_id: str,
     input_data: dict,
     db: AsyncSession = Depends(get_db)
 ) -> dict:
     """
-    Step 3: Generate Implementation Plan.
+    Step 4: Generate Implementation Plan.
 
     Project Planner agent creates implementation roadmap and epics.
     """
     logger.info("Generating implementation plan", project_id=project_id)
 
     # NOTE: actual agent orchestration
-    # 1. Validate project exists and has completed step 2
+    # 1. Validate project exists and has completed steps 1-3
     # 2. Invoke Project Planner agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
@@ -310,38 +339,9 @@ async def generate_implementation_plan(
     return {
         "message": "Implementation plan generation started",
         "project_id": project_id,
-        "step": 3,
-        "status": "processing",
-        "estimated_duration": 60  # seconds
-    }
-
-
-@router.post("/{project_id}/step4")
-async def generate_standards_document(
-    project_id: str,
-    input_data: dict,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """
-    Step 4: Generate Rules & Standards document.
-
-    Engineering Standards agent creates development guidelines.
-    """
-    logger.info("Generating standards document", project_id=project_id)
-
-    # NOTE: actual agent orchestration
-    # 1. Validate project exists and has completed step 3
-    # 2. Invoke Engineering Standards agent
-    # 3. Stream progress updates via SSE
-    # 4. Save generated document
-
-    # Mock response for MVP
-    return {
-        "message": "Standards document generation started",
-        "project_id": project_id,
         "step": 4,
         "status": "processing",
-        "estimated_duration": 40  # seconds
+        "estimated_duration": 60  # seconds
     }
 
 

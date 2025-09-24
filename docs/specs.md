@@ -233,9 +233,9 @@ DELETE /projects/{id}               # Удаление проекта (soft dele
 
 ```http
 POST /projects/{id}/step1          # Business Analyst - About Document
-POST /projects/{id}/step2          # Solution Architect - Architecture Document
-POST /projects/{id}/step3          # Project Planner - Implementation Plans (overview + epics)
-POST /projects/{id}/step4          # Engineering Standards - Specs Document
+POST /projects/{id}/step2          # Engineering Standards - Specs Document
+POST /projects/{id}/step3          # Solution Architect - Architecture Document
+POST /projects/{id}/step4          # Project Planner - Implementation Plans (overview + epics)
 ```
 
 Каждый endpoint поддерживает итеративные уточнения и валидацию результатов.
@@ -288,25 +288,26 @@ sequenceDiagram
     API-->>Client: About Document Ready
 
     Client->>API: POST /projects/{id}/step2
-    API->>Agent: Invoke Solution Architect
+    API->>Agent: Invoke Engineering Standards
     Agent->>VDB: Query Project Context
-    Agent->>DB: Save Architecture v1
+    Agent->>DB: Save Specs v1
     API-->>Client: SSE Progress Updates
-    API-->>Client: Architecture Ready
+    API-->>Client: Specs Document Ready
 
     Client->>API: POST /projects/{id}/step3
+    API->>Agent: Invoke Solution Architect
+    Agent->>VDB: Query About + Specs Context
+    Agent->>DB: Save Architecture v1
+    API-->>Client: Architecture Ready
+
+    Client->>API: POST /projects/{id}/step4
     API->>Agent: Invoke Project Planner
     Agent->>VDB: Query Full Context
     Agent->>DB: Save Plans (overview + N epics) v1
     API-->>Client: Implementation Plans Ready
 
-    Client->>API: POST /projects/{id}/step4
-    API->>Agent: Invoke Engineering Standards
-    Agent->>DB: Save Specs v1
-    API-->>Client: Specs Document Ready
-
     Client->>API: POST /projects/{id}/export
-    API->>DB: Gather All Documents
+    API->>DB: Gather All Documents (About, Specs, Architecture, Plans)
     API-->>Client: Export Ready
     Client->>API: GET /exports/{export_id}
     API-->>Client: ZIP Archive Download
@@ -730,8 +731,8 @@ project-name/
 ├── README.md                          # Project overview и quick start guide
 └── docs/                             # Основные документы проекта
     ├── about.md                      # Project vision, goals, target audience (PRD style)
+    ├── specs.md                      # Engineering standards, DoD, code guidelines
     ├── architecture.md               # Technical architecture и design decisions
-    ├── specs.md                      # Development standards, DoD, code guidelines
     └── plans/                        # Implementation planning
         ├── overview.md               # High-level implementation strategy и roadmap
         ├── 01-infrastructure.md      # Epic 1: Architecture setup с minimal functionality
@@ -746,14 +747,14 @@ project-name/
 **Методология структуры документов:**
 
 - **about.md** — следует принципам Lean Startup PRD: problem statement, target market, value proposition, success metrics
-- **architecture.md** — technical design document в стиле Amazon's 6-page narrative: context, constraints, options, decision rationale
-- **specs.md** — engineering standards документ объединяющий coding guidelines, review process, и quality gates
+- **specs.md** — engineering standards документ объединяющий coding guidelines, review process, и quality gates, формируемый на основе описания проекта
+- **architecture.md** — technical design document в стиле Amazon's 6-page narrative: context, constraints, options, decision rationale, создаваемый с учетом установленных стандартов
 - **plans/** — Agile planning с incremental development approach: overview roadmap + variable количество эпиков для поэтапного наращивания функционала от минимальной архитектуры до полнофункционального продукта
 
 **Принципы планирования эпиков:**
 
-1. **Epic 1 (Infrastructure)** — всегда первый: setup архитектуры со всеми компонентами, но с минимальным функционалом (health checks, basic endpoints)
-2. **Epic 2-(N-2) (Feature Epics)** — поэтапное развитие по функциональным областям: authentication → core business logic → specific features
+1. **Epic 1 (Infrastructure)** — всегда первый: setup архитектуры со всеми компонентами, но с минимальным функционалом (health checks, basic endpoints), реализуемый в соответствии с установленными стандартами
+2. **Epic 2-(N-2) (Feature Epics)** — поэтапное развитие по функциональным областям: authentication → core business logic → specific features, следующее архитектурным решениям
 3. **Epic N-1 (Optimization)** — производительность, мониторинг, scaling после основного функционала
 4. **Epic N (Testing)** — всегда последний: комплексное тестирование всего проекта, integration testing, load testing, security audit, UAT
 5. **Количество эпиков** — определяется сложностью проекта и может варьироваться от 4-5 до 12+ в зависимости от scope
