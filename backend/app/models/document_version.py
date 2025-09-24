@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     JSON,
     ForeignKeyConstraint,
+    text,
 )
 from sqlalchemy.orm import relationship, foreign, remote
 from sqlalchemy.dialects.postgresql import UUID
@@ -87,7 +88,7 @@ class DocumentVersion(BaseModel):
             "document_type",
             "version",
             unique=True,
-            postgresql_where=epic_number.is_(None),
+            postgresql_where=text("epic_number IS NULL AND is_deleted = false"),
         ),
         Index(
             "uq_document_version_tenant_project_epic_version",
@@ -96,9 +97,6 @@ class DocumentVersion(BaseModel):
             "epic_number",
             "version",
             unique=True,
-            postgresql_where=and_(
-                epic_number.isnot(None),
-                document_type == DocumentType.PLAN_EPIC.value,
-            ),
+            postgresql_where=text("epic_number IS NOT NULL AND document_type = 'plan_epic' AND is_deleted = false"),
         ),
     )
