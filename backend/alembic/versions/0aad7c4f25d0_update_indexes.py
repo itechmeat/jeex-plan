@@ -1,6 +1,6 @@
 """Update document version unique indexes to exclude soft-deleted records
 
-Revision ID: update_doc_version_indexes
+Revision ID: 0aad7c4f25d0
 Revises: 1234567890ab
 Create Date: 2024-09-24 15:30:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'abcdef123456'
+revision = '0aad7c4f25d0'
 down_revision = '1234567890ab'
 branch_labels = None
 depends_on = None

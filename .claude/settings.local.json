@@ -56,7 +56,8 @@
       "WebFetch(domain:qdrant.tech)",
       "WebFetch(domain:www.pinecone.io)",
       "WebFetch(domain:weaviate.io)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(cat:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",
