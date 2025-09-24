@@ -205,7 +205,7 @@ Include realistic timelines, dependencies, and risk assessment."""
             estimated_effort = effort_match.group(1).strip() if effort_match else "TBD"
 
             epic = Epic(
-                id=f"{epic_id:0>2d}-{title.lower().replace(' ', '-')}",
+                id=f"{epic_id.zfill(2)}-{title.lower().replace(' ', '-')}",
                 title=title,
                 description=epic_content[:200] + "..." if len(epic_content) > 200 else epic_content,
                 tasks=tasks[:10],  # Limit to first 10 tasks

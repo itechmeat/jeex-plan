@@ -367,10 +367,10 @@ class AgentOrchestrator:
                 "workflow_steps": [step.value for step in WorkflowStep],
             }
 
-        except Exception as e:
+        except Exception:
+            self.logger.exception("Orchestrator health check failed")
             return {
                 "status": "unhealthy",
-                "error": str(e),
                 "available_agents": 0,
                 "workflow_steps": [],
             }

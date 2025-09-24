@@ -99,6 +99,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 async def get_current_user(api_key: str = Security(api_key_header)):
     """Simple API key auth; replace with real auth provider."""
     if not api_key:
+        logger.warning("Authentication failed: missing API key")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
         )

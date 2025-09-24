@@ -84,12 +84,12 @@ class VectorContextRetriever:
             }
 
             for result in search_results:
-                payload = result.payload
+                payload = result.get("payload", {}) if isinstance(result, dict) else {}
                 document_data = {
                     "content": payload.get("text", ""),
                     "type": payload.get("type", "unknown"),
                     "version": payload.get("version", "1"),
-                    "score": result.score,
+                    "score": (result.get("score", 0.0) if isinstance(result, dict) else 0.0),
                     "metadata": {
                         k: v
                         for k, v in payload.items()
