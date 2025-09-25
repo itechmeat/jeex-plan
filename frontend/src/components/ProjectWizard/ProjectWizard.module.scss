@@ -1,0 +1,31 @@
+@use '../../styles/variables' as vars;
+@use '../../styles/mixins' as mixins;
+
+.wizardContainer {
+  @include mixins.container;
+  padding-top: vars.$spacing-2xl;
+  padding-bottom: vars.$spacing-2xl;
+  min-height: 100vh;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: vars.$spacing-3xl;
+
+  h1 {
+    @include mixins.heading-1;
+    margin-bottom: vars.$spacing-lg;
+    color: var(--color-text-primary);
+  }
+
+  p {
+    @include mixins.body-text;
+    color: var(--color-text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+}
+
+.wizard {
+  margin: 0 auto;
+}

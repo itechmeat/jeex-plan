@@ -1,94 +1,206 @@
-@import "./styles/variables.scss";
-@import "./styles/mixins.scss";
+@use './styles/variables' as vars;
+@use './styles/mixins' as mixins;
 
-/* CSS Reset */
+// CSS Reset and Base Styles
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+* {
   margin: 0;
-  padding: 0;
 }
 
 html {
-  line-height: 1.15;
-  -webkit-text-size-adjust: 100%;
+  height: 100%;
 }
 
 body {
-  font-family: $font-family-sans;
-  font-size: $font-size-base;
-  font-weight: $font-weight-normal;
-  line-height: $line-height-normal;
-  color: $color-gray-900;
-  background-color: $color-gray-50;
+  min-height: 100%;
+  line-height: vars.$line-height-normal;
+  font-family: vars.$font-family-sans;
+  font-size: vars.$font-size-base;
+  color: var(--color-text-primary);
+  background-color: var(--color-background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Global styles */
-h1, h2, h3, h4, h5, h6 {
-  font-weight: $font-weight-semibold;
-  line-height: $line-height-tight;
-  margin-bottom: $spacing-4;
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+// Typography
 h1 {
-  font-size: $font-size-4xl;
+  @include mixins.heading-1;
+  margin-bottom: vars.$spacing-xl;
 }
 
 h2 {
-  font-size: $font-size-3xl;
+  @include mixins.heading-2;
+  margin-bottom: vars.$spacing-lg;
 }
 
 h3 {
-  font-size: $font-size-2xl;
-}
-
-h4 {
-  font-size: $font-size-xl;
-}
-
-h5 {
-  font-size: $font-size-lg;
-}
-
-h6 {
-  font-size: $font-size-base;
+  @include mixins.heading-3;
+  margin-bottom: vars.$spacing-md;
 }
 
 p {
-  margin-bottom: $spacing-4;
+  @include mixins.body-text;
+  margin-bottom: vars.$spacing-lg;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
+// Links
 a {
-  color: $color-primary;
+  color: var(--color-primary);
   text-decoration: none;
-  transition: color $transition-fast;
+  transition: color vars.$transition-fast;
 
   &:hover {
-    color: $color-primary-hover;
+    color: var(--color-primary-hover);
+    text-decoration: underline;
   }
 
-  &:focus {
-    outline: 2px solid $color-primary;
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+    border-radius: 2px;
   }
 }
 
+// Lists
+ul,
+ol {
+  padding-left: vars.$spacing-xl;
+  margin-bottom: vars.$spacing-lg;
+}
+
+li {
+  margin-bottom: vars.$spacing-sm;
+}
+
+// Code
+code {
+  font-family: vars.$font-family-mono;
+  font-size: 0.9em;
+  padding: 2px 4px;
+  background-color: var(--color-surface);
+  border-radius: vars.$border-radius-sm;
+  border: 1px solid var(--color-border);
+}
+
+pre {
+  font-family: vars.$font-family-mono;
+  padding: vars.$spacing-lg;
+  background-color: var(--color-surface);
+  border-radius: vars.$border-radius-md;
+  border: 1px solid var(--color-border);
+  overflow-x: auto;
+  margin-bottom: vars.$spacing-lg;
+
+  code {
+    padding: 0;
+    background: none;
+    border: none;
+  }
+}
+
+// Form elements base styles
 button {
-  font-family: inherit;
+  @include mixins.button-base;
 }
 
-/* Utility classes */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='search'],
+textarea {
+  @include mixins.input-base;
+}
+
+// Utility classes
 .sr-only {
-  @include visually-hidden;
-}
-
-.truncate {
-  @include truncate;
+  @include mixins.sr-only;
 }
 
 .container {
-  @include container;
+  @include mixins.container;
+}
+
+.flex-center {
+  @include mixins.flex-center;
+}
+
+.flex-between {
+  @include mixins.flex-between;
+}
+
+.flex-column {
+  @include mixins.flex-column;
+}
+
+// Loading states
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.spinner {
+  @include mixins.spinner;
+}
+
+// Animation classes
+.fade-in {
+  @include mixins.fade-in;
+}
+
+.slide-in-up {
+  @include mixins.slide-in-up;
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: var(--color-dark-background);
+    --color-surface: var(--color-dark-surface);
+    --color-surface-hover: var(--color-dark-surface-hover);
+    --color-border: var(--color-dark-border);
+    --color-text-primary: var(--color-dark-text-primary);
+    --color-text-secondary: var(--color-dark-text-secondary);
+    --color-text-muted: var(--color-dark-text-muted);
+  }
 }
