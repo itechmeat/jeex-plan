@@ -1,28 +1,5 @@
 import { apiClient } from './api';
-
-export interface HealthCheck {
-  service: string;
-  endpoint: string;
-  status: 'pass' | 'fail' | 'warn';
-  responseTime: number;
-  details: string;
-  timestamp: string;
-  version?: string;
-  uptime?: number;
-}
-
-export interface SystemHealthResponse {
-  status: 'pass' | 'fail' | 'warn';
-  services: HealthCheck[];
-  overall: {
-    status: 'pass' | 'fail' | 'warn';
-    totalServices: number;
-    healthyServices: number;
-    warningServices: number;
-    failedServices: number;
-    lastUpdated: string;
-  };
-}
+import type { HealthCheck, SystemHealthResponse } from '../types/api';
 
 export const healthService = {
   /**
@@ -33,48 +10,27 @@ export const healthService = {
     try {
       const healthData = await apiClient.getHealthStatus();
 
-      // Transform to our expected format if needed
-      return {
-        status: (healthData.status as 'pass' | 'fail' | 'warn') || 'fail',
-        services: healthData.services || [],
-        overall: healthData.overall || {
-          status: (healthData.status as 'pass' | 'fail' | 'warn') || 'fail',
-          totalServices: healthData.services?.length || 0,
-          healthyServices:
-            healthData.services?.filter(s => s.status === 'pass').length || 0,
-          warningServices:
-            healthData.services?.filter(s => s.status === 'warn').length || 0,
-          failedServices:
-            healthData.services?.filter(s => s.status === 'fail').length || 0,
+      const services: HealthCheck[] = healthData.services ?? [];
+      const normalizedStatus =
+        (healthData.status as 'pass' | 'fail' | 'warn') ?? 'fail';
+      const overall =
+        healthData.overall ?? {
+          status: normalizedStatus,
+          totalServices: services.length,
+          healthyServices: services.filter(s => s.status === 'pass').length,
+          warningServices: services.filter(s => s.status === 'warn').length,
+          failedServices: services.filter(s => s.status === 'fail').length,
           lastUpdated: new Date().toISOString(),
-        },
+        };
+
+      return {
+        status: normalizedStatus,
+        services,
+        overall,
       };
     } catch (error) {
       console.error('Failed to fetch system health:', error);
-
-      // Return fallback response for error cases
-      const timestamp = new Date().toISOString();
-      return {
-        status: 'fail',
-        overall: {
-          status: 'fail',
-          totalServices: 1,
-          healthyServices: 0,
-          warningServices: 0,
-          failedServices: 1,
-          lastUpdated: timestamp,
-        },
-        services: [
-          {
-            service: 'System Status',
-            endpoint: '/health',
-            status: 'fail',
-            responseTime: 0,
-            details: `Failed to load system health: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            timestamp,
-          },
-        ],
-      };
+      throw error;
     }
   },
 
@@ -106,15 +62,7 @@ export const healthService = {
       };
     } catch (error) {
       console.error(`Failed to fetch health for service ${serviceName}:`, error);
-
-      return {
-        service: serviceName,
-        endpoint: `/health/${serviceName}`,
-        status: 'fail',
-        responseTime: 0,
-        details: `Failed to load service health: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: new Date().toISOString(),
-      };
+      throw error;
     }
   },
 };

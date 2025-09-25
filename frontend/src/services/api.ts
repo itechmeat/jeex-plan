@@ -245,10 +245,16 @@ class ApiClient {
 
   // Server-Sent Events for Progress Updates
   createProgressEventSource(projectId: string): EventSource {
-    const url = `${this.baseURL}/projects/${projectId}/progress`;
-    const eventSource = new EventSource(url);
+    const token = this.getAccessToken();
+    const base = this.baseURL.replace(/\/$/, '');
+    let url = `${base}/projects/${projectId}/progress`;
 
-    return eventSource;
+    if (token) {
+      const delimiter = url.includes('?') ? '&' : '?';
+      url = `${url}${delimiter}access_token=${encodeURIComponent(token)}`;
+    }
+
+    return new EventSource(url);
   }
 
   // Token management

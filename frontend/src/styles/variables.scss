@@ -9,17 +9,23 @@
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
+  --color-error-hover: #dc2626;
   --color-info: #3b82f6;
 
+  /* Base surfaces and borders */
   --color-background: #ffffff;
   --color-surface: #f8fafc;
   --color-surface-hover: #f1f5f9;
   --color-border: #e2e8f0;
   --color-border-focus: #94a3b8;
 
+  /* Base text colors */
   --color-text-primary: #1e293b;
   --color-text-secondary: #64748b;
   --color-text-muted: #94a3b8;
+  --color-text-inverse: #ffffff;
+  --color-text-on-primary: #ffffff;
+  --color-text-on-surface: #1e293b;
 
   // Dark mode colors
   --color-dark-background: #0f172a;

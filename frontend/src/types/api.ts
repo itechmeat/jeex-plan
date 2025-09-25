@@ -206,10 +206,12 @@ export const isArchitecturePreferences = (
   if (typeof data !== 'object' || data === null) return false;
   const obj = data as Record<string, unknown>;
   return (
-    'style' in obj &&
     typeof obj.style === 'string' &&
-    'patterns' in obj &&
-    Array.isArray(obj.patterns)
+    Array.isArray(obj.patterns) &&
+    obj.patterns.every(pattern => typeof pattern === 'string') &&
+    Array.isArray(obj.technologies) &&
+    obj.technologies.every(technology => typeof technology === 'string') &&
+    typeof obj.scalability === 'string'
   );
 };
 
@@ -304,4 +306,8 @@ export interface HealthCheck {
   timestamp: string;
   version?: string;
   uptime?: number;
+}
+
+export interface SystemHealthResponse extends HealthStatus {
+  overall: NonNullable<HealthStatus['overall']>;
 }

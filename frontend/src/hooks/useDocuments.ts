@@ -29,11 +29,40 @@ export const useDocument = (projectId: string, documentId: string, enabled = tru
 
 export const useUpdateDocument = (projectId: string, documentId: string) => {
   const queryClient = useQueryClient();
+  const idsValid = Boolean(projectId) && Boolean(documentId);
+  const missingIdsMessage =
+    'useUpdateDocument requires both projectId and documentId to be provided';
+
+  const ensureIds = () => {
+    if (Boolean(projectId) && Boolean(documentId)) {
+      return true;
+    }
+
+    if (import.meta.env.DEV) {
+      throw new Error(missingIdsMessage);
+    }
+
+    console.warn(missingIdsMessage);
+    return false;
+  };
+
+  if (!idsValid && import.meta.env.DEV) {
+    throw new Error(missingIdsMessage);
+  }
 
   return useMutation({
-    mutationFn: (content: string) =>
-      apiClient.updateDocument(projectId, documentId, content),
+    mutationFn: async (content: string) => {
+      if (!ensureIds()) {
+        return Promise.reject(new Error(missingIdsMessage));
+      }
+
+      return apiClient.updateDocument(projectId, documentId, content);
+    },
     onSuccess: updatedDocument => {
+      if (!ensureIds()) {
+        return;
+      }
+
       // Update document in cache
       queryClient.setQueryData(
         QUERY_KEYS.document(projectId, documentId),
@@ -57,10 +86,40 @@ export const useUpdateDocument = (projectId: string, documentId: string) => {
 
 export const useRegenerateDocument = (projectId: string, documentId: string) => {
   const queryClient = useQueryClient();
+  const idsValid = Boolean(projectId) && Boolean(documentId);
+  const missingIdsMessage =
+    'useRegenerateDocument requires both projectId and documentId to be provided';
+
+  const ensureIds = () => {
+    if (Boolean(projectId) && Boolean(documentId)) {
+      return true;
+    }
+
+    if (import.meta.env.DEV) {
+      throw new Error(missingIdsMessage);
+    }
+
+    console.warn(missingIdsMessage);
+    return false;
+  };
+
+  if (!idsValid && import.meta.env.DEV) {
+    throw new Error(missingIdsMessage);
+  }
 
   return useMutation({
-    mutationFn: () => apiClient.regenerateDocument(projectId, documentId),
+    mutationFn: async () => {
+      if (!ensureIds()) {
+        return Promise.reject(new Error(missingIdsMessage));
+      }
+
+      return apiClient.regenerateDocument(projectId, documentId);
+    },
     onSuccess: () => {
+      if (!ensureIds()) {
+        return;
+      }
+
       // Invalidate document to refetch updated content
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.document(projectId, documentId),
@@ -82,6 +141,10 @@ export const useOptimisticDocumentUpdate = (projectId: string, documentId: strin
   const queryClient = useQueryClient();
 
   const updateOptimistic = (content: string) => {
+    if (!projectId || !documentId) {
+      return;
+    }
+
     queryClient.setQueryData(
       QUERY_KEYS.document(projectId, documentId),
       (prev: Document | undefined) => {
@@ -96,6 +159,10 @@ export const useOptimisticDocumentUpdate = (projectId: string, documentId: strin
   };
 
   const revertOptimistic = () => {
+    if (!projectId || !documentId) {
+      return;
+    }
+
     queryClient.invalidateQueries({
       queryKey: QUERY_KEYS.document(projectId, documentId),
     });

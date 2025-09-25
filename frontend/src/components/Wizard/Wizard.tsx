@@ -60,7 +60,7 @@ export const Wizard: React.FC<WizardProps> = ({
   }, []);
 
   const isCurrentStepValid = () => {
-    return (stepValidation[currentStep.id] ?? currentStep.isValid) !== false;
+    return Boolean(stepValidation[currentStep.id] ?? currentStep.isValid ?? false);
   };
 
   const goToNextStep = () => {
@@ -105,13 +105,16 @@ export const Wizard: React.FC<WizardProps> = ({
         {/* Step Navigation */}
         <div className={styles.stepNav}>
           {steps.map((step, index) => (
-            <div
+            <button
               key={step.id}
+              type="button"
               className={classNames(styles.stepNavItem, {
                 [styles.active]: index === currentStepIndex,
                 [styles.completed]: index < currentStepIndex,
                 [styles.clickable]: index < currentStepIndex,
               })}
+              aria-current={index === currentStepIndex ? 'step' : undefined}
+              disabled={index >= currentStepIndex}
               onClick={() => index < currentStepIndex && goToStep(index)}
             >
               <div className={styles.stepNumber}>
@@ -123,7 +126,7 @@ export const Wizard: React.FC<WizardProps> = ({
                   <div className={styles.stepDescription}>{step.description}</div>
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>

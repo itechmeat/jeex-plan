@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { User, LoginRequest } from '../types/api';
 import { apiClient, handleApiError } from '../services/api';
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -60,8 +60,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Auth refresh error:', error);
       setError(handleApiError(error));
 
-      // Try to refresh token if unauthorized
-      if (error instanceof Error && error.message.includes('401')) {
+      const status =
+        (error as { status?: number })?.status ??
+        (error as { response?: { status?: number } })?.response?.status ??
+        (error as { cause?: { status?: number } })?.cause?.status;
+
+      if (status === 401) {
         try {
           await apiClient.refreshToken();
           const userData = await apiClient.getCurrentUser();
@@ -72,7 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await logout();
         }
       } else {
-        await logout();
+        console.warn('Auth refresh failed with non-auth error; retaining session.');
       }
     } finally {
       setIsLoading(false);
@@ -136,4 +140,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
 // Helper hook moved to separate file to avoid fast refresh issues
 
-export { AuthContext, type AuthContextType };
+export { AuthContext };

@@ -17,9 +17,16 @@ const FeatureIcon: React.FC<FeatureIconProps> = ({ icon, label }) => (
   </span>
 );
 
+type LoginLocationState = {
+  from?: {
+    pathname?: string;
+  };
+};
+
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const locationState = location.state as LoginLocationState | undefined;
   const { login, isAuthenticated, error: authError, clearError } = useAuth();
   const {
     title: featuresTitle,
@@ -34,13 +41,17 @@ export const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const redirectPath =
+    typeof locationState?.from?.pathname === 'string'
+      ? locationState.from.pathname
+      : '/dashboard';
+
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      const from = location.state?.from?.pathname || '/dashboard';
-      navigate(from, { replace: true });
+      navigate(redirectPath, { replace: true });
     }
-  }, [isAuthenticated, navigate, location]);
+  }, [isAuthenticated, navigate, redirectPath]);
 
   // Clear auth errors when component mounts
   useEffect(() => {

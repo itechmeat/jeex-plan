@@ -92,6 +92,7 @@ export const useStartProjectProcessing = () => {
     onSuccess: (_, id) => {
       // Invalidate project to get updated status
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.project(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.projects });
     },
     onError: error => {
       console.error('Start processing error:', error);

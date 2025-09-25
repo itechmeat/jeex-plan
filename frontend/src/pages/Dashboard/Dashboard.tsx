@@ -151,10 +151,12 @@ export const Dashboard: React.FC = () => {
                 const progressValue = Math.max(0, Math.min(100, project.progress ?? 0));
 
                 return (
-                  <div
+                  <button
                     key={project.id}
+                    type="button"
                     className={styles.projectCard}
                     onClick={() => navigate(`/projects/${project.id}`)}
+                    aria-label={`Open project ${project.name}. Status: ${getStatusLabel(project.status)}.`}
                   >
                     <div className={styles.projectHeader}>
                       <h3 className={styles.projectName}>{project.name}</h3>
@@ -187,7 +189,7 @@ export const Dashboard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

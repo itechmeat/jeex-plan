@@ -91,6 +91,10 @@ export const useProgress = ({
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
         setIsConnected(true);
         setError(null);
         reconnectAttempts.current = 0;
@@ -327,6 +331,11 @@ export const useMultipleProgress = (
         eventSourcesRef.current[projectId] = eventSource;
 
         eventSource.onopen = () => {
+          const pendingTimeout = reconnectTimeoutsRef.current[projectId];
+          if (pendingTimeout) {
+            clearTimeout(pendingTimeout);
+            delete reconnectTimeoutsRef.current[projectId];
+          }
           reconnectAttemptsRef.current[projectId] = 0;
           updateState(projectId, {
             isConnected: true,

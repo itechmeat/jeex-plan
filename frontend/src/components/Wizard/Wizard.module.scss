@@ -37,6 +37,11 @@
   padding: vars.$spacing-md;
   border-radius: vars.$border-radius-md;
   transition: all vars.$transition-fast;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
 
   &.active {
     background-color: var(--color-primary-light);
@@ -49,11 +54,14 @@
   }
 
   &.clickable {
-    cursor: pointer;
-
     &:hover {
       background-color: var(--color-surface-hover);
     }
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
   }
 }
 

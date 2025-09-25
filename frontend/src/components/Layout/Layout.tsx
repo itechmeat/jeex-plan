@@ -93,16 +93,18 @@ export const Layout: React.FC<LayoutProps> = ({
 
           <div className={styles.userSection}>
             {user && (
-              <div className={styles.userInfo}>
-                <span className={styles.userName}>
-                  {user.firstName} {user.lastName}
-                </span>
-                <span className={styles.userEmail}>{user.email}</span>
-              </div>
+              <>
+                <div className={styles.userInfo}>
+                  <span className={styles.userName}>
+                    {user.firstName} {user.lastName}
+                  </span>
+                  <span className={styles.userEmail}>{user.email}</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  Logout
+                </Button>
+              </>
             )}
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              Logout
-            </Button>
           </div>
         </div>
       </header>

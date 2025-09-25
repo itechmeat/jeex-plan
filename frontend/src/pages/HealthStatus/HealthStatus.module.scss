@@ -456,7 +456,10 @@
     background-color: var(--color-dark-surface);
   }
 
-  .statusBanner,
+  .statusBanner {
+    background-color: var(--color-dark-background);
+  }
+
   .serviceCard {
     background-color: var(--color-dark-background);
     border-color: var(--color-dark-border);

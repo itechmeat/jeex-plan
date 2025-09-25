@@ -8,6 +8,15 @@ import {
 } from '../../../types/api';
 import styles from './WizardSteps.module.scss';
 
+const isValidArchitectureStyle = (value: unknown): value is ArchitectureStyle =>
+  typeof value === 'string' && Object.values(ArchitectureStyle).includes(value as ArchitectureStyle);
+
+const isValidScalabilityLevel = (value: unknown): value is ScalabilityLevel =>
+  typeof value === 'string' && Object.values(ScalabilityLevel).includes(value as ScalabilityLevel);
+
+const toStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
 const architectureStyles = [
   {
     style: ArchitectureStyle.MICROSERVICES,
@@ -139,10 +148,14 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
   const [formData, setFormData] = useState<ArchitecturePreferences>(() => {
     if (isArchitecturePreferences(data)) {
       return {
-        style: data.style || ArchitectureStyle.MICROSERVICES,
-        patterns: data.patterns || [],
-        technologies: data.technologies || [],
-        scalability: data.scalability || ScalabilityLevel.MEDIUM,
+        style: isValidArchitectureStyle(data.style)
+          ? data.style
+          : ArchitectureStyle.MICROSERVICES,
+        patterns: toStringArray(data.patterns),
+        technologies: toStringArray(data.technologies),
+        scalability: isValidScalabilityLevel(data.scalability)
+          ? data.scalability
+          : ScalabilityLevel.MEDIUM,
       };
     }
     return {

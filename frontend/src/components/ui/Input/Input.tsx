@@ -21,11 +21,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       rightIcon,
       fullWidth = false,
       className,
-      ...props
+      id,
+      ...restProps
     },
     ref
   ) => {
-    const inputId = React.useId();
+    const generatedId = React.useId();
+    const inputId = id ?? generatedId;
     const errorId = React.useId();
     const helperId = React.useId();
     const hasError = Boolean(error);
@@ -39,13 +41,30 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const inputClass = classNames(styles.input, className);
 
-    // Build aria-describedby based on what helper elements exist
+    const { ['aria-describedby']: ariaDescribedByProp, ...inputProps } = restProps;
+
+    // Build aria-describedby based on what helper elements exist and consumer-provided descriptors
     const ariaDescribedBy = React.useMemo(() => {
-      const ids = [];
-      if (error) ids.push(errorId);
-      if (helperText) ids.push(helperId);
-      return ids.length > 0 ? ids.join(' ') : undefined;
-    }, [error, helperText, errorId, helperId]);
+      const ids = new Set<string>();
+
+      if (ariaDescribedByProp) {
+        ariaDescribedByProp
+          .toString()
+          .split(/\s+/)
+          .filter(Boolean)
+          .forEach(token => ids.add(token));
+      }
+
+      if (error) {
+        ids.add(errorId);
+      }
+
+      if (helperText) {
+        ids.add(helperId);
+      }
+
+      return ids.size > 0 ? Array.from(ids).join(' ') : undefined;
+    }, [ariaDescribedByProp, error, helperText, errorId, helperId]);
 
     return (
       <div className={wrapperClass}>
@@ -60,8 +79,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={inputClass}
+            {...inputProps}
             aria-describedby={ariaDescribedBy}
-            {...props}
+            aria-invalid={hasError || undefined}
+            aria-errormessage={hasError ? errorId : undefined}
           />
           {rightIcon && <div className={styles.rightIcon}>{rightIcon}</div>}
         </div>
