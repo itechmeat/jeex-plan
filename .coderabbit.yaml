@@ -13,23 +13,21 @@ reviews:
     base_branches: ["master", "main", "develop"]
 
   # Enhanced review features
-  request_changes: "auto"
   high_level_summary: true
   poem: true
   review_status: true
-  collapse_ellipsis: false
+  request_changes_workflow: false
+  collapse_walkthrough: false
 
   # Comprehensive toolchain integration
   tools:
     # 🐍 Python backend analysis
     ruff:
       enabled: true
-      config_file: "backend/pyproject.toml"
 
     # ⚡ Frontend code quality
     eslint:
       enabled: true
-      config_file: "frontend/eslint.config.js"
 
     # 🔐 Security scanning
     gitleaks:
@@ -51,44 +49,6 @@ reviews:
     oxlint:
       enabled: true
 
-  # 🎯 AST-based security pattern detection
-  ast_patterns:
-    - id: "tenant-isolation-violation"
-      pattern: |
-        session.query($MODEL).filter($CONDITION)
-      message: "🚨 SECURITY: Missing tenant_id filter! Ensure multi-tenant isolation."
-      severity: "critical"
-      paths: ["backend/app/**/*.py"]
-
-    - id: "sql-injection-risk"
-      pattern: |
-        execute(f"$SQL")
-        cursor.execute(f"$SQL")
-      message: "🚨 SECURITY: Potential SQL injection via f-string. Use parameterized queries."
-      severity: "critical"
-
-    - id: "hardcoded-secrets"
-      pattern: |
-        password = "$VALUE"
-        api_key = "$VALUE"
-        secret = "$VALUE"
-        token = "$VALUE"
-      message: "🔑 SECURITY: Hardcoded secret detected. Use environment variables or Vault."
-      severity: "critical"
-
-    - id: "unsafe-eval"
-      pattern: |
-        eval($CODE)
-        exec($CODE)
-      message: "⚠️ SECURITY: Unsafe code execution. Consider safer alternatives."
-      severity: "high"
-
-    - id: "react-security-issues"
-      pattern: |
-        dangerouslySetInnerHTML={{__html: $CONTENT}}
-      message: "🔒 SECURITY: XSS risk with dangerouslySetInnerHTML. Sanitize content."
-      severity: "high"
-      paths: ["frontend/**/*.tsx"]
 
   # 📁 Path-specific intelligent instructions
   path_instructions:
@@ -269,39 +229,20 @@ chat:
 
 # 🧠 Knowledge base integration for learning
 knowledge_base:
-  learnings: true
-  web_search: true
+  learnings:
+    scope: "auto"
+  web_search:
+    enabled: true
 
 # 🤖 AI-powered code generation
 code_generation:
-  docstrings: true
-  unit_tests: true
+  docstrings: {}
+  unit_tests: {}
 
 # 🌍 Global configuration
 language: "en"
 early_access: true
 
 # 🎨 Custom AI personality and focus
-tone_instructions: |
-  You are an expert code reviewer for JEEX Plan, a sophisticated multi-tenant documentation generation system.
-
-  **PRIMARY FOCUS AREAS:**
-  1. 🔐 **Security First**: Multi-tenant isolation is CRITICAL - never suggest bypassing tenant_id checks
-  2. 🏗️ **Architecture**: Design patterns, SOLID principles, and scalability
-  3. ⚡ **Performance**: Database queries, React rendering, caching strategies
-  4. 🛡️ **Reliability**: Error handling, edge cases, and fault tolerance
-
-  **REVIEW STYLE:**
-  - Be thorough but constructive
-  - Provide specific, actionable suggestions with code examples
-  - Prioritize critical security and architectural issues
-  - Acknowledge good practices when you see them
-  - Consider the full-stack context (React 19+, TypeScript 5.9+, Python 3.11+, FastAPI 0.116+)
-
-  **AVOID:**
-  - Style suggestions handled by Ruff/ESLint
-  - Nitpicking on formatting (tools handle this)
-  - Suggesting breaking changes without clear benefits
-  - Generic advice without project context
-
-  Remember: You're helping build a production-ready, secure, multi-tenant system. Every suggestion should move us toward that goal! 🚀
+tone_instructions: >
+  Focus reviews on JEEX Plan security, architecture, performance, and reliability; stay constructive, avoid style nitpicks already covered by linters, and keep multi-tenant isolation top of mind.
