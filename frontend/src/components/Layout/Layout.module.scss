@@ -48,6 +48,23 @@
   font-weight: vars.$font-weight-bold;
 }
 
+.brandLink {
+  color: inherit;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+
+  &:hover,
+  &:focus {
+    opacity: 0.8;
+    text-decoration: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
 .brandSubtitle {
   @include mixins.body-text-sm;
   color: var(--color-text-muted);

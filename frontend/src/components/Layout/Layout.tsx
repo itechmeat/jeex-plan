@@ -56,23 +56,14 @@ export const Layout: React.FC<LayoutProps> = ({
       <header className={styles.header}>
         <div className={styles.headerContent}>
           <div className={styles.brand}>
-            <h1
-              className={styles.brandTitle}
-              tabIndex={0}
-              role="button"
-              aria-label={`Navigate to ${resolvedBrandTitle} dashboard`}
-              onClick={() => navigate(ROUTES.DASHBOARD)}
-              onKeyDown={event => {
-                if (event.key === 'Enter') {
-                  navigate(ROUTES.DASHBOARD);
-                }
-                if (event.key === ' ' || event.key === 'Spacebar') {
-                  event.preventDefault();
-                  navigate(ROUTES.DASHBOARD);
-                }
-              }}
-            >
-              {resolvedBrandTitle}
+            <h1 className={styles.brandTitle}>
+              <Link
+                to={ROUTES.DASHBOARD}
+                className={styles.brandLink}
+                aria-label={`Navigate to ${resolvedBrandTitle} dashboard`}
+              >
+                {resolvedBrandTitle}
+              </Link>
             </h1>
             <span className={styles.brandSubtitle}>{resolvedBrandSubtitle}</span>
           </div>
