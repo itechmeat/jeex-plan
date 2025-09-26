@@ -26,6 +26,7 @@ from .user import User
 
 class ProjectStatus(str, Enum):
     """Project status enumeration."""
+
     DRAFT = "DRAFT"
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
@@ -119,4 +120,5 @@ class Project(BaseModel):
 
     class Config:
         """Pydantic config."""
+
         from_attributes = True

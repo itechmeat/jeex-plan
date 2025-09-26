@@ -45,7 +45,10 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
             else:
-                logger.error(f"❌ Database is unhealthy: {health_result.get('message', 'Unknown error')}")
+                logger.error(
+                    "❌ Database is unhealthy",
+                    error=health_result.get("message", "Unknown error"),
+                )
                 return {
                     "status": "unhealthy",
                     "component": "database",
@@ -53,12 +56,12 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
 
-        except Exception as e:
-            logger.error(f"❌ Database health check failed: {e}")
+        except Exception as exc:
+            logger.error("❌ Database health check failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "database",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
@@ -124,12 +127,12 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
 
-        except Exception as e:
-            logger.error(f"❌ Vault health check failed: {e}")
+        except Exception as exc:
+            logger.error("❌ Vault health check failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "vault",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
@@ -181,12 +184,12 @@ class HealthChecker:
                 "timestamp": time.time()
             }
 
-        except Exception as e:
-            logger.error(f"❌ Redis health check failed: {e}")
+        except Exception as exc:
+            logger.error("❌ Redis health check failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "redis",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
@@ -225,12 +228,14 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
 
-        except Exception as e:
-            logger.error(f"❌ Multi-tenant operations test failed: {e}")
+        except Exception as exc:
+            logger.error(
+                "❌ Multi-tenant operations test failed", error=str(exc)
+            )
             return {
                 "status": "error",
                 "component": "multi_tenant",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
@@ -263,7 +268,9 @@ class HealthChecker:
             if status == "healthy":
                 logger.info("✅ Application configuration is healthy")
             else:
-                logger.warning(f"⚠️  Application configuration has issues: {issues}")
+                logger.warning(
+                    "⚠️  Application configuration has issues", issues=issues
+                )
 
             return {
                 "status": status,
@@ -273,12 +280,14 @@ class HealthChecker:
                 "timestamp": time.time()
             }
 
-        except Exception as e:
-            logger.error(f"❌ Application configuration check failed: {e}")
+        except Exception as exc:
+            logger.error(
+                "❌ Application configuration check failed", error=str(exc)
+            )
             return {
                 "status": "error",
                 "component": "application_config",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
@@ -345,8 +354,8 @@ class HealthChecker:
         """Cleanup resources."""
         try:
             await vault_client.close()
-        except Exception as e:
-            logger.warning(f"Cleanup warning: {e}")
+        except Exception as exc:
+            logger.warning("Cleanup warning", error=str(exc))
 
 
 async def main() -> None:
@@ -398,8 +407,8 @@ async def main() -> None:
         await checker.cleanup()
         sys.exit(exit_code)
 
-    except Exception as e:
-        logger.error(f"❌ Health check failed: {e}")
+    except Exception as exc:
+        logger.error("❌ Health check failed", error=str(exc))
         await checker.cleanup()
         sys.exit(3)
 

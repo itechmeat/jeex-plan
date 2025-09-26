@@ -35,18 +35,16 @@ embedding_service = EmbeddingService()
 
 async def get_tenant_context(request: Request) -> dict[str, str]:
     """Extract tenant context from request state (set by middleware)"""
-    if not hasattr(request.state, 'tenant_context'):
+    if not hasattr(request.state, "tenant_context"):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing tenant context"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing tenant context"
         )
     return request.state.tenant_context
 
 
 @router.post("/search", response_model=list[SearchResult])
 async def search_vectors(
-    request: SearchRequest,
-    http_request: Request
+    request: SearchRequest, http_request: Request
 ) -> list[SearchResult]:
     """
     Search vectors with strict tenant/project isolation.
@@ -59,11 +57,13 @@ async def search_vectors(
         tenant_context = await get_tenant_context(http_request)
 
         # Validate that request matches tenant context
-        if (request.tenant_id != tenant_context["tenant_id"] or
-            request.project_id != tenant_context["project_id"]):
+        if (
+            request.tenant_id != tenant_context["tenant_id"]
+            or request.project_id != tenant_context["project_id"]
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tenant/project context mismatch"
+                detail="Tenant/project context mismatch",
             )
 
         # Build search filter with tenant isolation
@@ -82,7 +82,7 @@ async def search_vectors(
         VectorOperationFilter.build_search_filter(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            additional_filters=additional_filters
+            additional_filters=additional_filters,
         )
 
         # Perform search
@@ -92,7 +92,7 @@ async def search_vectors(
             query_vector=request.query_vector,
             limit=request.limit,
             score_threshold=request.score_threshold,
-            filters=additional_filters
+            filters=additional_filters,
         )
 
         # Convert results to response format
@@ -100,9 +100,7 @@ async def search_vectors(
         for result in search_results:
             payload = VectorPayload.from_dict(result["payload"])
             search_result = SearchResult(
-                id=result["id"],
-                score=result["score"],
-                payload=payload
+                id=result["id"], score=result["score"], payload=payload
             )
             results.append(search_result)
 
@@ -111,7 +109,7 @@ async def search_vectors(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
             results_count=len(results),
-            score_threshold=request.score_threshold
+            score_threshold=request.score_threshold,
         )
 
         return results
@@ -121,15 +119,13 @@ async def search_vectors(
     except Exception as e:
         logger.error("Vector search failed", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Search failed: {e!s}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Search failed"
         )
 
 
 @router.post("/upsert")
 async def upsert_vectors(
-    request: UpsertRequest,
-    http_request: Request
+    request: UpsertRequest, http_request: Request
 ) -> dict[str, Any]:
     """
     Bulk upsert pre-computed vectors with tenant isolation.
@@ -142,25 +138,27 @@ async def upsert_vectors(
         tenant_context = await get_tenant_context(http_request)
 
         # Validate that request matches tenant context
-        if (request.tenant_id != tenant_context["tenant_id"] or
-            request.project_id != tenant_context["project_id"]):
+        if (
+            request.tenant_id != tenant_context["tenant_id"]
+            or request.project_id != tenant_context["project_id"]
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tenant/project context mismatch"
+                detail="Tenant/project context mismatch",
             )
 
         # Validate vectors and payloads are present
         if not request.vectors or not request.payloads:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Vectors and payloads are required"
+                detail="Vectors and payloads are required",
             )
 
         # Validate vectors and payloads match
         if not request.validate_vectors_payloads():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Vectors and payloads count mismatch"
+                detail="Vectors and payloads count mismatch",
             )
 
         # Enrich payloads with metadata using schema method
@@ -176,7 +174,7 @@ async def upsert_vectors(
             doc_type=request.doc_type,
             visibility=request.visibility,
             version=request.version,
-            lang=request.lang
+            lang=request.lang,
         )
 
         response = {
@@ -190,7 +188,7 @@ async def upsert_vectors(
             "visibility": request.visibility,
             "version": request.version,
             "lang": request.lang,
-            "upsert_operation": upsert_result
+            "upsert_operation": upsert_result,
         }
 
         logger.info(
@@ -198,7 +196,7 @@ async def upsert_vectors(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
             vectors_count=len(request.vectors),
-            payloads_count=len(request.payloads)
+            payloads_count=len(request.payloads),
         )
 
         return response
@@ -208,8 +206,7 @@ async def upsert_vectors(
     except Exception as e:
         logger.error("Vector upsert failed", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Upsert failed: {e!s}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upsert failed"
         )
 
 
@@ -219,10 +216,12 @@ async def embed_and_store(
     tenant_id: str = Query(..., description="Tenant identifier"),
     project_id: str = Query(..., description="Project identifier"),
     doc_type: DocumentType = Query(DocumentType.KNOWLEDGE, description="Document type"),
-    visibility: VisibilityLevel = Query(VisibilityLevel.PRIVATE, description="Visibility level"),
+    visibility: VisibilityLevel = Query(
+        VisibilityLevel.PRIVATE, description="Visibility level"
+    ),
     version: str = Query("1.0", description="Document version"),
     lang: str = Query("en", description="Document language"),
-    http_request: Request = None
+    http_request: Request = None,
 ) -> dict[str, Any]:
     """
     Simplified endpoint: process text and store embeddings in one call.
@@ -235,11 +234,13 @@ async def embed_and_store(
         tenant_context = await get_tenant_context(http_request)
 
         # Validate that request matches tenant context
-        if (tenant_id != tenant_context["tenant_id"] or
-            project_id != tenant_context["project_id"]):
+        if (
+            tenant_id != tenant_context["tenant_id"]
+            or project_id != tenant_context["project_id"]
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tenant/project context mismatch"
+                detail="Tenant/project context mismatch",
             )
 
         # Process text through embedding pipeline
@@ -248,7 +249,7 @@ async def embed_and_store(
             doc_type=doc_type,
             chunking_strategy=ChunkingStrategy.PARAGRAPH,
             normalization=TextNormalization.STANDARD,
-            metadata={"source": "api_upload", "lang": lang}
+            metadata={"source": "api_upload", "lang": lang},
         )
 
         # Prepare payloads from chunks
@@ -259,7 +260,7 @@ async def embed_and_store(
                 "confidence_score": chunk.confidence_score,
                 "total_chunks": len(embedding_result.chunks),
                 "embedding_model": embedding_result.model_used,
-                "content_type": "text/plain"
+                "content_type": "text/plain",
             }
             payloads.append(payload)
 
@@ -272,7 +273,7 @@ async def embed_and_store(
             doc_type=doc_type,
             visibility=visibility,
             version=version,
-            lang=lang
+            lang=lang,
         )
 
         response = {
@@ -286,7 +287,9 @@ async def embed_and_store(
             "processing_time_ms": embedding_result.processing_time_ms,
             "total_tokens": embedding_result.total_tokens,
             "deduplication_stats": embedding_result.deduplication_stats,
-            "vector_dimensions": len(embedding_result.embeddings[0]) if embedding_result.embeddings else 0
+            "vector_dimensions": len(embedding_result.embeddings[0])
+            if embedding_result.embeddings
+            else 0,
         }
 
         logger.info(
@@ -294,7 +297,7 @@ async def embed_and_store(
             tenant_id=tenant_id,
             project_id=project_id,
             chunks_count=len(embedding_result.chunks),
-            processing_time_ms=embedding_result.processing_time_ms
+            processing_time_ms=embedding_result.processing_time_ms,
         )
 
         return response
@@ -305,14 +308,13 @@ async def embed_and_store(
         logger.error("Embed and store failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Embed and store failed: {e!s}"
+            detail="Embed and store failed",
         )
 
 
 @router.delete("/delete")
 async def delete_vectors(
-    request: DeleteRequest,
-    http_request: Request
+    request: DeleteRequest, http_request: Request
 ) -> dict[str, Any]:
     """
     Delete vectors with tenant isolation and optional filtering.
@@ -325,11 +327,13 @@ async def delete_vectors(
         tenant_context = await get_tenant_context(http_request)
 
         # Validate that request matches tenant context
-        if (request.tenant_id != tenant_context["tenant_id"] or
-            request.project_id != tenant_context["project_id"]):
+        if (
+            request.tenant_id != tenant_context["tenant_id"]
+            or request.project_id != tenant_context["project_id"]
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tenant/project context mismatch"
+                detail="Tenant/project context mismatch",
             )
 
         # Build delete filter
@@ -338,20 +342,19 @@ async def delete_vectors(
             result = await qdrant_adapter.delete_points(
                 tenant_id=request.tenant_id,
                 project_id=request.project_id,
-                point_ids=request.point_ids
+                point_ids=request.point_ids,
             )
         else:
             # Delete by filter
             result = await qdrant_adapter.delete_points(
-                tenant_id=request.tenant_id,
-                project_id=request.project_id
+                tenant_id=request.tenant_id, project_id=request.project_id
             )
 
             # If additional filters specified, we need to use the filtered delete
             if request.doc_types or request.version:
                 raise HTTPException(
                     status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                    detail="Filtered delete is not implemented; omit filters or delete specific point_ids"
+                    detail="Filtered delete is not implemented; omit filters or delete specific point_ids",
                 )
 
         response = {
@@ -359,14 +362,14 @@ async def delete_vectors(
             "message": "Vectors deleted successfully",
             "tenant_id": request.tenant_id,
             "project_id": request.project_id,
-            "delete_operation": result
+            "delete_operation": result,
         }
 
         logger.info(
             "Vectors deleted successfully",
             tenant_id=request.tenant_id,
             project_id=request.project_id,
-            point_ids_count=len(request.point_ids) if request.point_ids else 0
+            point_ids_count=len(request.point_ids) if request.point_ids else 0,
         )
 
         return response
@@ -376,8 +379,7 @@ async def delete_vectors(
     except Exception as e:
         logger.error("Vector deletion failed", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Delete failed: {e!s}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Delete failed"
         )
 
 
@@ -385,7 +387,7 @@ async def delete_vectors(
 async def get_collection_stats(
     tenant_id: str = Query(..., description="Tenant identifier"),
     project_id: str = Query(..., description="Project identifier"),
-    http_request: Request = None
+    http_request: Request = None,
 ) -> CollectionStats:
     """
     Get collection statistics with optional tenant/project filtering.
@@ -398,17 +400,18 @@ async def get_collection_stats(
         tenant_context = await get_tenant_context(http_request)
 
         # Validate that request matches tenant context
-        if (tenant_id != tenant_context["tenant_id"] or
-            project_id != tenant_context["project_id"]):
+        if (
+            tenant_id != tenant_context["tenant_id"]
+            or project_id != tenant_context["project_id"]
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tenant/project context mismatch"
+                detail="Tenant/project context mismatch",
             )
 
         # Get collection statistics
         stats = await qdrant_adapter.get_collection_stats(
-            tenant_id=tenant_id,
-            project_id=project_id
+            tenant_id=tenant_id, project_id=project_id
         )
 
         logger.info(
@@ -416,7 +419,7 @@ async def get_collection_stats(
             tenant_id=tenant_id,
             project_id=project_id,
             total_vectors=stats.get("vectors_count", 0),
-            tenant_project_vectors=stats.get("tenant_project_points", 0)
+            tenant_project_vectors=stats.get("tenant_project_points", 0),
         )
 
         return CollectionStats(**stats)
@@ -427,7 +430,7 @@ async def get_collection_stats(
         logger.error("Failed to get collection stats", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Stats retrieval failed: {e!s}"
+            detail="Stats retrieval failed",
         )
 
 
@@ -446,15 +449,17 @@ async def vector_health_check() -> dict[str, Any]:
         embedding_healthy = embedding_service._embedding_client is not None
 
         health_status = {
-            "status": "healthy" if qdrant_health["status"] == "healthy" and embedding_healthy else "unhealthy",
+            "status": "healthy"
+            if qdrant_health["status"] == "healthy" and embedding_healthy
+            else "unhealthy",
             "services": {
                 "qdrant": qdrant_health,
                 "embedding_service": {
                     "status": "healthy" if embedding_healthy else "unhealthy",
-                    "model": embedding_service.embedding_model
-                }
+                    "model": embedding_service.embedding_model,
+                },
             },
-            "tenant_isolation": "enabled"
+            "tenant_isolation": "enabled",
         }
 
         return health_status
@@ -466,6 +471,6 @@ async def vector_health_check() -> dict[str, Any]:
             "error": str(e),
             "services": {
                 "qdrant": {"status": "unhealthy", "error": str(e)},
-                "embedding_service": {"status": "unknown"}
-            }
+                "embedding_service": {"status": "unknown"},
+            },
         }

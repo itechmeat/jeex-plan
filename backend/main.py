@@ -39,8 +39,11 @@ app.include_router(agents_router, prefix="/api/v1")
 try:
     from app.api.routes.document_generation import router as document_generation_router
     app.include_router(document_generation_router, prefix="/api/v1")
-except ImportError as e:
-    logger.warning(f"Could not import document generation routes: {e}")
+except ImportError as exc:
+    logger.warning(
+        "Could not import document generation routes",
+        extra={'error': str(exc)}
+    )
 
 
 @app.get("/")
@@ -103,7 +106,7 @@ async def check_service_health(url: str, timeout: float = 5.0) -> dict[str, Any]
             "response_time": round((time.time() - start_time) * 1000),
             "details": "Timeout"
         }
-    except Exception as e:
+    except (aiohttp.ClientError, OSError) as e:
         return {
             "status": "fail",
             "response_time": round((time.time() - start_time) * 1000),

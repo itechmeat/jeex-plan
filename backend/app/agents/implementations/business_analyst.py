@@ -214,7 +214,7 @@ Focus on depth of analysis rather than breadth. Provide specific, actionable ins
 The document should be professional, well-structured, and actionable. Include specific examples and recommendations where possible."""
 
     async def _parse_crew_result(
-        self, result: Any, execution_time_ms: int
+        self, result: object, execution_time_ms: int
     ) -> BusinessAnalystOutput:
         """Parse CrewAI result into typed output."""
         content = str(result)

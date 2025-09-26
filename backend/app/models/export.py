@@ -23,6 +23,7 @@ from .base import BaseModel
 
 class ExportStatus(str, Enum):
     """Export status enumeration."""
+
     PENDING = "pending"
     GENERATING = "generating"
     COMPLETED = "completed"
@@ -36,7 +37,9 @@ class Export(BaseModel):
     __tablename__ = "exports"
 
     # Export info
-    status = Column(String(50), default=ExportStatus.PENDING.value, nullable=False, index=True)
+    status = Column(
+        String(50), default=ExportStatus.PENDING.value, nullable=False, index=True
+    )
     file_path = Column(Text, nullable=True)
 
     # Export manifest (list of included documents)
@@ -50,7 +53,7 @@ class Export(BaseModel):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC) + timedelta(hours=24),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Project relationship
@@ -59,7 +62,7 @@ class Export(BaseModel):
         "Project",
         back_populates="exports",
         primaryjoin="and_(Export.project_id==Project.id, Export.tenant_id==Project.tenant_id)",
-        foreign_keys=[project_id]
+        foreign_keys=[project_id],
     )
 
     # User who requested the export

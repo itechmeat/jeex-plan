@@ -30,9 +30,7 @@ class EngineeringStandardsInput(AgentInput):
 
     project_description: str = Field(..., description="Complete project description")
     technology_stack: list[str] = Field(..., description="Selected technology stack")
-    team_experience_level: str | None = Field(
-        None, description="Team experience level"
-    )
+    team_experience_level: str | None = Field(None, description="Team experience level")
     existing_standards: dict[str, Any] | None = Field(
         None, description="Existing team standards"
     )

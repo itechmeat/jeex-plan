@@ -37,8 +37,20 @@ class VectorContextRetriever:
                 api_key=settings.QDRANT_API_KEY,
             )
             self.logger.info("Vector context retriever initialized")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Qdrant client: {e}")
+        except (ConnectionError, TimeoutError) as exc:
+            self.logger.error(
+                "Failed to connect to Qdrant", error=str(exc)
+            )
+            raise
+        except (ValueError, TypeError) as exc:
+            self.logger.error(
+                "Invalid Qdrant configuration", error=str(exc)
+            )
+            raise
+        except Exception as exc:
+            self.logger.exception(
+                "Unexpected error initializing Qdrant client", error=str(exc)
+            )
             raise
 
     async def get_project_context(
@@ -89,7 +101,9 @@ class VectorContextRetriever:
                     "content": payload.get("text", ""),
                     "type": payload.get("type", "unknown"),
                     "version": payload.get("version", "1"),
-                    "score": (result.get("score", 0.0) if isinstance(result, dict) else 0.0),
+                    "score": (
+                        result.get("score", 0.0) if isinstance(result, dict) else 0.0
+                    ),
                     "metadata": {
                         k: v
                         for k, v in payload.items()
@@ -117,9 +131,37 @@ class VectorContextRetriever:
 
             return context_data
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError) as e:
             self.logger.error(
-                "Failed to retrieve project context",
+                "Connection error retrieving project context",
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                correlation_id=context.correlation_id,
+                error=str(e),
+            )
+            raise ContextRetrievalError(
+                message=f"Vector database connection failed: {e!s}",
+                agent_type="vector_context",
+                correlation_id=context.correlation_id,
+                details={"query": query, "error": str(e)},
+            )
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.error(
+                "Data validation error retrieving project context",
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                correlation_id=context.correlation_id,
+                error=str(e),
+            )
+            raise ContextRetrievalError(
+                message=f"Vector context data validation failed: {e!s}",
+                agent_type="vector_context",
+                correlation_id=context.correlation_id,
+                details={"query": query, "error": str(e)},
+            )
+        except Exception as e:
+            self.logger.exception(
+                "Unexpected error retrieving project context",
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
                 correlation_id=context.correlation_id,
@@ -191,6 +233,7 @@ class VectorContextRetriever:
             # Initialize embedding service lazily
             if self._embedding_service is None:
                 from app.services.embedding import EmbeddingService
+
                 self._embedding_service = EmbeddingService()
 
             embedding_result = await self._embedding_service.process_document(
@@ -243,9 +286,39 @@ class VectorContextRetriever:
                 points_stored=result.get("points_count", 0),
             )
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError) as e:
             self.logger.error(
-                "Failed to store agent output",
+                "Connection error storing agent output",
+                agent_type=agent_type,
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                correlation_id=context.correlation_id,
+                error=str(e),
+            )
+            # Don't raise exception for storage failures - it's not critical for agent execution
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.error(
+                "Data validation error storing agent output",
+                agent_type=agent_type,
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                correlation_id=context.correlation_id,
+                error=str(e),
+            )
+            # Don't raise exception for storage failures - it's not critical for agent execution
+        except (ImportError, ModuleNotFoundError) as e:
+            self.logger.error(
+                "Module import error storing agent output",
+                agent_type=agent_type,
+                tenant_id=context.tenant_id,
+                project_id=context.project_id,
+                correlation_id=context.correlation_id,
+                error=str(e),
+            )
+            # Don't raise exception for storage failures - it's not critical for agent execution
+        except Exception as e:
+            self.logger.exception(
+                "Unexpected error storing agent output",
                 agent_type=agent_type,
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
@@ -272,11 +345,26 @@ class VectorContextRetriever:
                 "collection_name": self.collection_name,
             }
 
-        except Exception:
-            self.logger.exception("Vector health check failed")
+        except (ConnectionError, TimeoutError):
+            self.logger.error("Vector health check connection failed")
             return {
                 "status": "unhealthy",
                 "collection_name": self.collection_name,
+                "error": "connection_failed",
+            }
+        except (ValueError, KeyError, TypeError):
+            self.logger.error("Vector health check validation failed")
+            return {
+                "status": "unhealthy",
+                "collection_name": self.collection_name,
+                "error": "validation_failed",
+            }
+        except Exception:
+            self.logger.exception("Vector health check failed unexpectedly")
+            return {
+                "status": "unhealthy",
+                "collection_name": self.collection_name,
+                "error": "unexpected_error",
             }
 
 

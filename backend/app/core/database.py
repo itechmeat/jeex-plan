@@ -97,18 +97,20 @@ class DatabaseManager:
                     "message": "Database connection successful",
                     "details": {
                         "database_url": settings.DATABASE_URL.split("@")[-1],
-                    }
+                    },
                 }
         except Exception as e:
             logger.error("Database health check failed", error=str(e))
             return {
                 "status": "unhealthy",
                 "message": f"Database connection failed: {e!s}",
-                "details": {"error": str(e)}
+                "details": {"error": str(e)},
             }
 
     @staticmethod
-    async def execute_raw_sql(session: AsyncSession, sql: str, params: dict | None = None):
+    async def execute_raw_sql(
+        session: AsyncSession, sql: str, params: dict | None = None
+    ):
         """Execute raw SQL query"""
         try:
             result = await session.execute(sql, params or {})

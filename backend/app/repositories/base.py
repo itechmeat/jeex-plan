@@ -3,7 +3,7 @@ Base repository classes for data access patterns.
 """
 
 from abc import ABC
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 from uuid import UUID
 
@@ -31,31 +31,35 @@ class BaseRepository(ABC, Generic[ModelType]):
         try:
             instance = self.model(**kwargs)
             self.session.add(instance)
-            await self.session.flush()  # Use flush instead of commit for better transaction control
+            await (
+                self.session.flush()
+            )  # Use flush instead of commit for better transaction control
             await self.session.refresh(instance)
-            logger.info(f"Created {self.model.__name__} with id {instance.id}")
+            logger.info(
+                "Created entity",
+                model=self.model.__name__,
+                entity_id=str(instance.id),
+            )
             return instance
-        except SQLAlchemyError as e:
+        except SQLAlchemyError as exc:
             await self.session.rollback()
-            logger.error(f"Failed to create {self.model.__name__}: {e}")
-            raise e
+            logger.error(
+                "Failed to create entity",
+                model=self.model.__name__,
+                error=str(exc),
+            )
+            raise exc
 
     async def get_by_id(self, entity_id: UUID) -> ModelType | None:
         """Get entity by ID."""
         stmt = select(self.model).where(
-            and_(
-                self.model.id == entity_id,
-                self.model.is_deleted.is_(False)
-            )
+            and_(self.model.id == entity_id, self.model.is_deleted.is_(False))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_all(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        filters: dict[str, Any] | None = None
+        self, skip: int = 0, limit: int = 100, filters: dict[str, Any] | None = None
     ) -> list[ModelType]:
         """Get all entities with optional filtering."""
         stmt = select(self.model).where(self.model.is_deleted.is_(False))
@@ -78,7 +82,7 @@ class BaseRepository(ABC, Generic[ModelType]):
         skip: int = 0,
         limit: int = 100,
         filters: dict[str, Any] | None = None,
-        eager_loads: list[str] | None = None
+        eager_loads: list[str] | None = None,
     ) -> list[ModelType]:
         """Get all entities with optional filtering and eager loading."""
         stmt = select(self.model).where(self.model.is_deleted.is_(False))
@@ -116,7 +120,7 @@ class BaseRepository(ABC, Generic[ModelType]):
 
             # Update timestamp
             update_data = dict(kwargs)
-            update_data['updated_at'] = datetime.utcnow()
+            update_data["updated_at"] = datetime.now(UTC)
 
             ignored_fields = []
             for field, value in update_data.items():
@@ -128,19 +132,32 @@ class BaseRepository(ABC, Generic[ModelType]):
 
             if ignored_fields:
                 logger.warning(
-                    "Ignored protected fields during update", fields=ignored_fields, model=self.model.__name__
+                    "Ignored protected fields during update",
+                    fields=ignored_fields,
+                    model=self.model.__name__,
                 )
 
-            await self.session.flush()  # Use flush instead of commit for better transaction control
+            await (
+                self.session.flush()
+            )  # Use flush instead of commit for better transaction control
             await self.session.refresh(instance)
-            logger.info(f"Updated {self.model.__name__} with id {entity_id}")
+            logger.info(
+                "Updated entity",
+                model=self.model.__name__,
+                entity_id=str(entity_id),
+            )
             return instance
-        except SQLAlchemyError as e:
+        except SQLAlchemyError as exc:
             await self.session.rollback()
-            logger.error(f"Failed to update {self.model.__name__} {entity_id}: {e}")
-            raise e
+            logger.error(
+                "Failed to update entity",
+                model=self.model.__name__,
+                entity_id=str(entity_id),
+                error=str(exc),
+            )
+            raise exc
 
-    async def delete(self, entity_id: UUID, soft_delete: bool = True) -> bool:
+    async def delete(self, entity_id: UUID, *, soft_delete: bool = True) -> bool:
         """Delete entity (soft or hard delete)."""
         try:
             instance = await self.get_by_id(entity_id)
@@ -149,19 +166,32 @@ class BaseRepository(ABC, Generic[ModelType]):
 
             if soft_delete:
                 instance.is_deleted = True
-                instance.deleted_at = datetime.utcnow()
+                instance.deleted_at = datetime.now(UTC)
                 await self.session.flush()
-                logger.info(f"Soft deleted {self.model.__name__} with id {entity_id}")
+                logger.info(
+                    "Soft deleted entity",
+                    model=self.model.__name__,
+                    entity_id=str(entity_id),
+                )
             else:
                 await self.session.delete(instance)
                 await self.session.flush()
-                logger.info(f"Hard deleted {self.model.__name__} with id {entity_id}")
+                logger.info(
+                    "Hard deleted entity",
+                    model=self.model.__name__,
+                    entity_id=str(entity_id),
+                )
 
             return True
-        except SQLAlchemyError as e:
+        except SQLAlchemyError as exc:
             await self.session.rollback()
-            logger.error(f"Failed to delete {self.model.__name__} {entity_id}: {e}")
-            raise e
+            logger.error(
+                "Failed to delete entity",
+                model=self.model.__name__,
+                entity_id=str(entity_id),
+                error=str(exc),
+            )
+            raise exc
 
     async def count(self, filters: dict[str, Any] | None = None) -> int:
         """Count entities with optional filtering."""
@@ -182,10 +212,7 @@ class BaseRepository(ABC, Generic[ModelType]):
     async def exists(self, entity_id: UUID) -> bool:
         """Check if entity exists."""
         stmt = select(self.model.id).where(
-            and_(
-                self.model.id == entity_id,
-                self.model.is_deleted.is_(False)
-            )
+            and_(self.model.id == entity_id, self.model.is_deleted.is_(False))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
@@ -194,13 +221,15 @@ class BaseRepository(ABC, Generic[ModelType]):
 class TenantRepository(BaseRepository[ModelType]):
     """Repository with tenant isolation."""
 
-    def __init__(self, session: AsyncSession, model: type[ModelType], tenant_id: UUID) -> None:
+    def __init__(
+        self, session: AsyncSession, model: type[ModelType], tenant_id: UUID
+    ) -> None:
         super().__init__(session, model)
         self.tenant_id = tenant_id
 
     async def create(self, **kwargs) -> ModelType:
         """Create entity with tenant isolation."""
-        kwargs['tenant_id'] = self.tenant_id
+        kwargs["tenant_id"] = self.tenant_id
         return await super().create(**kwargs)
 
     async def get_by_id(self, entity_id: UUID) -> ModelType | None:
@@ -209,23 +238,19 @@ class TenantRepository(BaseRepository[ModelType]):
             and_(
                 self.model.id == entity_id,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted.is_(False)
+                self.model.is_deleted.is_(False),
             )
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_all(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        filters: dict[str, Any] | None = None
+        self, skip: int = 0, limit: int = 100, filters: dict[str, Any] | None = None
     ) -> list[ModelType]:
         """Get all entities within tenant."""
         stmt = select(self.model).where(
             and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted.is_(False)
+                self.model.tenant_id == self.tenant_id, self.model.is_deleted.is_(False)
             )
         )
 
@@ -247,13 +272,12 @@ class TenantRepository(BaseRepository[ModelType]):
         skip: int = 0,
         limit: int = 100,
         filters: dict[str, Any] | None = None,
-        eager_loads: list[str] | None = None
+        eager_loads: list[str] | None = None,
     ) -> list[ModelType]:
         """Get all entities within tenant with eager loading."""
         stmt = select(self.model).where(
             and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted.is_(False)
+                self.model.tenant_id == self.tenant_id, self.model.is_deleted.is_(False)
             )
         )
 
@@ -280,8 +304,7 @@ class TenantRepository(BaseRepository[ModelType]):
         """Count entities within tenant."""
         stmt = select(func.count(self.model.id)).where(
             and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted.is_(False)
+                self.model.tenant_id == self.tenant_id, self.model.is_deleted.is_(False)
             )
         )
 
@@ -297,15 +320,21 @@ class TenantRepository(BaseRepository[ModelType]):
         result = await self.session.execute(stmt)
         return result.scalar()
 
-    async def get_by_field(self, field_name: str, field_value: Any) -> ModelType | None:
+    async def get_by_field(
+        self, field_name: str, field_value: object
+    ) -> ModelType | None:
         """Get entity by field within tenant with SQL injection protection."""
         if not hasattr(self.model, field_name):
-            logger.warning(f"Field {field_name} not found in model {self.model.__name__}")
+            logger.warning(
+                "Field not found in model",
+                field_name=field_name,
+                model=self.model.__name__,
+            )
             return None
 
         # Validate field name to prevent SQL injection
         if not field_name.isidentifier():
-            logger.error(f"Invalid field name: {field_name}")
+            logger.error("Invalid field name", field_name=field_name)
             raise ValueError(f"Invalid field name: {field_name}")
 
         column_attr = getattr(self.model, field_name)
@@ -322,22 +351,22 @@ class TenantRepository(BaseRepository[ModelType]):
             and_(
                 comparison,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted.is_(False)
+                self.model.is_deleted.is_(False),
             )
         )
 
         try:
             result = await self.session.execute(stmt)
             return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in get_by_field: {e}")
-            raise e
+        except SQLAlchemyError as exc:
+            logger.error("Database error in get_by_field", error=str(exc))
+            raise exc
 
-    async def get_by_fields(self, **filters: Any) -> list[ModelType]:
+    async def get_by_fields(self, **filters: object) -> list[ModelType]:
         """Get entities matching multiple fields within tenant."""
         conditions = [
             self.model.tenant_id == self.tenant_id,
-            self.model.is_deleted.is_(False)
+            self.model.is_deleted.is_(False),
         ]
 
         for field, value in filters.items():
@@ -358,7 +387,7 @@ class TenantRepository(BaseRepository[ModelType]):
         search_fields: list[str],
         search_term: str,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> list[ModelType]:
         """Search entities within tenant with SQL injection protection."""
         if not search_fields or not search_term:
@@ -368,10 +397,14 @@ class TenantRepository(BaseRepository[ModelType]):
         validated_fields = []
         for field in search_fields:
             if not field.isidentifier():
-                logger.warning(f"Invalid search field name: {field}")
+                logger.warning("Invalid search field name", field_name=field)
                 continue
             if not hasattr(self.model, field):
-                logger.warning(f"Field {field} not found in model {self.model.__name__}")
+                logger.warning(
+                    "Field not found in model",
+                    field_name=field,
+                    model=self.model.__name__,
+                )
                 continue
             validated_fields.append(field)
 
@@ -388,8 +421,7 @@ class TenantRepository(BaseRepository[ModelType]):
 
         stmt = select(self.model).where(
             and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted.is_(False)
+                self.model.tenant_id == self.tenant_id, self.model.is_deleted.is_(False)
             )
         )
 
@@ -412,25 +444,23 @@ class TenantRepository(BaseRepository[ModelType]):
         try:
             result = await self.session.execute(stmt)
             return list(result.scalars().all())
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in search: {e}")
-            raise e
+        except SQLAlchemyError as exc:
+            logger.error("Database error in search", error=str(exc))
+            raise exc
 
     async def bulk_update(
-        self,
-        filters: dict[str, Any],
-        updates: dict[str, Any]
+        self, filters: dict[str, Any], updates: dict[str, Any]
     ) -> int:
         """Bulk update entities within tenant."""
         try:
             # Add tenant filter and soft delete filter
-            filters['tenant_id'] = self.tenant_id
-            filters['is_deleted'] = False
+            filters["tenant_id"] = self.tenant_id
+            filters["is_deleted"] = False
 
             # Add updated timestamp and protect tenant field
             updates = dict(updates)
-            updates['updated_at'] = datetime.utcnow()
-            updates.pop('tenant_id', None)
+            updates["updated_at"] = datetime.now(UTC)
+            updates.pop("tenant_id", None)
 
             conditions = []
             for key, value in filters.items():
@@ -440,19 +470,27 @@ class TenantRepository(BaseRepository[ModelType]):
                 else:
                     conditions.append(column_attr == value)
 
-            stmt = update(self.model).where(
-                and_(*conditions)
-            ).values(**updates)
+            stmt = update(self.model).where(and_(*conditions)).values(**updates)
 
-            result = await self.session.execute(stmt.execution_options(synchronize_session=False))
+            result = await self.session.execute(
+                stmt.execution_options(synchronize_session=False)
+            )
             await self.session.flush()
 
-            logger.info(f"Bulk updated {result.rowcount} {self.model.__name__} records")
+            logger.info(
+                "Bulk updated records",
+                model=self.model.__name__,
+                updated_count=result.rowcount,
+            )
             return result.rowcount
-        except SQLAlchemyError as e:
+        except SQLAlchemyError as exc:
             await self.session.rollback()
-            logger.error(f"Failed to bulk update {self.model.__name__}: {e}")
-            raise e
+            logger.error(
+                "Failed to bulk update",
+                model=self.model.__name__,
+                error=str(exc),
+            )
+            raise exc
 
     async def exists(self, entity_id: UUID) -> bool:
         """Check if entity exists within tenant."""
@@ -460,7 +498,7 @@ class TenantRepository(BaseRepository[ModelType]):
             and_(
                 self.model.id == entity_id,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted.is_(False)
+                self.model.is_deleted.is_(False),
             )
         )
         result = await self.session.execute(stmt)

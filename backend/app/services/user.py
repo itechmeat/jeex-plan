@@ -3,7 +3,7 @@ User management service with authentication and profile operations.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -36,7 +36,7 @@ class UserService:
         username: str,
         password: str,
         full_name: str | None = None,
-        tenant_id: uuid.UUID | None = None
+        tenant_id: uuid.UUID | None = None,
     ) -> dict[str, Any]:
         """Register a new user with password authentication."""
 
@@ -55,14 +55,13 @@ class UserService:
         if not await self.user_repo.check_email_availability(email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail="Email already registered",
             )
 
         # Validate username availability (against correct tenant)
         if not await self.user_repo.check_username_availability(username):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
             )
 
         # Hash password
@@ -75,22 +74,16 @@ class UserService:
             full_name=full_name,
             hashed_password=hashed_password,
             is_active=True,
-            last_login_at=datetime.utcnow()
+            last_login_at=datetime.now(UTC),
         )
 
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)
 
-        return {
-            "user": self._serialize_user(user),
-            "tokens": tokens
-        }
+        return {"user": self._serialize_user(user), "tokens": tokens}
 
     async def authenticate_user(
-        self,
-        email: str,
-        password: str,
-        tenant_id: uuid.UUID | None = None
+        self, email: str, password: str, tenant_id: uuid.UUID | None = None
     ) -> dict[str, Any]:
         """Authenticate user with email and password."""
 
@@ -99,26 +92,23 @@ class UserService:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
+                detail="Invalid email or password",
             )
 
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Account is deactivated"
+                detail="Account is deactivated",
             )
 
         # Update last login
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(UTC)
         await self.db.commit()
 
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)
 
-        return {
-            "user": self._serialize_user(user),
-            "tokens": tokens
-        }
+        return {"user": self._serialize_user(user), "tokens": tokens}
 
     async def refresh_tokens(self, refresh_token: str) -> dict[str, Any] | None:
         """Refresh access token using refresh token."""
@@ -127,7 +117,7 @@ class UserService:
         if not tokens:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired refresh token"
+                detail="Invalid or expired refresh token",
             )
 
         return tokens
@@ -137,105 +127,98 @@ class UserService:
         if self.user_repo is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="User repository not initialized"
+                detail="User repository not initialized",
             )
 
         user = await self.user_repo.get_by_id(user_id)
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return user
 
-    async def update_user_profile(
-        self,
-        user_id: uuid.UUID,
-        **updates
-    ) -> User:
+    async def update_user_profile(self, user_id: uuid.UUID, **updates) -> User:
         """Update user profile."""
         if self.user_repo is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="User repository not initialized"
+                detail="User repository not initialized",
             )
 
         # Remove sensitive fields that shouldn't be updated directly
         sensitive_fields = {
-            'hashed_password', 'tenant_id', 'oauth_provider',
-            'oauth_id', 'is_superuser', 'created_at', 'updated_at'
+            "hashed_password",
+            "tenant_id",
+            "oauth_provider",
+            "oauth_id",
+            "is_superuser",
+            "created_at",
+            "updated_at",
         }
 
         filtered_updates = {
-            k: v for k, v in updates.items()
+            k: v
+            for k, v in updates.items()
             if k not in sensitive_fields and v is not None
         }
 
         # Validate email uniqueness if being updated
-        if 'email' in filtered_updates:
+        if "email" in filtered_updates:
             email_available = await self.user_repo.check_email_availability(
-                filtered_updates['email'],
-                exclude_user_id=user_id
+                filtered_updates["email"], exclude_user_id=user_id
             )
             if not email_available:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already in use"
+                    detail="Email already in use",
                 )
 
         # Validate username uniqueness if being updated
-        if 'username' in filtered_updates:
+        if "username" in filtered_updates:
             username_available = await self.user_repo.check_username_availability(
-                filtered_updates['username'],
-                exclude_user_id=user_id
+                filtered_updates["username"], exclude_user_id=user_id
             )
             if not username_available:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Username already taken"
+                    detail="Username already taken",
                 )
 
         user = await self.user_repo.update(user_id, **filtered_updates)
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return user
 
     async def change_password(
-        self,
-        user_id: uuid.UUID,
-        current_password: str,
-        new_password: str
+        self, user_id: uuid.UUID, current_password: str, new_password: str
     ) -> bool:
         """Change user password."""
         if self.user_repo is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="User repository not initialized"
+                detail="User repository not initialized",
             )
 
         user = await self.user_repo.get_by_id(user_id)
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Verify current password
         if not user.hashed_password or not self.auth_service.verify_password(
-            current_password,
-            user.hashed_password
+            current_password, user.hashed_password
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is incorrect"
+                detail="Current password is incorrect",
             )
 
         # Hash new password
@@ -252,8 +235,7 @@ class UserService:
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return user
@@ -264,8 +246,7 @@ class UserService:
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return user
@@ -275,13 +256,14 @@ class UserService:
         skip: int = 0,
         limit: int = 100,
         search: str | None = None,
-        active_only: bool = True
+        *,
+        active_only: bool = True,
     ) -> list[User]:
         """Get list of users with optional search."""
         if self.user_repo is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="User repository not initialized"
+                detail="User repository not initialized",
             )
 
         if search:
@@ -294,13 +276,15 @@ class UserService:
 
     async def get_user_statistics(self) -> dict[str, int]:
         """Get user statistics."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized",
+            )
         return await self.user_repo.get_user_count_by_status()
 
     async def link_oauth_account(
-        self,
-        user_id: uuid.UUID,
-        oauth_provider: str,
-        oauth_id: str
+        self, user_id: uuid.UUID, oauth_provider: str, oauth_id: str
     ) -> User:
         """Link OAuth account to existing user."""
 
@@ -313,27 +297,20 @@ class UserService:
 
         # Check if OAuth account is already linked
         oauth_available = await repo.check_oauth_availability(
-            oauth_provider,
-            oauth_id,
-            exclude_user_id=user_id
+            oauth_provider, oauth_id, exclude_user_id=user_id
         )
 
         if not oauth_available:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="OAuth account already linked to another user"
+                detail="OAuth account already linked to another user",
             )
 
-        user = await repo.link_oauth_account(
-            user_id,
-            oauth_provider,
-            oauth_id
-        )
+        user = await repo.link_oauth_account(user_id, oauth_provider, oauth_id)
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return user
@@ -344,8 +321,7 @@ class UserService:
 
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         return user
@@ -360,9 +336,11 @@ class UserService:
             "full_name": user.full_name,
             "is_active": user.is_active,
             "is_superuser": user.is_superuser,
-            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "last_login_at": user.last_login_at.isoformat()
+            if user.last_login_at
+            else None,
             "created_at": user.created_at.isoformat() if user.created_at else None,
-            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None,
         }
 
     async def _get_or_create_default_tenant(self) -> uuid.UUID:

@@ -1,7 +1,9 @@
 #!/bin/bash
 # Script for automatic code quality checks and formatting
+set -Eeuo pipefail
 
-set -e  # Exit immediately if a command exits with a non-zero status
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+cd "$SCRIPT_DIR/.."
 
 echo "Running Ruff formatter..."
 ruff format .

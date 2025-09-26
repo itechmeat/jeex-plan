@@ -18,6 +18,7 @@ from app.core.database import AsyncSession
 from app.core.logger import get_logger
 from app.models.document_version import DocumentType, DocumentVersion
 from app.models.export import Export, ExportStatus
+from app.models.project import Project
 from app.repositories.document_version import DocumentVersionRepository
 from app.repositories.export import ExportRepository
 from app.repositories.project import ProjectRepository
@@ -40,7 +41,7 @@ class ExportService:
         project_id: UUID,
         user_id: UUID,
         export_format: str = "zip",
-        expires_in_hours: int = 24
+        expires_in_hours: int = 24,
     ) -> Export:
         """Create a new export request."""
         # Get project info
@@ -59,7 +60,7 @@ class ExportService:
             project_id=project_id,
             requested_by=user_id,
             manifest=manifest,
-            expires_in_hours=expires_in_hours
+            expires_in_hours=expires_in_hours,
         )
 
         await self.session.commit()
@@ -93,14 +94,14 @@ class ExportService:
         except Exception:
             # Mark as failed with tenant-safe message; log full error
             logger.exception("export.generation_failed", export_id=str(export_id))
-            await self.export_repo.fail_export(export_id, "Export failed. Please retry later.")
+            await self.export_repo.fail_export(
+                export_id, "Export failed. Please retry later."
+            )
             await self.session.commit()
             raise
 
     async def _create_manifest(
-        self,
-        project: Any,
-        documents: list[DocumentVersion]
+        self, project: Project, documents: list[DocumentVersion]
     ) -> dict[str, Any]:
         """Create export manifest."""
         # Group documents by type
@@ -109,20 +110,22 @@ class ExportService:
 
         for doc in documents:
             if doc.document_type == DocumentType.PLAN_EPIC.value:
-                epic_docs.append({
-                    "id": str(doc.id),
-                    "epic_number": doc.epic_number,
-                    "epic_name": doc.epic_name,
-                    "title": doc.title,
-                    "version": doc.version,
-                    "created_at": doc.created_at.isoformat()
-                })
+                epic_docs.append(
+                    {
+                        "id": str(doc.id),
+                        "epic_number": doc.epic_number,
+                        "epic_name": doc.epic_name,
+                        "title": doc.title,
+                        "version": doc.version,
+                        "created_at": doc.created_at.isoformat(),
+                    }
+                )
             else:
                 doc_by_type[doc.document_type] = {
                     "id": str(doc.id),
                     "title": doc.title,
                     "version": doc.version,
-                    "created_at": doc.created_at.isoformat()
+                    "created_at": doc.created_at.isoformat(),
                 }
 
         return {
@@ -131,15 +134,15 @@ class ExportService:
                 "name": project.name,
                 "status": project.status.value,
                 "current_step": project.current_step,
-                "language": getattr(project, 'language', 'en'),
+                "language": getattr(project, "language", "en"),
                 "created_at": project.created_at.isoformat(),
-                "updated_at": project.updated_at.isoformat()
+                "updated_at": project.updated_at.isoformat(),
             },
             "documents": doc_by_type,
             "epics": epic_docs,
             "generated_at": datetime.now(UTC).isoformat(),
             "format": "markdown",
-            "version": "1.0"
+            "version": "1.0",
         }
 
     async def _generate_zip_archive(self, export: Export) -> str:
@@ -150,10 +153,15 @@ class ExportService:
         # Create temporary directory for file structure
         with tempfile.TemporaryDirectory() as temp_dir:
             raw_project_name = (manifest.get("project", {}).get("name")) or "project"
-            project_name = "".join(
-                (c.lower() if (c.isalnum() or c in "-_ ") else "-")
-                for c in raw_project_name
-            ).strip().replace(" ", "-") or "project"
+            project_name = (
+                "".join(
+                    (c.lower() if (c.isalnum() or c in "-_ ") else "-")
+                    for c in raw_project_name
+                )
+                .strip()
+                .replace(" ", "-")
+                or "project"
+            )
             project_dir = Path(temp_dir) / project_name
 
             # Create directory structure
@@ -183,7 +191,7 @@ class ExportService:
                         document_id=doc_id,
                         export_id=str(export.id),
                         project_id=str(project_id),
-                        tenant_id=str(self.tenant_id)
+                        tenant_id=str(self.tenant_id),
                     )
 
             for epic_data in manifest.get("epics", []):
@@ -199,19 +207,21 @@ class ExportService:
                         document_id=doc_id,
                         export_id=str(export.id),
                         project_id=str(project_id),
-                        tenant_id=str(self.tenant_id)
+                        tenant_id=str(self.tenant_id),
                     )
 
             documents = await self.doc_repo.get_by_ids(uuid_doc_ids)
             retrieved_ids = {str(doc.id) for doc in documents}
-            missing_ids = [doc_id for doc_id in ordered_doc_ids if doc_id not in retrieved_ids]
+            missing_ids = [
+                doc_id for doc_id in ordered_doc_ids if doc_id not in retrieved_ids
+            ]
             if missing_ids:
                 logger.warning(
                     "Manifest references missing documents",
                     document_ids=missing_ids,
                     export_id=str(export.id),
                     project_id=str(project_id),
-                    tenant_id=str(self.tenant_id)
+                    tenant_id=str(self.tenant_id),
                 )
 
             for doc in documents:
@@ -224,10 +234,15 @@ class ExportService:
                 elif doc.document_type == DocumentType.PLAN_OVERVIEW.value:
                     await self._save_document(plans_dir / "overview.md", doc)
                 elif doc.document_type == DocumentType.PLAN_EPIC.value:
-                    safe_name = "".join(
-                        (c.lower() if (c.isalnum() or c in "-_ ") else "-")
-                        for c in (doc.epic_name or "")
-                    ).strip().replace(" ", "-") or "epic"
+                    safe_name = (
+                        "".join(
+                            (c.lower() if (c.isalnum() or c in "-_ ") else "-")
+                            for c in (doc.epic_name or "")
+                        )
+                        .strip()
+                        .replace(" ", "-")
+                        or "epic"
+                    )
                     filename = f"{doc.epic_number:02d}-{safe_name}.md"
                     await self._save_document(plans_dir / filename, doc)
 
@@ -238,8 +253,8 @@ class ExportService:
             zip_filename = f"{project_name}-{export.id}.zip"
             zip_path = export_dir / zip_filename
 
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for file_path in project_dir.rglob('*'):
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in project_dir.rglob("*"):
                     if file_path.is_file():
                         arcname = file_path.relative_to(temp_dir)
                         zipf.write(file_path, arcname)
@@ -278,10 +293,15 @@ This is an AI-generated documentation package for {project_info["name"]}.
         if manifest.get("epics"):
             readme_content += "\n#### Epic Documentation\n\n"
             for epic in sorted(manifest["epics"], key=lambda x: x["epic_number"]):
-                safe_name = "".join(
-                    (c.lower() if (c.isalnum() or c in "-_ ") else "-")
-                    for c in (epic.get("epic_name") or "")
-                ).strip().replace(" ", "-") or "epic"
+                safe_name = (
+                    "".join(
+                        (c.lower() if (c.isalnum() or c in "-_ ") else "-")
+                        for c in (epic.get("epic_name") or "")
+                    )
+                    .strip()
+                    .replace(" ", "-")
+                    or "epic"
+                )
                 filename = f"{epic['epic_number']:02d}-{safe_name}.md"
                 readme_content += f"- **[docs/plans/{filename}](docs/plans/{filename})** - {epic['title']}\n"
 
@@ -322,7 +342,11 @@ This is an AI-generated documentation package for {project_info["name"]}.
                 if key not in ["correlation_id"]:
                     meta[key] = value
 
-        header = "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True) + "---\n\n"
+        header = (
+            "---\n"
+            + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True)
+            + "---\n\n"
+        )
 
         # Write file
         with open(file_path, "w", encoding="utf-8") as f:
@@ -364,39 +388,35 @@ This is an AI-generated documentation package for {project_info["name"]}.
                 try:
                     os.remove(export.file_path)
                     deleted_count += 1
-                except OSError as e:
-                    logger.warning(f"Failed to delete export file {export.file_path}: {e}")
+                except OSError as exc:
+                    logger.warning(
+                        "Failed to delete export file",
+                        file_path=export.file_path,
+                        error=str(exc),
+                    )
 
         # Mark as expired
         if export_ids:
             await self.export_repo.mark_expired(export_ids)
             await self.session.commit()
 
-        logger.info(f"Cleaned up {deleted_count} expired export files")
+        logger.info(
+            "Cleaned up expired export files", deleted_count=deleted_count
+        )
         return deleted_count
 
     async def get_user_exports(
-        self,
-        user_id: UUID,
-        limit: int = 20,
-        offset: int = 0
+        self, user_id: UUID, limit: int = 20, offset: int = 0
     ) -> list[Export]:
         """Get exports for a user."""
         return await self.export_repo.get_user_exports(
-            requested_by=user_id,
-            limit=limit,
-            offset=offset
+            requested_by=user_id, limit=limit, offset=offset
         )
 
     async def get_project_exports(
-        self,
-        project_id: UUID,
-        limit: int = 20,
-        offset: int = 0
+        self, project_id: UUID, limit: int = 20, offset: int = 0
     ) -> list[Export]:
         """Get exports for a project."""
         return await self.export_repo.get_project_exports(
-            project_id=project_id,
-            limit=limit,
-            offset=offset
+            project_id=project_id, limit=limit, offset=offset
         )

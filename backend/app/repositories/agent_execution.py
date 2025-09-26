@@ -29,7 +29,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         agent_type: AgentType,
         correlation_id: UUID,
         input_data: dict[str, Any],
-        initiated_by: UUID
+        initiated_by: UUID,
     ) -> AgentExecution:
         """Start a new agent execution."""
         return await self.create(
@@ -39,33 +39,29 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
             input_data=input_data,
             status=ExecutionStatus.RUNNING.value,
             initiated_by=initiated_by,
-            started_at=datetime.now(UTC)
+            started_at=datetime.now(UTC),
         )
 
     async def complete_execution(
-        self,
-        execution_id: UUID,
-        output_data: dict[str, Any]
+        self, execution_id: UUID, output_data: dict[str, Any]
     ) -> AgentExecution | None:
         """Mark execution as completed with output data."""
         return await self.update(
             execution_id,
             status=ExecutionStatus.COMPLETED.value,
             output_data=output_data,
-            completed_at=datetime.now(UTC)
+            completed_at=datetime.now(UTC),
         )
 
     async def fail_execution(
-        self,
-        execution_id: UUID,
-        error_message: str
+        self, execution_id: UUID, error_message: str
     ) -> AgentExecution | None:
         """Mark execution as failed with error message."""
         return await self.update(
             execution_id,
             status=ExecutionStatus.FAILED.value,
             error_message=error_message,
-            completed_at=datetime.now(UTC)
+            completed_at=datetime.now(UTC),
         )
 
     async def cancel_execution(self, execution_id: UUID) -> AgentExecution | None:
@@ -73,27 +69,32 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         return await self.update(
             execution_id,
             status=ExecutionStatus.CANCELLED.value,
-            completed_at=datetime.now(UTC)
+            completed_at=datetime.now(UTC),
         )
 
-    async def get_by_correlation_id(self, correlation_id: UUID) -> AgentExecution | None:
+    async def get_by_correlation_id(
+        self, correlation_id: UUID
+    ) -> AgentExecution | None:
         """Get execution by correlation ID."""
         return await self.get_by_field("correlation_id", correlation_id)
 
     async def get_project_executions(
-        self,
-        project_id: UUID,
-        limit: int = 50,
-        offset: int = 0
+        self, project_id: UUID, limit: int = 50, offset: int = 0
     ) -> list[AgentExecution]:
         """Get executions for a project, ordered by start time desc."""
-        stmt = select(self.model).where(
-            and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.project_id == project_id,
-                self.model.is_deleted.is_(False)
+        stmt = (
+            select(self.model)
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.project_id == project_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).order_by(desc(self.model.started_at)).offset(offset).limit(limit)
+            .order_by(desc(self.model.started_at))
+            .offset(offset)
+            .limit(limit)
+        )
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -101,38 +102,39 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
     async def get_active_executions(self, project_id: UUID) -> list[AgentExecution]:
         """Get currently running executions for a project."""
         return await self.get_by_fields(
-            project_id=project_id,
-            status=ExecutionStatus.RUNNING.value
+            project_id=project_id, status=ExecutionStatus.RUNNING.value
         )
 
     async def get_execution_stats(self, project_id: UUID) -> dict[str, Any]:
         """Get execution statistics for a project."""
         # Count by status
-        stmt = select(
-            self.model.status,
-            func.count(self.model.id).label("count")
-        ).where(
-            and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.project_id == project_id,
-                self.model.is_deleted.is_(False)
+        stmt = (
+            select(self.model.status, func.count(self.model.id).label("count"))
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.project_id == project_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).group_by(self.model.status)
+            .group_by(self.model.status)
+        )
 
         result = await self.session.execute(stmt)
         status_counts = {row.status: row.count for row in result}
 
         # Count by agent type
-        stmt = select(
-            self.model.agent_type,
-            func.count(self.model.id).label("count")
-        ).where(
-            and_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.project_id == project_id,
-                self.model.is_deleted.is_(False)
+        stmt = (
+            select(self.model.agent_type, func.count(self.model.id).label("count"))
+            .where(
+                and_(
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.project_id == project_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).group_by(self.model.agent_type)
+            .group_by(self.model.agent_type)
+        )
 
         result = await self.session.execute(stmt)
         agent_counts = {row.agent_type: row.count for row in result}
@@ -140,10 +142,8 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         # Average execution time for completed executions
         stmt = select(
             func.avg(
-                func.extract(
-                    'epoch',
-                    self.model.completed_at - self.model.started_at
-                ) * 1000
+                func.extract("epoch", self.model.completed_at - self.model.started_at)
+                * 1000
             ).label("avg_duration_ms")
         ).where(
             and_(
@@ -151,7 +151,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
                 self.model.project_id == project_id,
                 self.model.status == ExecutionStatus.COMPLETED.value,
                 self.model.completed_at.is_not(None),
-                self.model.is_deleted.is_(False)
+                self.model.is_deleted.is_(False),
             )
         )
 
@@ -161,7 +161,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         return {
             "status_counts": status_counts,
             "agent_counts": agent_counts,
-            "average_duration_ms": int(avg_duration)
+            "average_duration_ms": int(avg_duration),
         }
 
     async def cleanup_old_executions(self, days_old: int = 30) -> int:
@@ -180,9 +180,11 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
                     self.model.completed_at < cutoff_date,
                 )
             )
-            .values(is_deleted=True, updated_at=datetime.utcnow())
+            .values(is_deleted=True, updated_at=datetime.now(UTC))
         )
-        result = await self.session.execute(stmt.execution_options(synchronize_session=False))
+        result = await self.session.execute(
+            stmt.execution_options(synchronize_session=False)
+        )
         await self.session.commit()
         return result.rowcount or 0
 
@@ -190,7 +192,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         self,
         agent_type: AgentType | None = None,
         status: ExecutionStatus | None = None,
-        limit: int = 20
+        limit: int = 20,
     ) -> list[AgentExecution]:
         """Get recent executions with optional filtering."""
         filters = {}
@@ -201,13 +203,16 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
 
         conditions = [
             self.model.tenant_id == self.tenant_id,
-            self.model.is_deleted.is_(False)
+            self.model.is_deleted.is_(False),
         ]
         conditions.extend([getattr(self.model, k) == v for k, v in filters.items()])
 
-        stmt = select(self.model).where(
-            and_(*conditions)
-        ).order_by(desc(self.model.started_at)).limit(limit)
+        stmt = (
+            select(self.model)
+            .where(and_(*conditions))
+            .order_by(desc(self.model.started_at))
+            .limit(limit)
+        )
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

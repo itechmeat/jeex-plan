@@ -127,12 +127,9 @@ class ValidationError(AgentError):
     """Exception for validation failures."""
 
 
-
 class LLMError(AgentError):
     """Exception for LLM API failures."""
 
 
-
 class ContextRetrievalError(AgentError):
     """Exception for vector context retrieval failures."""
-

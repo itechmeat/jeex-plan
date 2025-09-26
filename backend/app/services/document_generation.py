@@ -39,7 +39,7 @@ class DocumentGenerationService:
         user_id: UUID,
         language: str = "en",
         target_audience: str | None = None,
-        user_clarifications: dict[str, Any] | None = None
+        user_clarifications: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute Step 1: Business Analysis."""
         correlation_id = uuid4()
@@ -51,7 +51,7 @@ class DocumentGenerationService:
             current_step=1,
             correlation_id=str(correlation_id),
             language=language,
-            user_id=str(user_id)
+            user_id=str(user_id),
         )
 
         # Start execution tracking
@@ -62,9 +62,9 @@ class DocumentGenerationService:
             input_data={
                 "idea_description": idea_description,
                 "target_audience": target_audience,
-                "user_clarifications": user_clarifications
+                "user_clarifications": user_clarifications,
             },
-            initiated_by=user_id
+            initiated_by=user_id,
         )
 
         try:
@@ -73,12 +73,15 @@ class DocumentGenerationService:
                 context=context,
                 idea_description=idea_description,
                 user_clarifications=user_clarifications,
-                target_audience=target_audience
+                target_audience=target_audience,
             )
 
             # Short-circuit on failed workflow response
             if result.get("status") not in ("completed", "success"):
-                msg = result.get("error_message") or "Business analysis did not complete successfully"
+                msg = (
+                    result.get("error_message")
+                    or "Business analysis did not complete successfully"
+                )
                 await self.exec_repo.fail_execution(execution.id, msg)
                 logger.error(
                     "Business analysis returned non-completed status",
@@ -89,7 +92,12 @@ class DocumentGenerationService:
                     tenant_id=str(self.tenant_id),
                 )
                 await self.session.commit()
-                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
+                return {
+                    **result,
+                    "status": "failed",
+                    "error_message": msg,
+                    "correlation_id": str(correlation_id),
+                }
 
             # Save document version
             doc_version = await self.doc_repo.create_version(
@@ -101,8 +109,8 @@ class DocumentGenerationService:
                 metadata={
                     "confidence_score": result.get("confidence_score", 0.0),
                     "validation_result": result.get("validation_result", {}),
-                    "correlation_id": str(correlation_id)
-                }
+                    "correlation_id": str(correlation_id),
+                },
             )
 
             # Store key facts in vector database for context
@@ -115,8 +123,8 @@ class DocumentGenerationService:
                         "document_id": str(doc_version.id),
                         "version": doc_version.version,
                         "step": 1,
-                        "correlation_id": str(correlation_id)
-                    }
+                        "correlation_id": str(correlation_id),
+                    },
                 )
 
             # Complete execution
@@ -124,9 +132,7 @@ class DocumentGenerationService:
 
             # Update project status
             await self.project_repo.update(
-                project_id,
-                current_step=2,
-                status=ProjectStatus.IN_PROGRESS
+                project_id, current_step=2, status=ProjectStatus.IN_PROGRESS
             )
 
             await self.session.commit()
@@ -136,13 +142,15 @@ class DocumentGenerationService:
                 "document_id": str(doc_version.id),
                 "version": doc_version.version,
                 "correlation_id": str(correlation_id),
-                **result
+                **result,
             }
 
         except Exception as e:
             await self.exec_repo.fail_execution(execution.id, str(e))
             await self.session.rollback()
-            logger.exception("Business analysis failed", correlation_id=str(correlation_id))
+            logger.exception(
+                "Business analysis failed", correlation_id=str(correlation_id)
+            )
             raise
 
     async def execute_engineering_standards(
@@ -151,19 +159,20 @@ class DocumentGenerationService:
         user_id: UUID,
         technology_stack: list[str],
         language: str = "en",
-        team_experience_level: str | None = None
+        team_experience_level: str | None = None,
     ) -> dict[str, Any]:
         """Execute Step 2: Engineering Standards."""
         correlation_id = uuid4()
 
         # Get project description from previous step
         about_doc = await self.doc_repo.get_latest_version(
-            project_id=project_id,
-            document_type=DocumentType.ABOUT
+            project_id=project_id, document_type=DocumentType.ABOUT
         )
 
         if not about_doc:
-            raise ValueError("Business analysis must be completed before engineering standards")
+            raise ValueError(
+                "Business analysis must be completed before engineering standards"
+            )
 
         # Create project context
         context = ProjectContext(
@@ -172,7 +181,7 @@ class DocumentGenerationService:
             current_step=2,
             correlation_id=str(correlation_id),
             language=language,
-            user_id=str(user_id)
+            user_id=str(user_id),
         )
 
         # Start execution tracking
@@ -183,9 +192,9 @@ class DocumentGenerationService:
             input_data={
                 "project_description": about_doc.content,
                 "technology_stack": technology_stack,
-                "team_experience_level": team_experience_level
+                "team_experience_level": team_experience_level,
             },
-            initiated_by=user_id
+            initiated_by=user_id,
         )
 
         try:
@@ -194,12 +203,15 @@ class DocumentGenerationService:
                 context=context,
                 project_description=about_doc.content,
                 technology_stack=technology_stack,
-                team_experience_level=team_experience_level
+                team_experience_level=team_experience_level,
             )
 
             # Short-circuit on failed workflow response
             if result.get("status") not in ("completed", "success"):
-                msg = result.get("error_message") or "Engineering standards did not complete successfully"
+                msg = (
+                    result.get("error_message")
+                    or "Engineering standards did not complete successfully"
+                )
                 await self.exec_repo.fail_execution(execution.id, msg)
                 logger.error(
                     "Engineering standards returned non-completed status",
@@ -210,7 +222,12 @@ class DocumentGenerationService:
                     tenant_id=str(self.tenant_id),
                 )
                 await self.session.commit()
-                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
+                return {
+                    **result,
+                    "status": "failed",
+                    "error_message": msg,
+                    "correlation_id": str(correlation_id),
+                }
 
             # Save document version
             doc_version = await self.doc_repo.create_version(
@@ -223,8 +240,8 @@ class DocumentGenerationService:
                     "confidence_score": result.get("confidence_score", 0.0),
                     "validation_result": result.get("validation_result", {}),
                     "technology_stack": technology_stack,
-                    "correlation_id": str(correlation_id)
-                }
+                    "correlation_id": str(correlation_id),
+                },
             )
 
             # Store standards knowledge in vector database
@@ -237,8 +254,8 @@ class DocumentGenerationService:
                         "document_id": str(doc_version.id),
                         "version": doc_version.version,
                         "step": 2,
-                        "correlation_id": str(correlation_id)
-                    }
+                        "correlation_id": str(correlation_id),
+                    },
                 )
 
             # Complete execution
@@ -254,13 +271,15 @@ class DocumentGenerationService:
                 "document_id": str(doc_version.id),
                 "version": doc_version.version,
                 "correlation_id": str(correlation_id),
-                **result
+                **result,
             }
 
         except Exception as e:
             await self.exec_repo.fail_execution(execution.id, str(e))
             await self.session.rollback()
-            logger.exception("Engineering standards failed", correlation_id=str(correlation_id))
+            logger.exception(
+                "Engineering standards failed", correlation_id=str(correlation_id)
+            )
             raise
 
     async def execute_architecture_design(
@@ -268,23 +287,23 @@ class DocumentGenerationService:
         project_id: UUID,
         user_id: UUID,
         language: str = "en",
-        user_tech_preferences: dict[str, Any] | None = None
+        user_tech_preferences: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute Step 3: Architecture Design."""
         correlation_id = uuid4()
 
         # Get previous documents (about and specs)
         about_doc = await self.doc_repo.get_latest_version(
-            project_id=project_id,
-            document_type=DocumentType.ABOUT
+            project_id=project_id, document_type=DocumentType.ABOUT
         )
         specs_doc = await self.doc_repo.get_latest_version(
-            project_id=project_id,
-            document_type=DocumentType.SPECS
+            project_id=project_id, document_type=DocumentType.SPECS
         )
 
         if not about_doc or not specs_doc:
-            raise ValueError("Business analysis and engineering standards must be completed before architecture design")
+            raise ValueError(
+                "Business analysis and engineering standards must be completed before architecture design"
+            )
 
         # Create project context
         context = ProjectContext(
@@ -293,7 +312,7 @@ class DocumentGenerationService:
             current_step=3,
             correlation_id=str(correlation_id),
             language=language,
-            user_id=str(user_id)
+            user_id=str(user_id),
         )
 
         # Start execution tracking
@@ -304,9 +323,9 @@ class DocumentGenerationService:
             input_data={
                 "project_description": about_doc.content,
                 "engineering_standards": specs_doc.content,
-                "user_tech_preferences": user_tech_preferences
+                "user_tech_preferences": user_tech_preferences,
             },
-            initiated_by=user_id
+            initiated_by=user_id,
         )
 
         try:
@@ -315,12 +334,15 @@ class DocumentGenerationService:
                 context=context,
                 project_description=about_doc.content,
                 engineering_standards=specs_doc.content,
-                user_tech_preferences=user_tech_preferences
+                user_tech_preferences=user_tech_preferences,
             )
 
             # Short-circuit on failed workflow response
             if result.get("status") not in ("completed", "success"):
-                msg = result.get("error_message") or "Architecture design did not complete successfully"
+                msg = (
+                    result.get("error_message")
+                    or "Architecture design did not complete successfully"
+                )
                 await self.exec_repo.fail_execution(execution.id, msg)
                 logger.error(
                     "Architecture design returned non-completed status",
@@ -331,7 +353,12 @@ class DocumentGenerationService:
                     tenant_id=str(self.tenant_id),
                 )
                 await self.session.commit()
-                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
+                return {
+                    **result,
+                    "status": "failed",
+                    "error_message": msg,
+                    "correlation_id": str(correlation_id),
+                }
 
             # Save document version
             doc_version = await self.doc_repo.create_version(
@@ -343,8 +370,8 @@ class DocumentGenerationService:
                 metadata={
                     "confidence_score": result.get("confidence_score", 0.0),
                     "validation_result": result.get("validation_result", {}),
-                    "correlation_id": str(correlation_id)
-                }
+                    "correlation_id": str(correlation_id),
+                },
             )
 
             # Store technical knowledge in vector database
@@ -357,8 +384,8 @@ class DocumentGenerationService:
                         "document_id": str(doc_version.id),
                         "version": doc_version.version,
                         "step": 3,
-                        "correlation_id": str(correlation_id)
-                    }
+                        "correlation_id": str(correlation_id),
+                    },
                 )
 
             # Complete execution
@@ -374,13 +401,15 @@ class DocumentGenerationService:
                 "document_id": str(doc_version.id),
                 "version": doc_version.version,
                 "correlation_id": str(correlation_id),
-                **result
+                **result,
             }
 
         except Exception as e:
             await self.exec_repo.fail_execution(execution.id, str(e))
             await self.session.rollback()
-            logger.exception("Architecture design failed", correlation_id=str(correlation_id))
+            logger.exception(
+                "Architecture design failed", correlation_id=str(correlation_id)
+            )
             raise
 
     async def execute_implementation_planning(
@@ -388,18 +417,26 @@ class DocumentGenerationService:
         project_id: UUID,
         user_id: UUID,
         language: str = "en",
-        team_size: int | None = None
+        team_size: int | None = None,
     ) -> dict[str, Any]:
         """Execute Step 4: Implementation Planning."""
         correlation_id = uuid4()
 
         # Get all previous documents for context
-        about_doc = await self.doc_repo.get_latest_version(project_id, DocumentType.ABOUT)
-        specs_doc = await self.doc_repo.get_latest_version(project_id, DocumentType.SPECS)
-        arch_doc = await self.doc_repo.get_latest_version(project_id, DocumentType.ARCHITECTURE)
+        about_doc = await self.doc_repo.get_latest_version(
+            project_id, DocumentType.ABOUT
+        )
+        specs_doc = await self.doc_repo.get_latest_version(
+            project_id, DocumentType.SPECS
+        )
+        arch_doc = await self.doc_repo.get_latest_version(
+            project_id, DocumentType.ARCHITECTURE
+        )
 
         if not about_doc or not specs_doc or not arch_doc:
-            raise ValueError("All previous steps (business analysis, engineering standards, architecture) must be completed before implementation planning")
+            raise ValueError(
+                "All previous steps (business analysis, engineering standards, architecture) must be completed before implementation planning"
+            )
 
         # Create project context
         context = ProjectContext(
@@ -408,7 +445,7 @@ class DocumentGenerationService:
             current_step=4,
             correlation_id=str(correlation_id),
             language=language,
-            user_id=str(user_id)
+            user_id=str(user_id),
         )
 
         # Start execution tracking
@@ -420,9 +457,9 @@ class DocumentGenerationService:
                 "project_description": about_doc.content,
                 "engineering_standards": specs_doc.content,
                 "architecture_overview": arch_doc.content,
-                "team_size": team_size
+                "team_size": team_size,
             },
-            initiated_by=user_id
+            initiated_by=user_id,
         )
 
         try:
@@ -432,12 +469,15 @@ class DocumentGenerationService:
                 project_description=about_doc.content,
                 engineering_standards=specs_doc.content,
                 architecture_overview=arch_doc.content,
-                team_size=team_size
+                team_size=team_size,
             )
 
             # Short-circuit on failed workflow response
             if result.get("status") not in ("completed", "success"):
-                msg = result.get("error_message") or "Implementation planning did not complete successfully"
+                msg = (
+                    result.get("error_message")
+                    or "Implementation planning did not complete successfully"
+                )
                 await self.exec_repo.fail_execution(execution.id, msg)
                 logger.error(
                     "Implementation planning returned non-completed status",
@@ -448,7 +488,12 @@ class DocumentGenerationService:
                     tenant_id=str(self.tenant_id),
                 )
                 await self.session.commit()
-                return {**result, "status": "failed", "error_message": msg, "correlation_id": str(correlation_id)}
+                return {
+                    **result,
+                    "status": "failed",
+                    "error_message": msg,
+                    "correlation_id": str(correlation_id),
+                }
 
             # Save overview document
             overview_doc = await self.doc_repo.create_version(
@@ -459,8 +504,8 @@ class DocumentGenerationService:
                 created_by=user_id,
                 metadata={
                     "confidence_score": result.get("confidence_score", 0.0),
-                    "correlation_id": str(correlation_id)
-                }
+                    "correlation_id": str(correlation_id),
+                },
             )
 
             # Save individual epic documents
@@ -478,8 +523,8 @@ class DocumentGenerationService:
                         metadata={
                             "estimated_duration": epic.get("estimated_duration"),
                             "dependencies": epic.get("dependencies", []),
-                            "correlation_id": str(correlation_id)
-                        }
+                            "correlation_id": str(correlation_id),
+                        },
                     )
                     epic_docs.append(epic_doc)
 
@@ -493,8 +538,8 @@ class DocumentGenerationService:
                     "document_id": str(overview_doc.id),
                     "version": overview_doc.version,
                     "step": 4,
-                    "correlation_id": str(correlation_id)
-                }
+                    "correlation_id": str(correlation_id),
+                },
             )
             # Epics
             if "epics" in result and epic_docs:
@@ -502,14 +547,16 @@ class DocumentGenerationService:
                 epic_metadata = []
                 for epic, doc in zip(result["epics"], epic_docs, strict=False):
                     epic_chunks.append(epic["content"])
-                    epic_metadata.append({
-                        "document_id": str(doc.id),
-                        "version": doc.version,
-                        "step": 4,
-                        "epic_number": doc.epic_number,
-                        "epic_name": doc.epic_name,
-                        "correlation_id": str(correlation_id)
-                    })
+                    epic_metadata.append(
+                        {
+                            "document_id": str(doc.id),
+                            "version": doc.version,
+                            "step": 4,
+                            "epic_number": doc.epic_number,
+                            "epic_name": doc.epic_name,
+                            "correlation_id": str(correlation_id),
+                        }
+                    )
                 await self.qdrant_service.upsert_documents(
                     documents=epic_chunks,
                     metadata_list=[
@@ -519,34 +566,41 @@ class DocumentGenerationService:
                             "document_type": DocumentType.PLAN_EPIC.value,
                             "type": DocumentType.PLAN_EPIC.value,
                             "visibility": "private",
-                            **md
-                        } for md in epic_metadata
-                    ]
+                            **md,
+                        }
+                        for md in epic_metadata
+                    ],
                 )
 
             # Complete execution
             await self.exec_repo.complete_execution(execution.id, result)
 
             # Update project status to completed
-            await self.project_repo.update(
-                project_id,
-                status=ProjectStatus.COMPLETED
-            )
+            await self.project_repo.update(project_id, status=ProjectStatus.COMPLETED)
 
             await self.session.commit()
 
             return {
                 "status": "completed",
                 "overview_document_id": str(overview_doc.id),
-                "epic_documents": [{"id": str(doc.id), "epic_number": doc.epic_number, "title": doc.title} for doc in epic_docs],
+                "epic_documents": [
+                    {
+                        "id": str(doc.id),
+                        "epic_number": doc.epic_number,
+                        "title": doc.title,
+                    }
+                    for doc in epic_docs
+                ],
                 "correlation_id": str(correlation_id),
-                **result
+                **result,
             }
 
         except Exception as e:
             await self.exec_repo.fail_execution(execution.id, str(e))
             await self.session.rollback()
-            logger.exception("Implementation planning failed", correlation_id=str(correlation_id))
+            logger.exception(
+                "Implementation planning failed", correlation_id=str(correlation_id)
+            )
             raise
 
     async def get_project_progress(self, project_id: UUID) -> dict[str, Any]:
@@ -560,7 +614,11 @@ class DocumentGenerationService:
         # Normalize keys and preserve multiple epics
         doc_by_type: dict[str, Any] = {}
         for doc in documents:
-            key = doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type)
+            key = (
+                doc.document_type.value
+                if hasattr(doc.document_type, "value")
+                else str(doc.document_type)
+            )
             if key == DocumentType.PLAN_EPIC.value:
                 doc_by_type.setdefault(key, []).append(doc)
             else:
@@ -612,7 +670,7 @@ class DocumentGenerationService:
                 for doc_type, docs in doc_by_type.items()
             },
             "execution_stats": exec_stats,
-            "updated_at": project.updated_at.isoformat()
+            "updated_at": project.updated_at.isoformat(),
         }
 
     async def _store_knowledge_vectors(
@@ -620,7 +678,7 @@ class DocumentGenerationService:
         project_id: UUID,
         document_type: str,
         content_chunks: list[str],
-        metadata: dict[str, Any]
+        metadata: dict[str, Any],
     ) -> None:
         """Store content chunks in vector database for context retrieval."""
         try:
@@ -631,14 +689,32 @@ class DocumentGenerationService:
                 "type": document_type,
                 "category": "knowledge",
                 "visibility": "private",
-                **metadata
+                **metadata,
             }
 
             await self.qdrant_service.upsert_documents(
                 documents=content_chunks,
-                metadata_list=[base_metadata.copy() for _ in content_chunks]
+                metadata_list=[base_metadata.copy() for _ in content_chunks],
             )
 
+        except (ConnectionError, TimeoutError) as e:
+            logger.warning(
+                "Vector database connection failed",
+                error=str(e),
+                correlation_id=metadata.get("correlation_id"),
+                project_id=str(project_id),
+                tenant_id=str(self.tenant_id),
+                document_type=document_type,
+            )
+        except (ValueError, KeyError, TypeError) as e:
+            logger.warning(
+                "Invalid data for vector storage",
+                error=str(e),
+                correlation_id=metadata.get("correlation_id"),
+                project_id=str(project_id),
+                tenant_id=str(self.tenant_id),
+                document_type=document_type,
+            )
         except Exception as e:
             logger.warning(
                 "Failed to store knowledge vectors",
@@ -647,5 +723,6 @@ class DocumentGenerationService:
                 project_id=str(project_id),
                 tenant_id=str(self.tenant_id),
                 document_type=document_type,
+                exc_info=True,
             )
             # Don't fail the main operation if vector storage fails

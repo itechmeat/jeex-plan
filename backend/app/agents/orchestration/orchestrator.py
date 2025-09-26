@@ -6,7 +6,7 @@ import asyncio
 import inspect
 import os
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -18,6 +18,7 @@ from ..base.vector_context import vector_context
 from ..contracts.base import (
     AgentError,
     AgentExecutionResult,
+    AgentInput,
     AgentOutput,
     ProgressUpdate,
     ProjectContext,
@@ -71,8 +72,25 @@ class AgentOrchestrator:
             await llm_manager.initialize()
             await vector_context.initialize()
             self.logger.info("Agent orchestrator initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize orchestrator: {e}")
+        except (ConnectionError, TimeoutError) as exc:
+            self.logger.error(
+                "Connection error initializing orchestrator", error=str(exc)
+            )
+            raise
+        except (ValueError, TypeError, AttributeError) as exc:
+            self.logger.error(
+                "Configuration error initializing orchestrator", error=str(exc)
+            )
+            raise
+        except (ImportError, ModuleNotFoundError) as exc:
+            self.logger.error(
+                "Module import error initializing orchestrator", error=str(exc)
+            )
+            raise
+        except Exception as exc:
+            self.logger.exception(
+                "Unexpected error initializing orchestrator", error=str(exc)
+            )
             raise
 
     def register_progress_callback(
@@ -89,10 +107,10 @@ class AgentOrchestrator:
         self,
         step: WorkflowStep,
         context: ProjectContext,
-        input_data: Any,
+        input_data: AgentInput,
     ) -> AgentExecutionResult:
         """Execute a specific workflow step."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         correlation_id = context.correlation_id
 
         try:
@@ -166,7 +184,7 @@ class AgentOrchestrator:
                 status="completed",
                 error_message=None,
                 started_at=start_time,
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(UTC),
             )
 
             await self._emit_progress(
@@ -187,8 +205,8 @@ class AgentOrchestrator:
 
             return execution_result
 
-        except Exception as e:
-            exec_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+        except (ConnectionError, TimeoutError) as e:
+            exec_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
             # Create valid empty output data for failed execution
             empty_output = AgentOutput(
@@ -212,7 +230,99 @@ class AgentOrchestrator:
                 status="failed",
                 error_message=str(e),
                 started_at=start_time,
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(UTC),
+            )
+
+            await self._emit_progress(
+                context, f"Failed {step.value}", 0.0, "Connection error"
+            )
+
+            self.logger.error(
+                "Workflow step connection failed",
+                step=step.value,
+                correlation_id=correlation_id,
+                execution_time_ms=exec_time_ms,
+                error=str(e),
+            )
+
+            raise AgentError(
+                message=f"Step {step.value} connection failed",
+                agent_type="orchestrator",
+                correlation_id=correlation_id,
+                details={"step": step.value, "execution_time_ms": exec_time_ms},
+            ) from e
+        except (ValueError, KeyError, TypeError) as e:
+            exec_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+
+            # Create valid empty output data for failed execution
+            empty_output = AgentOutput(
+                content="",
+                confidence_score=0.0,
+                validation_result=ValidationResult(
+                    passed=False,
+                    score=0.0,
+                    details={"error": str(e)},
+                    missing_sections=[],
+                    suggestions=[],
+                ),
+                metadata={"error": True, "error_message": str(e)},
+                processing_time_ms=exec_time_ms,
+            )
+
+            execution_result = AgentExecutionResult(
+                agent_type=step.value,
+                input_data=input_data,
+                output_data=empty_output,
+                status="failed",
+                error_message=str(e),
+                started_at=start_time,
+                completed_at=datetime.now(UTC),
+            )
+
+            await self._emit_progress(
+                context, f"Failed {step.value}", 0.0, "Validation error"
+            )
+
+            self.logger.error(
+                "Workflow step validation failed",
+                step=step.value,
+                correlation_id=correlation_id,
+                execution_time_ms=exec_time_ms,
+                error=str(e),
+            )
+
+            raise AgentError(
+                message=f"Step {step.value} validation failed",
+                agent_type="orchestrator",
+                correlation_id=correlation_id,
+                details={"step": step.value, "execution_time_ms": exec_time_ms},
+            ) from e
+        except Exception as e:
+            exec_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+
+            # Create valid empty output data for failed execution
+            empty_output = AgentOutput(
+                content="",
+                confidence_score=0.0,
+                validation_result=ValidationResult(
+                    passed=False,
+                    score=0.0,
+                    details={"error": str(e)},
+                    missing_sections=[],
+                    suggestions=[],
+                ),
+                metadata={"error": True, "error_message": str(e)},
+                processing_time_ms=exec_time_ms,
+            )
+
+            execution_result = AgentExecutionResult(
+                agent_type=step.value,
+                input_data=input_data,
+                output_data=empty_output,
+                status="failed",
+                error_message=str(e),
+                started_at=start_time,
+                completed_at=datetime.now(UTC),
             )
 
             await self._emit_progress(
@@ -220,7 +330,7 @@ class AgentOrchestrator:
             )
 
             self.logger.exception(
-                "Workflow step execution failed",
+                "Workflow step execution failed unexpectedly",
                 step=step.value,
                 correlation_id=correlation_id,
                 execution_time_ms=exec_time_ms,
@@ -236,7 +346,7 @@ class AgentOrchestrator:
     async def execute_full_workflow(
         self,
         context: ProjectContext,
-        step_inputs: dict[WorkflowStep, Any],
+        step_inputs: dict[WorkflowStep, AgentInput],
     ) -> dict[WorkflowStep, AgentExecutionResult]:
         """Execute complete 4-step workflow."""
         results = {}
@@ -300,9 +410,25 @@ class AgentOrchestrator:
 
             return results
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError) as e:
             self.logger.error(
-                "Full workflow execution failed",
+                "Full workflow connection failed",
+                correlation_id=context.correlation_id,
+                error=str(e),
+                completed_steps=len(results),
+            )
+            raise
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.error(
+                "Full workflow validation failed",
+                correlation_id=context.correlation_id,
+                error=str(e),
+                completed_steps=len(results),
+            )
+            raise
+        except Exception as e:
+            self.logger.exception(
+                "Full workflow execution failed unexpectedly",
                 correlation_id=context.correlation_id,
                 error=str(e),
                 completed_steps=len(results),
@@ -330,9 +456,27 @@ class AgentOrchestrator:
                     # Handle sync callback in executor to avoid blocking
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, callback, update)
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError) as e:
                 self.logger.warning(
-                    "Progress callback failed",
+                    "Progress callback data error",
+                    correlation_id=context.correlation_id,
+                    error=str(e),
+                )
+            except (ConnectionError, TimeoutError) as e:
+                self.logger.warning(
+                    "Progress callback connection error",
+                    correlation_id=context.correlation_id,
+                    error=str(e),
+                )
+            except (ImportError, ModuleNotFoundError, KeyError) as e:
+                self.logger.warning(
+                    "Progress callback module or key error",
+                    correlation_id=context.correlation_id,
+                    error=str(e),
+                )
+            except (RuntimeError, OSError, MemoryError, IndexError) as e:
+                self.logger.exception(
+                    "Progress callback runtime error",
                     correlation_id=context.correlation_id,
                     error=str(e),
                 )
@@ -365,12 +509,29 @@ class AgentOrchestrator:
                 "workflow_steps": [step.value for step in WorkflowStep],
             }
 
-        except Exception:
-            self.logger.exception("Orchestrator health check failed")
+        except (ConnectionError, TimeoutError):
+            self.logger.error("Orchestrator health check connection failed")
             return {
                 "status": "unhealthy",
                 "available_agents": 0,
                 "workflow_steps": [],
+                "error": "connection_failed",
+            }
+        except (ValueError, KeyError, TypeError, AttributeError):
+            self.logger.error("Orchestrator health check validation failed")
+            return {
+                "status": "unhealthy",
+                "available_agents": 0,
+                "workflow_steps": [],
+                "error": "validation_failed",
+            }
+        except Exception:
+            self.logger.exception("Orchestrator health check failed unexpectedly")
+            return {
+                "status": "unhealthy",
+                "available_agents": 0,
+                "workflow_steps": [],
+                "error": "unexpected_error",
             }
 
 

@@ -12,7 +12,10 @@ from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..core.config import get_settings
+from ..core.logger import get_logger
 from ..middleware.tenant import TenantContextManager
+
+logger = get_logger(__name__)
 
 settings = get_settings()
 
@@ -25,7 +28,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         app,
         redis_client: redis.Redis | None = None,
         default_requests: int = 100,
-        default_window: int = 60
+        default_window: int = 60,
     ) -> None:
         super().__init__(app)
         self.redis_client = redis_client
@@ -46,7 +49,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Get Redis client from app state if not provided during init
-        redis_client = self.redis_client or getattr(request.app.state, 'redis_client', None)
+        redis_client = self.redis_client or getattr(
+            request.app.state, "redis_client", None
+        )
 
         # Skip if Redis is not available
         if not redis_client:
@@ -59,7 +64,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Rate limit exceeded",
-                headers=headers
+                headers=headers,
             )
 
         # Process request
@@ -71,7 +76,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    async def _check_rate_limit(self, request: Request, redis_client=None) -> tuple[bool, dict]:
+    async def _check_rate_limit(
+        self, request: Request, redis_client=None
+    ) -> tuple[bool, dict]:
         """Check if request is within rate limits."""
 
         # Get rate limit configuration based on endpoint and user
@@ -96,7 +103,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         results = await pipe.execute()
 
         current_requests = 0
-        if isinstance(results, (list, tuple)) and len(results) > 2 and results[2] is not None:
+        if (
+            isinstance(results, list | tuple)
+            and len(results) > 2
+            and results[2] is not None
+        ):
             current_requests = results[2]
 
         is_allowed = current_requests <= requests_limit
@@ -116,7 +127,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "X-RateLimit-Limit": requests_limit,
             "X-RateLimit-Remaining": remaining,
             "X-RateLimit-Reset": reset_time,
-            "X-RateLimit-Window": time_window
+            "X-RateLimit-Window": time_window,
         }
 
         return is_allowed, headers
@@ -125,18 +136,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Get rate limit configuration for the request."""
 
         # Default limits
-        config = {
-            "requests": self.default_requests,
-            "window": self.default_window
-        }
+        config = {"requests": self.default_requests, "window": self.default_window}
 
         # Apply endpoint-specific limits
         endpoint_limits = {
             "/auth/login": {"requests": 5, "window": 300},  # 5 requests per 5 minutes
             "/auth/register": {"requests": 3, "window": 3600},  # 3 requests per hour
             "/auth/oauth": {"requests": 10, "window": 300},  # 10 requests per 5 minutes
-            "/api/v1/projects": {"requests": 200, "window": 60},  # 200 requests per minute
-            "/api/v1/documents": {"requests": 300, "window": 60},  # 300 requests per minute
+            "/api/v1/projects": {
+                "requests": 200,
+                "window": 60,
+            },  # 200 requests per minute
+            "/api/v1/documents": {
+                "requests": 300,
+                "window": 60,
+            },  # 300 requests per minute
             "/api/v1/agents": {"requests": 50, "window": 60},  # 50 requests per minute
         }
 
@@ -148,8 +162,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Apply user-specific multipliers (premium users could have higher limits)
         tenant_id = TenantContextManager.get_tenant_id(request)
         if tenant_id:
-            # Could implement tenant-based rate limits here
-            pass
+            # TODO: Implement tenant-based rate limits here
+            # For now, use default config for all tenants
+            logger.debug("Tenant-specific rate limits not implemented", tenant_id=tenant_id)
 
         return config
 
@@ -209,11 +224,7 @@ class RateLimitService:
         window_start = current_time - settings.RATE_LIMIT_WINDOW
 
         # Get request count in current window
-        request_count = await self.redis_client.zcount(
-            key,
-            window_start,
-            current_time
-        )
+        request_count = await self.redis_client.zcount(key, window_start, current_time)
 
         # Get TTL
         ttl = await self.redis_client.ttl(key)
@@ -223,7 +234,7 @@ class RateLimitService:
             "requests_limit": settings.RATE_LIMIT_REQUESTS,
             "requests_remaining": max(0, settings.RATE_LIMIT_REQUESTS - request_count),
             "window_size": settings.RATE_LIMIT_WINDOW,
-            "reset_time": current_time + ttl if ttl > 0 else None
+            "reset_time": current_time + ttl if ttl > 0 else None,
         }
 
     async def reset_rate_limit(self, key: str) -> bool:
@@ -233,15 +244,12 @@ class RateLimitService:
         return result > 0
 
     async def set_custom_limit(
-        self,
-        identifier: str,
-        requests: int,
-        window: int,
-        duration: int | None = None
+        self, identifier: str, requests: int, window: int, duration: int | None = None
     ) -> bool:
         """Set custom rate limit for a specific identifier."""
 
         import json
+
         key = f"custom_limit:{identifier}"
         value = {"requests": requests, "window": window}
 
@@ -261,6 +269,7 @@ class RateLimitService:
         if value:
             try:
                 import json
+
                 return json.loads(value)
             except (json.JSONDecodeError, TypeError):
                 return None
@@ -274,10 +283,7 @@ class RateLimitService:
 
         async for key in self.redis_client.scan_iter(match=f"rl:{pattern}"):
             status = await self.get_rate_limit_status(key)
-            result.append({
-                "key": key,
-                "status": status
-            })
+            result.append({"key": key, "status": status})
 
         return result
 
@@ -291,9 +297,7 @@ class RateLimitService:
         async for key in self.redis_client.scan_iter(match="rl:*"):
             # Remove entries older than maximum window
             removed = await self.redis_client.zremrangebyscore(
-                key,
-                0,
-                current_time - (settings.RATE_LIMIT_WINDOW * 2)
+                key, 0, current_time - (settings.RATE_LIMIT_WINDOW * 2)
             )
             expired_count += removed
 

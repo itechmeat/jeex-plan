@@ -30,7 +30,9 @@ class QdrantService:
     """Service for vector database operations with multi-tenant support."""
 
     def __init__(self) -> None:
-        self.client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+        self.client = QdrantClient(
+            url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY
+        )
         self.collection_name = settings.QDRANT_COLLECTION
         self.embedding_service = EmbeddingService()
         self._collection_initialized = False
@@ -52,14 +54,21 @@ class QdrantService:
                 await asyncio.get_event_loop().run_in_executor(
                     None, self._create_collection
                 )
-                logger.info(f"Created Qdrant collection: {self.collection_name}")
+                logger.info(
+                    "Created Qdrant collection", collection=self.collection_name
+                )
             else:
-                logger.info(f"Qdrant collection already exists: {self.collection_name}")
+                logger.info(
+                    "Qdrant collection already exists",
+                    collection=self.collection_name,
+                )
 
             self._collection_initialized = True
 
-        except Exception as e:
-            logger.error(f"Failed to initialize Qdrant collection: {e}")
+        except Exception as exc:
+            logger.error(
+                "Failed to initialize Qdrant collection", error=str(exc)
+            )
             raise
 
     def _create_collection(self) -> None:
@@ -68,43 +77,37 @@ class QdrantService:
             collection_name=self.collection_name,
             vectors_config=VectorParams(
                 size=1536,  # OpenAI text-embedding-3-small dimension
-                distance=Distance.COSINE
+                distance=Distance.COSINE,
             ),
             hnsw_config=HnswConfigDiff(
                 m=0,  # Disable global graph for multi-tenant optimization
-                payload_m=16  # Create payload-specific connections
-            )
+                payload_m=16,  # Create payload-specific connections
+            ),
         )
 
         # Create payload indexes for efficient filtering
         self.client.create_payload_index(
             collection_name=self.collection_name,
             field_name="tenant_id",
-            field_schema=models.KeywordIndexParams()
+            field_schema=models.KeywordIndexParams(),
         )
         self.client.create_payload_index(
             collection_name=self.collection_name,
             field_name="project_id",
-            field_schema=models.KeywordIndexParams()
+            field_schema=models.KeywordIndexParams(),
         )
         self.client.create_payload_index(
             collection_name=self.collection_name,
             field_name="type",
-            field_schema=models.KeywordIndexParams()
+            field_schema=models.KeywordIndexParams(),
         )
 
     def _create_tenant_filter(self, tenant_id: str, project_id: str) -> Filter:
         """Create filter for tenant and project isolation."""
         return Filter(
             must=[
-                FieldCondition(
-                    key="tenant_id",
-                    match=MatchValue(value=tenant_id)
-                ),
-                FieldCondition(
-                    key="project_id",
-                    match=MatchValue(value=project_id)
-                )
+                FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
+                FieldCondition(key="project_id", match=MatchValue(value=project_id)),
             ]
         )
 
@@ -112,7 +115,7 @@ class QdrantService:
         self,
         documents: list[str],
         metadata_list: list[dict[str, Any]],
-        ids: list[str] | None = None
+        ids: list[str] | None = None,
     ) -> list[str]:
         """Upsert documents with embeddings into Qdrant."""
         await self.initialize()
@@ -130,6 +133,8 @@ class QdrantService:
             # Generate IDs if not provided
             if ids is None:
                 ids = [str(uuid4()) for _ in documents]
+            elif len(ids) != len(documents):
+                raise ValueError("Length of ids must match number of documents")
 
             # Validate metadata has required fields
             required_fields = {"tenant_id", "project_id", "type"}
@@ -142,7 +147,9 @@ class QdrantService:
 
             # Create points
             points = []
-            for i, (doc, embedding, metadata) in enumerate(zip(documents, embeddings, metadata_list, strict=False)):
+            for i, (doc, embedding, metadata) in enumerate(
+                zip(documents, embeddings, metadata_list, strict=False)
+            ):
                 # Add document content to metadata
                 full_metadata = {
                     **metadata,
@@ -155,24 +162,29 @@ class QdrantService:
                     "document_id": metadata.get("document_id", ids[i]),
                 }
 
-                point = PointStruct(
-                    id=ids[i],
-                    vector=embedding,
-                    payload=full_metadata
-                )
+                point = PointStruct(id=ids[i], vector=embedding, payload=full_metadata)
                 points.append(point)
 
             # Upsert points
             await asyncio.get_event_loop().run_in_executor(
-                None, self.client.upsert,
-                self.collection_name, points
+                None, self.client.upsert, self.collection_name, points
             )
 
-            logger.info(f"Upserted {len(points)} documents to Qdrant")
+            logger.info(
+                "Upserted documents to Qdrant",
+                count=len(points),
+                tenant_id=tenant_id,
+                project_id=project_id,
+            )
             return ids
 
-        except Exception as e:
-            logger.error(f"Failed to upsert documents to Qdrant: {e}")
+        except Exception as exc:
+            logger.error(
+                "Failed to upsert documents to Qdrant",
+                error=str(exc),
+                tenant_id=tenant_id,
+                project_id=project_id,
+            )
             raise
 
     async def search_documents(
@@ -183,7 +195,7 @@ class QdrantService:
         limit: int = 10,
         score_threshold: float = 0.7,
         document_type: str | None = None,
-        additional_filters: dict[str, Any] | None = None
+        additional_filters: dict[str, Any] | None = None,
     ) -> list[tuple[str, dict[str, Any], float]]:
         """Search documents with tenant and project isolation."""
         await self.initialize()
@@ -196,7 +208,7 @@ class QdrantService:
             # Create base filter
             filter_conditions = [
                 FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
-                FieldCondition(key="project_id", match=MatchValue(value=project_id))
+                FieldCondition(key="project_id", match=MatchValue(value=project_id)),
             ]
 
             # Add document type filter if specified
@@ -216,8 +228,14 @@ class QdrantService:
 
             # Search
             search_result = await asyncio.get_event_loop().run_in_executor(
-                None, self.client.search,
-                self.collection_name, query_vector, search_filter, limit, True
+                None,
+                lambda: self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_vector,
+                    query_filter=search_filter,
+                    limit=limit,
+                    with_payload=True,
+                ),
             )
 
             # Filter by score threshold and format results
@@ -225,14 +243,21 @@ class QdrantService:
             for point in search_result:
                 if point.score >= score_threshold:
                     content = point.payload.get("content", "")
-                    metadata = {k: v for k, v in point.payload.items() if k != "content"}
+                    metadata = {
+                        k: v for k, v in point.payload.items() if k != "content"
+                    }
                     results.append((content, metadata, point.score))
 
-            logger.info(f"Found {len(results)} matching documents")
+            logger.info("Vector search completed", results_count=len(results))
             return results
 
-        except Exception as e:
-            logger.error(f"Failed to search documents in Qdrant: {e}")
+        except Exception as exc:
+            logger.error(
+                "Failed to search documents in Qdrant",
+                error=str(exc),
+                tenant_id=tenant_id,
+                project_id=project_id,
+            )
             raise
 
     async def get_document_context(
@@ -241,7 +266,7 @@ class QdrantService:
         project_id: str,
         query: str,
         max_context_length: int = 4000,
-        score_threshold: float = 0.7
+        score_threshold: float = 0.7,
     ) -> str:
         """Get relevant document context for a query."""
         try:
@@ -250,7 +275,7 @@ class QdrantService:
                 tenant_id=tenant_id,
                 project_id=project_id,
                 limit=20,
-                score_threshold=score_threshold
+                score_threshold=score_threshold,
             )
 
             if not search_results:
@@ -267,9 +292,13 @@ class QdrantService:
 
                 if total_length + len(full_content) > max_context_length:
                     # Add partial content if there's space
-                    remaining_space = max_context_length - total_length - len(doc_info) - 10
+                    remaining_space = (
+                        max_context_length - total_length - len(doc_info) - 10
+                    )
                     if remaining_space > 100:  # Only add if meaningful space
-                        partial_content = f"{doc_info}\n{content[:remaining_space]}...\n"
+                        partial_content = (
+                            f"{doc_info}\n{content[:remaining_space]}...\n"
+                        )
                         context_parts.append(partial_content)
                     break
 
@@ -278,8 +307,14 @@ class QdrantService:
 
             return "\n---\n".join(context_parts)
 
-        except Exception as e:
-            logger.error(f"Failed to get document context: {e}")
+        except (ConnectionError, TimeoutError) as exc:
+            logger.error("Qdrant connection failed during context retrieval", error=str(exc))
+            return ""
+        except (ValueError, KeyError, TypeError) as exc:
+            logger.error("Invalid data during context retrieval", error=str(exc))
+            return ""
+        except Exception as exc:
+            logger.error("Failed to get document context", error=str(exc), exc_info=True)
             return ""
 
     async def delete_project_documents(self, tenant_id: str, project_id: str) -> None:
@@ -292,21 +327,26 @@ class QdrantService:
 
             # Delete points
             await asyncio.get_event_loop().run_in_executor(
-                None, self.client.delete,
-                self.collection_name, models.FilterSelector(filter=project_filter)
+                None,
+                self.client.delete,
+                self.collection_name,
+                models.FilterSelector(filter=project_filter),
             )
 
-            logger.info(f"Deleted all documents for project {project_id}")
+            logger.info(
+                "Deleted all documents for project", project_id=str(project_id)
+            )
 
-        except Exception as e:
-            logger.error(f"Failed to delete project documents: {e}")
+        except Exception as exc:
+            logger.error(
+                "Failed to delete project documents",
+                error=str(exc),
+                project_id=str(project_id),
+            )
             raise
 
     async def delete_document_version(
-        self,
-        tenant_id: str,
-        project_id: str,
-        document_id: str
+        self, tenant_id: str, project_id: str, document_id: str
     ) -> None:
         """Delete specific document version."""
         await self.initialize()
@@ -316,21 +356,31 @@ class QdrantService:
             document_filter = Filter(
                 must=[
                     FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
-                    FieldCondition(key="project_id", match=MatchValue(value=project_id)),
-                    FieldCondition(key="document_id", match=MatchValue(value=document_id))
+                    FieldCondition(
+                        key="project_id", match=MatchValue(value=project_id)
+                    ),
+                    FieldCondition(
+                        key="document_id", match=MatchValue(value=document_id)
+                    ),
                 ]
             )
 
             # Delete points
             await asyncio.get_event_loop().run_in_executor(
-                None, self.client.delete,
-                self.collection_name, models.FilterSelector(filter=document_filter)
+                None,
+                self.client.delete,
+                self.collection_name,
+                models.FilterSelector(filter=document_filter),
             )
 
-            logger.info(f"Deleted document {document_id}")
+            logger.info("Deleted document", document_id=document_id)
 
-        except Exception as e:
-            logger.error(f"Failed to delete document: {e}")
+        except Exception as exc:
+            logger.error(
+                "Failed to delete document",
+                document_id=document_id,
+                error=str(exc),
+            )
             raise
 
     async def get_collection_stats(self) -> dict[str, Any]:
@@ -339,8 +389,7 @@ class QdrantService:
 
         try:
             info = await asyncio.get_event_loop().run_in_executor(
-                None, self.client.get_collection,
-                self.collection_name
+                None, self.client.get_collection, self.collection_name
             )
 
             return {
@@ -351,12 +400,12 @@ class QdrantService:
                     "vector_size": info.config.params.vectors.size,
                     "distance": info.config.params.vectors.distance.value,
                     "hnsw_m": info.config.hnsw_config.m,
-                    "hnsw_payload_m": info.config.hnsw_config.payload_m
-                }
+                    "hnsw_payload_m": info.config.hnsw_config.payload_m,
+                },
             }
 
-        except Exception as e:
-            logger.error(f"Failed to get collection stats: {e}")
+        except Exception as exc:
+            logger.error("Failed to get collection stats", error=str(exc))
             raise
 
     async def health_check(self) -> dict[str, Any]:
@@ -368,12 +417,18 @@ class QdrantService:
             return {
                 "status": "healthy",
                 "collection": self.collection_name,
-                "stats": stats
+                "stats": stats,
             }
 
+        except (ConnectionError, TimeoutError) as e:
+            return {
+                "status": "unhealthy",
+                "error": f"Connection failed: {str(e)}",
+                "collection": self.collection_name,
+            }
         except Exception as e:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "collection": self.collection_name
+                "collection": self.collection_name,
             }

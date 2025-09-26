@@ -10,7 +10,7 @@ import json
 import statistics
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.adapters.qdrant import QdrantAdapter
@@ -82,8 +82,11 @@ class VectorBenchmark:
                             }
                             doc_payloads.append(payload)
 
-                    except Exception as e:
+                    except (ValueError, RuntimeError) as e:
                         print(f"⚠️  Failed to process document: {e}")
+                    except Exception as e:
+                        print(f"⚠️  Unexpected error processing document: {e}")
+                        raise
 
                 # Store vectors
                 if doc_embeddings and doc_payloads:
@@ -130,8 +133,11 @@ class VectorBenchmark:
                 if (i + 1) % 20 == 0:
                     print(f"   Progress: {i + 1}/{iterations} requests")
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, RuntimeError) as e:
                 print(f"❌ Search failed on iteration {i + 1}: {e}")
+            except Exception as e:
+                print(f"❌ Unexpected search error on iteration {i + 1}: {e}")
+                raise
 
         if not latencies:
             return {"error": "All search requests failed"}
@@ -180,7 +186,7 @@ class VectorBenchmark:
                 latency_ms = (time.time() - start_time) * 1000
                 return {"success": True, "latency_ms": latency_ms, "results_count": len(results)}
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, RuntimeError) as e:
                 return {"success": False, "error": str(e), "latency_ms": (time.time() - start_time) * 1000}
 
         # Execute concurrent searches
@@ -337,7 +343,7 @@ class VectorBenchmark:
 
         results = {
             "benchmark_config": config,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "results": {}
         }
 
@@ -391,7 +397,7 @@ class VectorBenchmark:
         print("=" * 60)
 
         # Save results
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         results_file = f"vector_benchmark_results_{timestamp}.json"
         with open(results_file, "w") as f:
             json.dump(results, f, indent=2)

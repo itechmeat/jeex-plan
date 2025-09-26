@@ -25,6 +25,7 @@ from .project import Project
 
 class DocumentType(str, Enum):
     """Document type enumeration for the four-stage workflow."""
+
     ABOUT = "about"  # Step 1: Business Analysis
     SPECS = "specs"  # Step 2: Engineering Standards
     ARCHITECTURE = "architecture"  # Step 3: Solution Architecture
@@ -99,6 +100,8 @@ class DocumentVersion(BaseModel):
             "epic_number",
             "version",
             unique=True,
-            postgresql_where=text("epic_number IS NOT NULL AND document_type = 'plan_epic' AND is_deleted = false"),
+            postgresql_where=text(
+                "epic_number IS NOT NULL AND document_type = 'plan_epic' AND is_deleted = false"
+            ),
         ),
     )

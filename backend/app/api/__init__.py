@@ -2,7 +2,7 @@
 FastAPI application routes and schemas.
 """
 
-from . import agents, auth, health, projects
+from .routes import agents, auth, health, projects
 from .schemas import auth as auth_schemas
 from .schemas import project as project_schemas
 

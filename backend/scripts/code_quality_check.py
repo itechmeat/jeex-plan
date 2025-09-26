@@ -7,7 +7,6 @@ Checks for common issues like missing type hints, unused imports, etc.
 import ast
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 
 
 class CodeQualityChecker:
@@ -15,11 +14,11 @@ class CodeQualityChecker:
 
     def __init__(self, app_dir: Path):
         self.app_dir = app_dir
-        self.issues: List[str] = []
+        self.issues: list[str] = []
 
     def check_file(self, file_path: Path) -> None:
         """Check a single Python file for quality issues."""
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             content = f.read()
 
         try:
@@ -90,9 +89,9 @@ class QualityVisitor(ast.NodeVisitor):
 
     def __init__(self, file_path: Path):
         self.file_path = file_path
-        self.issues: List[str] = []
-        self.imports: Set[str] = set()
-        self.used_names: Set[str] = set()
+        self.issues: list[str] = []
+        self.imports: set[str] = set()
+        self.used_names: set[str] = set()
 
     def visit_Import(self, node: ast.Import) -> None:
         """Visit import statements."""
@@ -181,7 +180,7 @@ def main():
 
     if not app_dir.exists():
         print("App directory not found!")
-        return
+        raise SystemExit(1)
 
     checker = CodeQualityChecker(app_dir)
 

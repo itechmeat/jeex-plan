@@ -4,6 +4,7 @@ Security middleware for headers, CSRF protection, and other security measures.
 
 import hashlib
 import secrets
+from datetime import UTC
 
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -25,52 +26,46 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         # Security headers
-        response.headers.update({
-            # Prevent MIME type sniffing
-            "X-Content-Type-Options": "nosniff",
-
-            # Enable XSS filtering
-            "X-XSS-Protection": "1; mode=block",
-
-            # Control page embedding in frames
-            "X-Frame-Options": "DENY",
-
-            # Strict transport security (HTTPS only)
-            "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-
-            # Content Security Policy
-            "Content-Security-Policy": (
-                "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline'; "
-                "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: https:; "
-                "font-src 'self'; "
-                "connect-src 'self'; "
-                "frame-ancestors 'none';"
-            ),
-
-            # Referrer policy
-            "Referrer-Policy": "strict-origin-when-cross-origin",
-
-            # Permissions policy
-            "Permissions-Policy": (
-                "geolocation=(), "
-                "microphone=(), "
-                "camera=(), "
-                "payment=(), "
-                "usb=(), "
-                "magnetometer=(), "
-                "gyroscope=(), "
-                "speaker-selection=(), "
-                "fullscreen=()"
-            ),
-
-            # Server header obfuscation
-            "Server": "JEEX-API",
-
-            # Remove potentially sensitive headers
-            "X-Powered-By": "",
-        })
+        response.headers.update(
+            {
+                # Prevent MIME type sniffing
+                "X-Content-Type-Options": "nosniff",
+                # Enable XSS filtering
+                "X-XSS-Protection": "1; mode=block",
+                # Control page embedding in frames
+                "X-Frame-Options": "DENY",
+                # Strict transport security (HTTPS only)
+                "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+                # Content Security Policy
+                "Content-Security-Policy": (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline'; "
+                    "style-src 'self' 'unsafe-inline'; "
+                    "img-src 'self' data: https:; "
+                    "font-src 'self'; "
+                    "connect-src 'self'; "
+                    "frame-ancestors 'none';"
+                ),
+                # Referrer policy
+                "Referrer-Policy": "strict-origin-when-cross-origin",
+                # Permissions policy
+                "Permissions-Policy": (
+                    "geolocation=(), "
+                    "microphone=(), "
+                    "camera=(), "
+                    "payment=(), "
+                    "usb=(), "
+                    "magnetometer=(), "
+                    "gyroscope=(), "
+                    "speaker-selection=(), "
+                    "fullscreen=()"
+                ),
+                # Server header obfuscation
+                "Server": "JEEX-API",
+                # Remove potentially sensitive headers
+                "X-Powered-By": "",
+            }
+        )
 
         return response
 
@@ -123,7 +118,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if not await self._validate_csrf_token(request):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="CSRF token validation failed"
+                detail="CSRF token validation failed",
             )
 
         return await call_next(request)
@@ -163,10 +158,10 @@ class SecurityService:
 
         # Use PBKDF2 with SHA-256
         hash_obj = hashlib.pbkdf2_hmac(
-            'sha256',
-            password.encode('utf-8'),
-            salt.encode('utf-8'),
-            100000  # iterations
+            "sha256",
+            password.encode("utf-8"),
+            salt.encode("utf-8"),
+            100000,  # iterations
         )
 
         return hash_obj.hex(), salt
@@ -175,10 +170,7 @@ class SecurityService:
     def verify_password_hash(password: str, hashed: str, salt: str) -> bool:
         """Verify password against hash."""
         hash_obj = hashlib.pbkdf2_hmac(
-            'sha256',
-            password.encode('utf-8'),
-            salt.encode('utf-8'),
-            100000
+            "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
         )
 
         return secrets.compare_digest(hash_obj.hex(), hashed)
@@ -189,12 +181,14 @@ class SecurityService:
         return secrets.token_urlsafe(length)
 
     @staticmethod
-    def validate_input_length(value: str, max_length: int, field_name: str = "input") -> bool:
+    def validate_input_length(
+        value: str, max_length: int, field_name: str = "input"
+    ) -> bool:
         """Validate input length to prevent DoS attacks."""
         if len(value) > max_length:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{field_name} exceeds maximum length of {max_length} characters"
+                detail=f"{field_name} exceeds maximum length of {max_length} characters",
             )
         return True
 
@@ -208,10 +202,10 @@ class SecurityService:
         filename = os.path.basename(filename)
 
         # Replace dangerous characters
-        filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
+        filename = re.sub(r'[<>:"/\\|?*]', "_", filename)
 
         # Remove null bytes
-        filename = filename.replace('\x00', '')
+        filename = filename.replace("\x00", "")
 
         # Limit length
         if len(filename) > 255:
@@ -225,15 +219,15 @@ class SecurityService:
         """Basic email format validation."""
         import re
 
-        if email.count('@') != 1:
+        if email.count("@") != 1:
             return False
 
-        local_part, domain_part = email.split('@', 1)
+        local_part, domain_part = email.split("@", 1)
 
         if not local_part or not domain_part:
             return False
 
-        if '..' in local_part or '..' in domain_part:
+        if ".." in local_part or ".." in domain_part:
             return False
 
         pattern = r"^[a-zA-Z0-9](?:[a-zA-Z0-9._%+-]{0,62}[a-zA-Z0-9])?@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
@@ -276,14 +270,14 @@ class SecurityService:
             2: "Fair",
             3: "Good",
             4: "Strong",
-            5: "Very Strong"
+            5: "Very Strong",
         }
 
         return {
             "score": score,
             "strength": strength_levels[score],
             "is_strong": score >= 4,
-            "issues": issues
+            "issues": issues,
         }
 
     @staticmethod
@@ -293,20 +287,20 @@ class SecurityService:
         resource: str,
         details: dict | None = None,
         ip_address: str | None = None,
-        user_agent: str | None = None
+        user_agent: str | None = None,
     ) -> dict:
         """Generate standardized audit log entry."""
         from datetime import datetime
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "user_id": user_id,
             "action": action,
             "resource": resource,
             "details": details or {},
             "ip_address": ip_address,
             "user_agent": user_agent,
-            "session_id": SecurityService.generate_secure_token(16)
+            "session_id": SecurityService.generate_secure_token(16),
         }
 
 
@@ -328,17 +322,17 @@ class RequestSizeMiddleware(BaseHTTPMiddleware):
                 if content_length_int < 0:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Invalid Content-Length header: value must be non-negative"
+                        detail="Invalid Content-Length header: value must be non-negative",
                     )
                 if content_length_int > self.max_size:
                     raise HTTPException(
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"Request size exceeds maximum allowed size of {self.max_size} bytes"
+                        detail=f"Request size exceeds maximum allowed size of {self.max_size} bytes",
                     )
             except (ValueError, TypeError):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid Content-Length header: must be a valid integer"
+                    detail="Invalid Content-Length header: must be a valid integer",
                 )
 
         return await call_next(request)

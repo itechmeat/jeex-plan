@@ -22,6 +22,7 @@ from .base import BaseModel
 
 class DocumentType(str, Enum):
     """Document type enumeration."""
+
     ARCHITECTURE = "ARCHITECTURE"
     PLANNING = "PLANNING"
     STANDARDS = "STANDARDS"
@@ -30,6 +31,7 @@ class DocumentType(str, Enum):
 
 class DocumentStatus(str, Enum):
     """Document generation status."""
+
     PENDING = "PENDING"
     GENERATING = "GENERATING"
     COMPLETED = "COMPLETED"
@@ -73,4 +75,5 @@ class Document(BaseModel):
 
     class Config:
         """Pydantic config."""
+
         from_attributes = True

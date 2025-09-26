@@ -31,8 +31,8 @@ async def check_vault_health() -> bool | None:
         else:
             logger.error("❌ Vault health check failed")
             return False
-    except Exception as e:
-        logger.error(f"❌ Failed to connect to Vault: {e}")
+    except Exception as exc:
+        logger.error("❌ Failed to connect to Vault", error=str(exc))
         return False
 
 
@@ -53,12 +53,16 @@ async def verify_secrets():
         try:
             secret = await vault_client.get_secret(secret_path)
             if secret:
-                logger.info(f"✅ Secret found: {secret_path}")
+                logger.info("✅ Secret found", secret_path=secret_path)
             else:
-                logger.warning(f"⚠️  Secret missing: {secret_path}")
+                logger.warning("⚠️  Secret missing", secret_path=secret_path)
                 all_present = False
-        except Exception as e:
-            logger.error(f"❌ Failed to read secret {secret_path}: {e}")
+        except Exception as exc:
+            logger.error(
+                "❌ Failed to read secret",
+                secret_path=secret_path,
+                error=str(exc),
+            )
             all_present = False
 
     return all_present
@@ -71,13 +75,13 @@ async def list_all_secrets() -> None:
     try:
         secrets = await vault_client.list_secrets()
         if secrets:
-            logger.info(f"Found {len(secrets)} secret paths:")
+            logger.info("Found secret paths", count=len(secrets))
             for secret in secrets:
-                logger.info(f"  - {secret}")
+                logger.info("Secret path", path=secret)
         else:
             logger.info("No secrets found")
-    except Exception as e:
-        logger.error(f"Failed to list secrets: {e}")
+    except Exception as exc:
+        logger.error("Failed to list secrets", error=str(exc))
 
 
 async def setup_database_secrets():
@@ -212,9 +216,9 @@ async def setup_enhanced_secrets():
     for path, secrets in secrets_to_setup:
         success = await vault_client.put_secret(path, secrets)
         if success:
-            logger.info(f"✅ Enhanced secrets configured: {path}")
+            logger.info("✅ Enhanced secrets configured", secret_path=path)
         else:
-            logger.error(f"❌ Failed to configure secrets: {path}")
+            logger.error("❌ Failed to configure secrets", secret_path=path)
             all_success = False
 
     return all_success
@@ -233,8 +237,8 @@ async def main() -> None:
     try:
         await init_vault_secrets()
         logger.info("✅ Basic secrets initialized")
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize basic secrets: {e}")
+    except Exception as exc:
+        logger.error("❌ Failed to initialize basic secrets", error=str(exc))
         sys.exit(1)
 
     # Setup enhanced secrets

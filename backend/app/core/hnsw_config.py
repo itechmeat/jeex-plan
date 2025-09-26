@@ -10,28 +10,31 @@ from typing import Any
 
 class WorkloadType(str, Enum):
     """Types of workload patterns for HNSW optimization"""
-    BALANCED = "balanced"          # General purpose - good search quality and speed
-    SPEED = "speed"                 # Fast search, moderate recall
-    QUALITY = "quality"             # High recall, slower search
-    MEMORY = "memory"               # Memory efficient for large datasets
+
+    BALANCED = "balanced"  # General purpose - good search quality and speed
+    SPEED = "speed"  # Fast search, moderate recall
+    QUALITY = "quality"  # High recall, slower search
+    MEMORY = "memory"  # Memory efficient for large datasets
 
 
 class DatasetSize(str, Enum):
     """Dataset size categories for configuration tuning"""
-    SMALL = "small"                 # < 10K vectors
-    MEDIUM = "medium"               # 10K - 100K vectors
-    LARGE = "large"                 # 100K - 1M vectors
-    EXTRA_LARGE = "extra_large"     # > 1M vectors
+
+    SMALL = "small"  # < 10K vectors
+    MEDIUM = "medium"  # 10K - 100K vectors
+    LARGE = "large"  # 100K - 1M vectors
+    EXTRA_LARGE = "extra_large"  # > 1M vectors
 
 
 @dataclass
 class HNSWParams:
     """HNSW parameters optimized for multi-tenancy"""
-    m: int                           # Number of bi-directional links
-    ef_construct: int                # Size of dynamic candidate list during construction
-    ef: int                         # Size of dynamic candidate list during search
-    max_indexing_threads: int       # Number of threads for indexing
-    full_scan_threshold: int         # Threshold for switching to full scan
+
+    m: int  # Number of bi-directional links
+    ef_construct: int  # Size of dynamic candidate list during construction
+    ef: int  # Size of dynamic candidate list during search
+    max_indexing_threads: int  # Number of threads for indexing
+    full_scan_threshold: int  # Threshold for switching to full scan
     payload_m: int | None = None  # Payload-specific connections for multi-tenancy
 
 
@@ -63,7 +66,7 @@ class HNSWConfigurator:
         WorkloadType.MEMORY: {
             "ef_construct": 80,
             "ef": 40,
-        }
+        },
     }
 
     # Dataset size adjustments
@@ -83,7 +86,7 @@ class HNSWConfigurator:
         DatasetSize.EXTRA_LARGE: {
             "full_scan_threshold": 50000,
             "ef_construct_multiplier": 1.5,
-        }
+        },
     }
 
     def __init__(self) -> None:
@@ -94,7 +97,7 @@ class HNSWConfigurator:
         self,
         workload_type: WorkloadType,
         dataset_size: DatasetSize = DatasetSize.MEDIUM,
-        custom_params: dict[str, Any] | None = None
+        custom_params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Generate HNSW configuration for specific workload and dataset size.
@@ -147,7 +150,7 @@ class HNSWConfigurator:
                 "payload_m": 24,  # Increase payload connections for better isolation
                 "ef_construct": 120,  # Slightly higher construction quality
                 "ef": 80,  # Better search within tenant scope
-            }
+            },
         )
 
     def get_memory_efficient_config(self) -> dict[str, Any]:
@@ -165,7 +168,7 @@ class HNSWConfigurator:
                 "payload_m": 12,  # Reduce payload connections
                 "ef_construct": 60,
                 "ef": 32,
-            }
+            },
         )
 
     def get_high_quality_config(self) -> dict[str, Any]:
@@ -183,7 +186,7 @@ class HNSWConfigurator:
                 "payload_m": 20,
                 "ef_construct": 200,
                 "ef": 128,
-            }
+            },
         )
 
     def validate_configuration(self, config: dict[str, Any]) -> bool:
@@ -213,7 +216,9 @@ class HNSWConfigurator:
 
         return True
 
-    def estimate_memory_usage(self, config: dict[str, Any], vector_count: int) -> dict[str, float]:
+    def estimate_memory_usage(
+        self, config: dict[str, Any], vector_count: int
+    ) -> dict[str, float]:
         """
         Estimate memory usage for HNSW configuration.
 
@@ -225,12 +230,16 @@ class HNSWConfigurator:
             Memory usage estimates in MB
         """
         # Base estimates (simplified)
-        vector_size_mb = vector_count * 1536 * 4 / (1024 * 1024)  # 1536 dimensions, float32
+        vector_size_mb = (
+            vector_count * 1536 * 4 / (1024 * 1024)
+        )  # 1536 dimensions, float32
 
         # Graph memory (very rough estimate)
         m = config.get("m", 16)
         payload_m = config.get("payload_m", 16)
-        graph_connections = vector_count * (m + payload_m) * 8 / (1024 * 1024)  # 64-bit pointers
+        graph_connections = (
+            vector_count * (m + payload_m) * 8 / (1024 * 1024)
+        )  # 64-bit pointers
 
         # Index overhead
         index_overhead = vector_count * 0.1  # 10% overhead estimate
@@ -239,7 +248,7 @@ class HNSWConfigurator:
             "vectors_mb": vector_size_mb,
             "graph_mb": graph_connections,
             "index_overhead_mb": index_overhead,
-            "total_estimated_mb": vector_size_mb + graph_connections + index_overhead
+            "total_estimated_mb": vector_size_mb + graph_connections + index_overhead,
         }
 
     def get_configuration_summary(self, config: dict[str, Any]) -> dict[str, str]:
@@ -253,11 +262,15 @@ class HNSWConfigurator:
             Configuration summary with descriptions
         """
         return {
-            "global_graph": "Disabled (multi-tenant optimized)" if config.get("m") == 0 else f"Enabled (m={config.get('m')})",
+            "global_graph": "Disabled (multi-tenant optimized)"
+            if config.get("m") == 0
+            else f"Enabled (m={config.get('m')})",
             "payload_connections": f"m={config.get('payload_m')} connections",
             "construction_quality": f"ef_construct={config.get('ef_construct')}",
             "search_quality": f"ef={config.get('ef')}",
-            "indexing_threads": "All available" if config.get("max_indexing_threads") == 0 else f"{config.get('max_indexing_threads')} threads",
+            "indexing_threads": "All available"
+            if config.get("max_indexing_threads") == 0
+            else f"{config.get('max_indexing_threads')} threads",
             "full_scan_threshold": f"{config.get('full_scan_threshold')} vectors",
         }
 

@@ -1,0 +1,10 @@
+reviews:
+  path_instructions:
+    - path: "frontend/**/*.tsx"
+      instructions: "Focus on React component structure, hooks usage, and TypeScript types. Pay attention to codestyle and performance."
+    - path: "frontend/**/*.ts"
+      instructions: "Review TypeScript code for proper typing, interfaces, and service implementations."
+    - path: "frontend/**/*.scss"
+      instructions: "Review CSS modules for proper styling patterns, responsive design, and maintainability."
+    - path: "frontend/package.json"
+      instructions: "Check for security vulnerabilities, outdated dependencies, and version compatibility."

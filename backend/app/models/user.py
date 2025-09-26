@@ -28,11 +28,15 @@ class User(BaseModel):
     oauth_id = Column(String(255), nullable=True)
 
     # Explicit tenant foreign key (inherited tenant_id from TenantMixin needs FK)
-    tenant = relationship("Tenant", back_populates="users", foreign_keys="User.tenant_id")
+    tenant = relationship(
+        "Tenant", back_populates="users", foreign_keys="User.tenant_id"
+    )
 
     # Projects relationship
     projects = relationship("Project", back_populates="owner")
-    project_memberships = relationship("ProjectMember", foreign_keys="ProjectMember.user_id", back_populates="user")
+    project_memberships = relationship(
+        "ProjectMember", foreign_keys="ProjectMember.user_id", back_populates="user"
+    )
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "email", name="uq_user_tenant_email"),
@@ -41,4 +45,5 @@ class User(BaseModel):
 
     class Config:
         """Pydantic config."""
+
         from_attributes = True

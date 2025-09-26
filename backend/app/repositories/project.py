@@ -24,43 +24,47 @@ class ProjectRepository(TenantRepository[Project]):
             and_(
                 self.model.name == name,
                 self.model.tenant_id == self.tenant_id,
-                not self.model.is_deleted
+                self.model.is_deleted.is_(False),
             )
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_by_owner(
-        self,
-        owner_id: UUID,
-        skip: int = 0,
-        limit: int = 100
+        self, owner_id: UUID, skip: int = 0, limit: int = 100
     ) -> list[Project]:
         """Get projects by owner within tenant."""
-        stmt = select(self.model).where(
-            and_(
-                self.model.owner_id == owner_id,
-                self.model.tenant_id == self.tenant_id,
-                not self.model.is_deleted
+        stmt = (
+            select(self.model)
+            .where(
+                and_(
+                    self.model.owner_id == owner_id,
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).offset(skip).limit(limit)
+            .offset(skip)
+            .limit(limit)
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_by_status(
-        self,
-        status: ProjectStatus,
-        skip: int = 0,
-        limit: int = 100
+        self, status: ProjectStatus, skip: int = 0, limit: int = 100
     ) -> list[Project]:
         """Get projects by status within tenant."""
-        stmt = select(self.model).where(
-            and_(
-                self.model.status == status,
-                self.model.tenant_id == self.tenant_id,
-                not self.model.is_deleted
+        stmt = (
+            select(self.model)
+            .where(
+                and_(
+                    self.model.status == status,
+                    self.model.tenant_id == self.tenant_id,
+                    self.model.is_deleted.is_(False),
+                )
             )
-        ).offset(skip).limit(limit)
+            .offset(skip)
+            .limit(limit)
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -69,17 +73,16 @@ class ProjectRepository(TenantRepository[Project]):
         name: str,
         owner_id: UUID,
         description: str | None = None,
-        status: ProjectStatus = ProjectStatus.DRAFT
+        status: ProjectStatus = ProjectStatus.DRAFT,
     ) -> Project:
         """Create a new project within tenant."""
         return await self.create(
-            name=name,
-            owner_id=owner_id,
-            description=description,
-            status=status
+            name=name, owner_id=owner_id, description=description, status=status
         )
 
-    async def update_status(self, project_id: UUID, status: ProjectStatus) -> Project | None:
+    async def update_status(
+        self, project_id: UUID, status: ProjectStatus
+    ) -> Project | None:
         """Update project status."""
         return await self.update(project_id, status=status)
 
@@ -96,29 +99,23 @@ class ProjectRepository(TenantRepository[Project]):
         return await self.update_status(project_id, ProjectStatus.IN_PROGRESS)
 
     async def search_projects(
-        self,
-        search_term: str,
-        skip: int = 0,
-        limit: int = 100
+        self, search_term: str, skip: int = 0, limit: int = 100
     ) -> list[Project]:
         """Search projects by name or description within tenant."""
         return await self.search(
-            search_fields=['name', 'description'],
+            search_fields=["name", "description"],
             search_term=search_term,
             skip=skip,
-            limit=limit
+            limit=limit,
         )
 
     async def get_recent_projects(
-        self,
-        owner_id: UUID | None = None,
-        limit: int = 10
+        self, owner_id: UUID | None = None, limit: int = 10
     ) -> list[Project]:
         """Get recent projects within tenant."""
         stmt = select(self.model).where(
             and_(
-                self.model.tenant_id == self.tenant_id,
-                not self.model.is_deleted
+                self.model.tenant_id == self.tenant_id, self.model.is_deleted.is_(False)
             )
         )
 
@@ -135,7 +132,7 @@ class ProjectRepository(TenantRepository[Project]):
             and_(
                 self.model.status == status,
                 self.model.tenant_id == self.tenant_id,
-                not self.model.is_deleted
+                self.model.is_deleted.is_(False),
             )
         )
         result = await self.session.execute(stmt)
@@ -147,23 +144,21 @@ class ProjectRepository(TenantRepository[Project]):
             and_(
                 self.model.owner_id == owner_id,
                 self.model.tenant_id == self.tenant_id,
-                not self.model.is_deleted
+                self.model.is_deleted.is_(False),
             )
         )
         result = await self.session.execute(stmt)
         return result.scalar()
 
     async def check_name_availability(
-        self,
-        name: str,
-        exclude_project_id: UUID | None = None
+        self, name: str, exclude_project_id: UUID | None = None
     ) -> bool:
         """Check if project name is available within tenant."""
         stmt = select(self.model.id).where(
             and_(
                 self.model.name == name,
                 self.model.tenant_id == self.tenant_id,
-                not self.model.is_deleted
+                self.model.is_deleted.is_(False),
             )
         )
 

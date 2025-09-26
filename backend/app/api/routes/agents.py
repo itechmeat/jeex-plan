@@ -73,9 +73,7 @@ class StandardsRequest(BaseModel):
     project_description: str = Field(..., description="Project description")
     technology_stack: list[str] = Field(..., description="Technology stack")
     language: str = Field(default="en", description="Target language for documents")
-    team_experience_level: str | None = Field(
-        None, description="Team experience level"
-    )
+    team_experience_level: str | None = Field(None, description="Team experience level")
 
 
 class AgentResponse(BaseModel):
@@ -111,13 +109,11 @@ async def get_current_user(api_key: str = Security(api_key_header)) -> dict:
 
 @router.post("/business-analysis", response_model=AgentResponse)
 async def execute_business_analysis(
-    request: BusinessAnalysisRequest,
-    _current_user: dict | None = None
+    request: BusinessAnalysisRequest, current_user: dict | None = None
 ) -> AgentResponse:
     """Execute business analysis workflow step."""
-    if _current_user is None:
-        _current_user = await get_current_user()
-    """Execute business analysis workflow step."""
+    if current_user is None:
+        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -164,13 +160,11 @@ async def execute_business_analysis(
 
 @router.post("/architecture-design", response_model=AgentResponse)
 async def execute_architecture_design(
-    request: ArchitectureDesignRequest,
-    _current_user: dict | None = None
+    request: ArchitectureDesignRequest, current_user: dict | None = None
 ) -> AgentResponse:
     """Execute architecture design workflow step."""
-    if _current_user is None:
-        _current_user = await get_current_user()
-    """Execute architecture design workflow step."""
+    if current_user is None:
+        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -207,13 +201,11 @@ async def execute_architecture_design(
 
 @router.post("/implementation-planning", response_model=AgentResponse)
 async def execute_implementation_planning(
-    request: PlanningRequest,
-    _current_user: dict | None = None
+    request: PlanningRequest, current_user: dict | None = None
 ) -> AgentResponse:
     """Execute implementation planning workflow step."""
-    if _current_user is None:
-        _current_user = await get_current_user()
-    """Execute implementation planning workflow step."""
+    if current_user is None:
+        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -251,13 +243,11 @@ async def execute_implementation_planning(
 
 @router.post("/engineering-standards", response_model=AgentResponse)
 async def execute_engineering_standards(
-    request: StandardsRequest,
-    _current_user: dict | None = None
+    request: StandardsRequest, current_user: dict | None = None
 ) -> AgentResponse:
     """Execute engineering standards workflow step."""
-    if _current_user is None:
-        _current_user = await get_current_user()
-    """Execute engineering standards workflow step."""
+    if current_user is None:
+        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -338,9 +328,7 @@ class FullWorkflowRequest(BaseModel):
         None, description="Technology preferences"
     )
     team_size: int | None = Field(None, description="Team size")
-    team_experience_level: str | None = Field(
-        None, description="Team experience level"
-    )
+    team_experience_level: str | None = Field(None, description="Team experience level")
 
 
 async def generate_progress_stream(
@@ -364,8 +352,13 @@ async def generate_progress_stream(
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 1, 'status': 'completed', 'confidence': ba_result.get('confidence_score', 0.8)})}\n\n"
         except HTTPException:
             raise
-        except Exception:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': 'Business analysis failed', 'correlation_id': context.correlation_id})}\n\n"
+        except (ValueError, KeyError, TypeError) as e:
+            logger.error("Business analysis validation error", error=str(e), correlation_id=context.correlation_id)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': f'Business analysis validation failed: {str(e)}', 'correlation_id': context.correlation_id})}\n\n"
+            return
+        except Exception as e:
+            logger.error("Business analysis unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': 'Business analysis failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Step 2: Engineering Standards
@@ -376,7 +369,9 @@ async def generate_progress_stream(
         try:
             # Get default technology stack from configuration
             settings = get_settings()
-            tech_stack = input_data.get("technology_stack") or settings.DEFAULT_TECHNOLOGY_STACK
+            tech_stack = (
+                input_data.get("technology_stack") or settings.DEFAULT_TECHNOLOGY_STACK
+            )
 
             standards_result = await workflow_engine.execute_engineering_standards(
                 context=context,
@@ -387,8 +382,13 @@ async def generate_progress_stream(
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 2, 'status': 'completed', 'confidence': standards_result.get('confidence_score', 0.8)})}\n\n"
         except HTTPException:
             raise
-        except Exception:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': 'Engineering standards failed', 'correlation_id': context.correlation_id})}\n\n"
+        except (ValueError, KeyError, TypeError) as e:
+            logger.error("Engineering standards validation error", error=str(e), correlation_id=context.correlation_id)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': f'Engineering standards validation failed: {str(e)}', 'correlation_id': context.correlation_id})}\n\n"
+            return
+        except Exception as e:
+            logger.error("Engineering standards unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': 'Engineering standards failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Step 3: Architecture Design
@@ -406,8 +406,12 @@ async def generate_progress_stream(
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 3, 'status': 'completed', 'confidence': arch_result.get('confidence_score', 0.8)})}\n\n"
         except HTTPException:
             raise
-        except Exception:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': 'Architecture design failed', 'correlation_id': context.correlation_id})}\n\n"
+        except (ValueError, KeyError, TypeError) as e:
+            logger.error("Architecture design validation error", error=str(e), correlation_id=context.correlation_id)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': f'Architecture design validation failed: {str(e)}', 'correlation_id': context.correlation_id})}\n\n"
+        except Exception as e:
+            logger.error("Architecture design unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': 'Architecture design failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Step 4: Implementation Planning
@@ -426,8 +430,13 @@ async def generate_progress_stream(
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 4, 'status': 'completed', 'confidence': planning_result.get('confidence_score', 0.8)})}\n\n"
         except HTTPException:
             raise
-        except Exception:
-            yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': 'Implementation planning failed', 'correlation_id': context.correlation_id})}\n\n"
+        except (ValueError, KeyError, TypeError) as e:
+            logger.error("Implementation planning validation error", error=str(e), correlation_id=context.correlation_id)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': f'Implementation planning validation failed: {str(e)}', 'correlation_id': context.correlation_id})}\n\n"
+            return
+        except Exception as e:
+            logger.error("Implementation planning unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': 'Implementation planning failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 
         # Workflow complete
@@ -440,13 +449,11 @@ async def generate_progress_stream(
 
 @router.post("/workflow/execute-stream")
 async def execute_full_workflow_stream(
-    request: FullWorkflowRequest,
-    _current_user: dict | None = None
+    request: FullWorkflowRequest, current_user: dict | None = None
 ) -> StreamingResponse:
     """Execute complete agent workflow with real-time progress updates via SSE."""
-    if _current_user is None:
-        _current_user = await get_current_user()
-    """Execute complete agent workflow with real-time progress updates via SSE."""
+    if current_user is None:
+        current_user = await get_current_user()
     workflow_id = str(uuid.uuid4())
 
     context = ProjectContext(
@@ -479,13 +486,11 @@ async def execute_full_workflow_stream(
 
 @router.get("/workflow/{workflow_id}/status")
 async def get_workflow_status(
-    workflow_id: str,
-    _current_user: dict | None = None
+    workflow_id: str, current_user: dict | None = None
 ) -> dict:
     """Get current workflow execution status."""
-    if _current_user is None:
-        _current_user = await get_current_user()
-    """Get current workflow execution status."""
+    if current_user is None:
+        current_user = await get_current_user()
     # NOTE: Workflow status tracking not implemented - returns HTTP 501
     # Should track workflow execution state in Redis or database
     raise HTTPException(
@@ -496,13 +501,11 @@ async def get_workflow_status(
 
 @router.get("/history/{project_id}")
 async def get_agent_execution_history(
-    project_id: str,
-    _current_user: dict | None = None
+    project_id: str, current_user: dict | None = None
 ) -> dict:
     """Get agent execution history for a project."""
-    if _current_user is None:
-        _current_user = await get_current_user()
-    """Get agent execution history for a project."""
+    if current_user is None:
+        current_user = await get_current_user()
     # NOTE: Execution history tracking not implemented - returns HTTP 501
     # Should store and retrieve execution history from database
     raise HTTPException(

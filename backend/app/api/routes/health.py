@@ -2,7 +2,7 @@
 Health check endpoints for monitoring system status.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,10 +28,10 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     health_status = {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "version": "1.0.0",
         "components": {},
-        "checks": {}
+        "checks": {},
     }
 
     # Database health check
@@ -50,12 +50,20 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         if redis_health["status"] != "healthy":
             health_status["status"] = "degraded"
 
-    except Exception as e:
-        logger.error("Redis health check failed", error=str(e))
+    except (ConnectionError, TimeoutError) as e:
+        logger.error("Redis connection failed", error=str(e))
         health_status["components"]["redis"] = {
             "status": "unhealthy",
             "message": f"Redis connection failed: {e!s}",
-            "details": {"error": str(e)}
+            "details": {"error": str(e)},
+        }
+        health_status["status"] = "degraded"
+    except Exception as e:
+        logger.error("Redis health check failed", error=str(e), exc_info=True)
+        health_status["components"]["redis"] = {
+            "status": "unhealthy",
+            "message": f"Redis connection failed: {e!s}",
+            "details": {"error": str(e)},
         }
         health_status["status"] = "degraded"
 
@@ -68,12 +76,20 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         if qdrant_health["status"] != "healthy":
             health_status["status"] = "degraded"
 
-    except Exception as e:
-        logger.error("Qdrant health check failed", error=str(e))
+    except (ConnectionError, TimeoutError) as e:
+        logger.error("Qdrant connection failed", error=str(e))
         health_status["components"]["qdrant"] = {
             "status": "unhealthy",
             "message": f"Qdrant connection failed: {e!s}",
-            "details": {"error": str(e)}
+            "details": {"error": str(e)},
+        }
+        health_status["status"] = "degraded"
+    except Exception as e:
+        logger.error("Qdrant health check failed", error=str(e), exc_info=True)
+        health_status["components"]["qdrant"] = {
+            "status": "unhealthy",
+            "message": f"Qdrant connection failed: {e!s}",
+            "details": {"error": str(e)},
         }
         health_status["status"] = "degraded"
 
@@ -86,12 +102,20 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
             if vault_health["status"] != "healthy":
                 health_status["status"] = "degraded"
 
-        except Exception as e:
-            logger.error("Vault health check failed", error=str(e))
+        except (ConnectionError, TimeoutError) as e:
+            logger.error("Vault connection failed", error=str(e))
             health_status["components"]["vault"] = {
                 "status": "unhealthy",
                 "message": f"Vault connection failed: {e!s}",
-                "details": {"error": str(e)}
+                "details": {"error": str(e)},
+            }
+            health_status["status"] = "degraded"
+        except Exception as e:
+            logger.error("Vault health check failed", error=str(e), exc_info=True)
+            health_status["components"]["vault"] = {
+                "status": "unhealthy",
+                "message": f"Vault connection failed: {e!s}",
+                "details": {"error": str(e)},
             }
             health_status["status"] = "degraded"
 
@@ -108,7 +132,8 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
 
     # Determine overall status
     unhealthy_components = [
-        name for name, component in health_status["components"].items()
+        name
+        for name, component in health_status["components"].items()
         if component["status"] == "unhealthy"
     ]
 
@@ -119,8 +144,8 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
             detail={
                 "error": "Service unavailable",
                 "unhealthy_components": unhealthy_components,
-                "health_status": health_status
-            }
+                "health_status": health_status,
+            },
         )
 
     return health_status
@@ -136,7 +161,7 @@ async def simple_health_check() -> dict[str, str]:
     return {
         "status": "healthy",
         "service": "JEEX Plan API",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -150,17 +175,17 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     # Check if we can connect to the database
     try:
         await db.execute(text("SELECT 1"))
+    except (ConnectionError, TimeoutError) as e:
+        logger.error("Database connection failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Database not ready")
     except Exception as e:
-        logger.error("Readiness check failed - database not ready", error=str(e))
+        logger.error("Readiness check failed - database not ready", error=str(e), exc_info=True)
         raise HTTPException(status_code=503, detail="Database not ready")
 
     return {
         "status": "ready",
-        "timestamp": datetime.utcnow().isoformat(),
-        "checks": {
-            "database": "ready",
-            "application": "ready"
-        }
+        "timestamp": datetime.now(UTC).isoformat(),
+        "checks": {"database": "ready", "application": "ready"},
     }
 
 
@@ -171,10 +196,7 @@ async def liveness_check() -> dict[str, str]:
 
     Indicates if the application is running.
     """
-    return {
-        "status": "alive",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    return {"status": "alive", "timestamp": datetime.now(UTC).isoformat()}
 
 
 @router.get("/health/metrics")
@@ -188,33 +210,35 @@ async def health_metrics() -> dict[str, Any]:
         "service": settings.APP_NAME,
         "version": "1.0.0",
         "environment": settings.ENVIRONMENT,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "uptime": "N/A",  # Would need to track application start time
         "components": {
             "database": {
-                "url": settings.DATABASE_URL.split("@")[-1] if "@" in settings.DATABASE_URL else "configured",
-                "configured": bool(settings.DATABASE_URL)
+                "url": settings.DATABASE_URL.split("@")[-1]
+                if "@" in settings.DATABASE_URL
+                else "configured",
+                "configured": bool(settings.DATABASE_URL),
             },
             "redis": {
                 "url": settings.REDIS_URL,
-                "configured": bool(settings.REDIS_URL)
+                "configured": bool(settings.REDIS_URL),
             },
             "qdrant": {
                 "url": settings.QDRANT_URL,
                 "collection": settings.QDRANT_COLLECTION,
-                "configured": bool(settings.QDRANT_URL)
+                "configured": bool(settings.QDRANT_URL),
             },
             "vault": {
                 "address": settings.VAULT_ADDR,
-                "configured": bool(settings.VAULT_ADDR)
-            }
+                "configured": bool(settings.VAULT_ADDR),
+            },
         },
         "features": {
             "multi_tenancy": settings.ENABLE_TENANT_ISOLATION,
             "authentication": True,
             "rate_limiting": True,
-            "observability": bool(settings.OTLP_ENDPOINT)
-        }
+            "observability": bool(settings.OTLP_ENDPOINT),
+        },
     }
 
 
@@ -234,19 +258,25 @@ async def _check_vault_health() -> dict[str, Any]:
                     "details": {
                         "initialized": data.get("initialized", False),
                         "sealed": data.get("sealed", True),
-                        "version": data.get("version", "unknown")
-                    }
+                        "version": data.get("version", "unknown"),
+                    },
                 }
             else:
                 return {
                     "status": "unhealthy",
                     "message": f"Vault returned status {response.status_code}",
-                    "details": {"status_code": response.status_code}
+                    "details": {"status_code": response.status_code},
                 }
 
+    except (ConnectionError, TimeoutError) as e:
+        return {
+            "status": "unhealthy",
+            "message": f"Vault connection failed: {e!s}",
+            "details": {"error": str(e)},
+        }
     except Exception as e:
         return {
             "status": "unhealthy",
             "message": f"Vault health check failed: {e!s}",
-            "details": {"error": str(e)}
+            "details": {"error": str(e)},
         }

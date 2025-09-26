@@ -6,7 +6,7 @@ Provides template for all specialized agents.
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from crewai import Agent, Crew, Task
@@ -108,7 +108,7 @@ class AgentBase(ABC):
 
     async def process(self, input_data: AgentInput) -> AgentOutput:
         """Main processing method - executes the agent."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         correlation_id = input_data.context.correlation_id
 
         try:
@@ -165,7 +165,7 @@ class AgentBase(ABC):
             raise
         except Exception as e:
             execution_time = int(
-                (datetime.utcnow() - start_time).total_seconds() * 1000
+                (datetime.now(UTC) - start_time).total_seconds() * 1000
             )
             self.logger.exception(
                 "Agent execution failed",
@@ -182,7 +182,7 @@ class AgentBase(ABC):
 
     @abstractmethod
     async def _parse_crew_result(
-        self, result: Any, execution_time_ms: int
+        self, result: object, execution_time_ms: int
     ) -> AgentOutput:
         """Parse CrewAI execution result into typed output."""
 

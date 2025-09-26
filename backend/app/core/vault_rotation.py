@@ -4,7 +4,7 @@ Vault secret rotation policies and management.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from .vault import vault_client
 
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RotationPolicy:
     """Secret rotation policy configuration."""
+
     path: str
     rotation_interval_days: int
     auto_rotate: bool = True
@@ -35,27 +36,27 @@ class SecretRotationManager:
                 path="auth/jwt",
                 rotation_interval_days=90,  # 3 months
                 auto_rotate=True,
-                notification_days_before=7
+                notification_days_before=7,
             ),
             "database/postgres": RotationPolicy(
                 path="database/postgres",
                 rotation_interval_days=180,  # 6 months
                 auto_rotate=False,  # Manual rotation for DB
-                notification_days_before=14
+                notification_days_before=14,
             ),
             "ai/openai": RotationPolicy(
                 path="ai/openai",
                 rotation_interval_days=365,  # 1 year
                 auto_rotate=False,  # Manual rotation for external APIs
-                notification_days_before=30
-            )
+                notification_days_before=30,
+            ),
         }
 
     async def add_policy(self, policy: RotationPolicy) -> None:
         """Add a new rotation policy."""
         self.policies[policy.path] = policy
         await self._store_policy(policy)
-        logger.info(f"Added rotation policy for {policy.path}")
+        logger.info("Added rotation policy", path=policy.path)
 
     async def _store_policy(self, policy: RotationPolicy) -> None:
         """Store rotation policy metadata in Vault."""
@@ -63,14 +64,14 @@ class SecretRotationManager:
             "rotation_interval_days": policy.rotation_interval_days,
             "auto_rotate": policy.auto_rotate,
             "notification_days_before": policy.notification_days_before,
-            "last_rotated": policy.last_rotated.isoformat() if policy.last_rotated else None,
-            "policy_created": datetime.utcnow().isoformat()
+            "last_rotated": policy.last_rotated.isoformat()
+            if policy.last_rotated
+            else None,
+            "policy_created": datetime.now(UTC).isoformat(),
         }
 
         await vault_client.put_secret(
-            f"policies/{policy.path.replace('/', '_')}",
-            metadata,
-            mount_point="secret"
+            f"policies/{policy.path.replace('/', '_')}", metadata, mount_point="secret"
         )
 
     async def get_policy(self, path: str) -> RotationPolicy | None:
@@ -86,11 +87,14 @@ class SecretRotationManager:
         if not policy.last_rotated:
             return True, "Secret has never been rotated"
 
-        days_since_rotation = (datetime.utcnow() - policy.last_rotated).days
+        days_since_rotation = (datetime.now(UTC) - policy.last_rotated).days
         days_until_rotation = policy.rotation_interval_days - days_since_rotation
 
         if days_until_rotation <= 0:
-            return True, f"Secret is {abs(days_until_rotation)} days overdue for rotation"
+            return (
+                True,
+                f"Secret is {abs(days_until_rotation)} days overdue for rotation",
+            )
         elif days_until_rotation <= policy.notification_days_before:
             return False, f"Secret will need rotation in {days_until_rotation} days"
 
@@ -104,7 +108,7 @@ class SecretRotationManager:
 
             # Generate new secret key
             alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-            new_secret = ''.join(secrets.choice(alphabet) for _ in range(64))
+            new_secret = "".join(secrets.choice(alphabet) for _ in range(64))
 
             # Get current JWT config
             current_config = await vault_client.get_secret("auth/jwt")
@@ -115,7 +119,7 @@ class SecretRotationManager:
             # Update with new secret
             new_config = current_config.copy()
             new_config["secret_key"] = new_secret
-            new_config["rotated_at"] = datetime.utcnow().isoformat()
+            new_config["rotated_at"] = datetime.now(UTC).isoformat()
 
             # Store new config
             success = await vault_client.put_secret("auth/jwt", new_config)
@@ -123,7 +127,7 @@ class SecretRotationManager:
                 # Update policy last_rotated
                 policy = self.policies.get("auth/jwt")
                 if policy:
-                    policy.last_rotated = datetime.utcnow()
+                    policy.last_rotated = datetime.now(UTC)
                     await self._store_policy(policy)
 
                 logger.info("JWT secret rotated successfully")
@@ -132,8 +136,8 @@ class SecretRotationManager:
                 logger.error("Failed to store new JWT secret")
                 return False
 
-        except Exception as e:
-            logger.error(f"Error rotating JWT secret: {e}")
+        except Exception as exc:
+            logger.error("Error rotating JWT secret", error=str(exc))
             return False
 
     async def rotate_database_password(self) -> bool:
@@ -144,7 +148,7 @@ class SecretRotationManager:
 
             # Generate new password
             alphabet = string.ascii_letters + string.digits
-            new_password = ''.join(secrets.choice(alphabet) for _ in range(32))
+            new_password = "".join(secrets.choice(alphabet) for _ in range(32))
 
             # Get current DB config
             current_config = await vault_client.get_secret("database/postgres")
@@ -160,8 +164,10 @@ class SecretRotationManager:
 
             new_config = current_config.copy()
             new_config["password"] = new_password
-            new_config["rotated_at"] = datetime.utcnow().isoformat()
-            new_config["previous_password"] = current_config.get("password")  # Keep for rollback
+            new_config["rotated_at"] = datetime.now(UTC).isoformat()
+            new_config["previous_password"] = current_config.get(
+                "password"
+            )  # Keep for rollback
 
             # Store new config
             success = await vault_client.put_secret("database/postgres", new_config)
@@ -169,7 +175,7 @@ class SecretRotationManager:
                 # Update policy last_rotated
                 policy = self.policies.get("database/postgres")
                 if policy:
-                    policy.last_rotated = datetime.utcnow()
+                    policy.last_rotated = datetime.now(UTC)
                     await self._store_policy(policy)
 
                 logger.warning("Database password rotation simulated (dev mode)")
@@ -178,8 +184,8 @@ class SecretRotationManager:
                 logger.error("Failed to store new database password")
                 return False
 
-        except Exception as e:
-            logger.error(f"Error rotating database password: {e}")
+        except Exception as exc:
+            logger.error("Error rotating database password", error=str(exc))
             return False
 
     async def check_all_secrets(self) -> dict[str, tuple[bool, str]]:
@@ -202,13 +208,17 @@ class SecretRotationManager:
 
             needs_rotation, reason = await self.check_rotation_needed(path)
             if needs_rotation:
-                logger.info(f"Auto-rotating secret: {path} - {reason}")
+                logger.info(
+                    "Auto-rotating secret", path=path, reason=reason
+                )
 
                 if path == "auth/jwt":
                     success = await self.rotate_jwt_secret()
                     results[path] = success
                 else:
-                    logger.warning(f"No auto-rotation handler for {path}")
+                    logger.warning(
+                        "No auto-rotation handler configured", path=path
+                    )
                     results[path] = False
 
         return results
@@ -224,13 +234,15 @@ class SecretRotationManager:
                 "policy": {
                     "rotation_interval_days": policy.rotation_interval_days,
                     "auto_rotate": policy.auto_rotate,
-                    "notification_days_before": policy.notification_days_before
+                    "notification_days_before": policy.notification_days_before,
                 },
                 "status": {
                     "needs_rotation": needs_rotation,
                     "reason": reason,
-                    "last_rotated": policy.last_rotated.isoformat() if policy.last_rotated else None
-                }
+                    "last_rotated": policy.last_rotated.isoformat()
+                    if policy.last_rotated
+                    else None,
+                },
             }
 
         return report
@@ -248,7 +260,10 @@ async def init_rotation_policies() -> None:
     for policy in rotation_manager.policies.values():
         await rotation_manager._store_policy(policy)
 
-    logger.info(f"Initialized {len(rotation_manager.policies)} rotation policies")
+    logger.info(
+        "Initialized rotation policies",
+        policy_count=len(rotation_manager.policies),
+    )
 
 
 async def run_rotation_check() -> None:
@@ -261,9 +276,13 @@ async def run_rotation_check() -> None:
     # Log warnings for secrets needing attention
     for path, (needs_rotation, reason) in status_report.items():
         if needs_rotation:
-            logger.warning(f"Secret rotation needed: {path} - {reason}")
+            logger.warning(
+                "Secret rotation needed", path=path, reason=reason
+            )
         elif "will need rotation" in reason:
-            logger.info(f"Secret rotation upcoming: {path} - {reason}")
+            logger.info(
+                "Secret rotation upcoming", path=path, reason=reason
+            )
 
     # Auto-rotate eligible secrets
     auto_rotation_results = await rotation_manager.auto_rotate_eligible_secrets()
@@ -271,8 +290,8 @@ async def run_rotation_check() -> None:
     if auto_rotation_results:
         for path, success in auto_rotation_results.items():
             if success:
-                logger.info(f"Successfully auto-rotated: {path}")
+                logger.info("Successfully auto-rotated", path=path)
             else:
-                logger.error(f"Failed to auto-rotate: {path}")
+                logger.error("Failed to auto-rotate", path=path)
 
     logger.info("Scheduled rotation check completed")

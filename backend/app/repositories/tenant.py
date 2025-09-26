@@ -21,23 +21,19 @@ class TenantRepository(BaseRepository[Tenant]):
     async def get_by_slug(self, slug: str) -> Tenant | None:
         """Get tenant by slug."""
         stmt = select(self.model).where(
-            and_(
-                self.model.slug == slug,
-                self.model.is_active.is_(True)
-            )
+            and_(self.model.slug == slug, self.model.is_active.is_(True))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_active_tenants(
-        self,
-        skip: int = 0,
-        limit: int = 100
-    ) -> list[Tenant]:
+    async def get_active_tenants(self, skip: int = 0, limit: int = 100) -> list[Tenant]:
         """Get all active tenants."""
-        stmt = select(self.model).where(
-            self.model.is_active.is_(True)
-        ).offset(skip).limit(limit)
+        stmt = (
+            select(self.model)
+            .where(self.model.is_active.is_(True))
+            .offset(skip)
+            .limit(limit)
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -47,7 +43,7 @@ class TenantRepository(BaseRepository[Tenant]):
         slug: str,
         description: str | None = None,
         max_projects: int | None = None,
-        max_storage_mb: int | None = None
+        max_storage_mb: int | None = None,
     ) -> Tenant:
         """Create a new tenant."""
         return await self.create(
@@ -56,7 +52,7 @@ class TenantRepository(BaseRepository[Tenant]):
             description=description,
             max_projects=max_projects,
             max_storage_mb=max_storage_mb,
-            is_active=True
+            is_active=True,
         )
 
     async def deactivate_tenant(self, tenant_id: UUID) -> bool:
@@ -79,21 +75,23 @@ class TenantRepository(BaseRepository[Tenant]):
         self,
         tenant_id: UUID,
         max_projects: int | None = None,
-        max_storage_mb: int | None = None
+        max_storage_mb: int | None = None,
     ) -> Tenant | None:
         """Update tenant resource limits."""
         updates = {}
         if max_projects is not None:
-            updates['max_projects'] = max_projects
+            updates["max_projects"] = max_projects
         if max_storage_mb is not None:
-            updates['max_storage_mb'] = max_storage_mb
+            updates["max_storage_mb"] = max_storage_mb
 
         if not updates:
             return None
 
         return await self.update(tenant_id, **updates)
 
-    async def check_slug_availability(self, slug: str, exclude_tenant_id: UUID | None = None) -> bool:
+    async def check_slug_availability(
+        self, slug: str, exclude_tenant_id: UUID | None = None
+    ) -> bool:
         """Check if slug is available."""
         stmt = select(self.model.id).where(self.model.slug == slug)
 
@@ -106,10 +104,7 @@ class TenantRepository(BaseRepository[Tenant]):
     async def get_default_tenant(self) -> Tenant | None:
         """Get the default tenant."""
         stmt = select(self.model).where(
-            and_(
-                self.model.slug == "default",
-                self.model.is_active.is_(True)
-            )
+            and_(self.model.slug == "default", self.model.is_active.is_(True))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -119,5 +114,5 @@ class TenantRepository(BaseRepository[Tenant]):
         return await self.create_tenant(
             name="Default Tenant",
             slug="default",
-            description="Default tenant for new users"
+            description="Default tenant for new users",
         )

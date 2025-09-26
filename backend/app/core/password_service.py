@@ -4,15 +4,15 @@ Separated from AuthService to follow Single Responsibility Principle.
 """
 
 import secrets
-from typing import Tuple
 
 from passlib.context import CryptContext
+from passlib.exc import InvalidHashError, PasswordValueError, UnknownHashError
 
 
 class PasswordService:
     """Service responsible only for password operations."""
 
-    def __init__(self, schemes: list[str] | None = None):
+    def __init__(self, schemes: list[str] | None = None) -> None:
         """Initialize password service with configurable schemes."""
         schemes = schemes or ["bcrypt"]
         self.pwd_context = CryptContext(schemes=schemes, deprecated="auto")
@@ -24,8 +24,7 @@ class PasswordService:
 
         try:
             return self.pwd_context.verify(plain_password, hashed_password)
-        except Exception:
-            # Log the error but don't expose details
+        except (UnknownHashError, InvalidHashError, PasswordValueError):
             return False
 
     def get_password_hash(self, password: str) -> str:
@@ -47,8 +46,10 @@ class PasswordService:
             raise ValueError("Password length must be at least 8 characters")
 
         # Use secure random generator
-        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
-        password = ''.join(secrets.choice(alphabet) for _ in range(length))
+        alphabet = (
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+        )
+        password = "".join(secrets.choice(alphabet) for _ in range(length))
 
         # Ensure password meets complexity requirements
         if not self._meets_complexity_requirements(password):
@@ -56,7 +57,7 @@ class PasswordService:
 
         return password
 
-    def generate_password_and_hash(self, length: int = 12) -> Tuple[str, str]:
+    def generate_password_and_hash(self, length: int = 12) -> tuple[str, str]:
         """Generate random password and return both plain and hashed versions."""
         plain_password = self.generate_random_password(length)
         hashed_password = self.get_password_hash(plain_password)
@@ -77,8 +78,16 @@ class PasswordService:
 
         # Check for common passwords (basic check)
         common_passwords = {
-            "password", "123456", "password123", "admin", "qwerty",
-            "letmein", "welcome", "monkey", "dragon", "password1"
+            "password",
+            "123456",
+            "password123",
+            "admin",
+            "qwerty",
+            "letmein",
+            "welcome",
+            "monkey",
+            "dragon",
+            "password1",
         }
         if password.lower() in common_passwords:
             raise ValueError("Password is too common")
@@ -99,10 +108,12 @@ class PasswordService:
         try:
             # Check if the hash needs to be updated (deprecated scheme)
             return not self.pwd_context.needs_update(hashed_password)
-        except Exception:
+        except (UnknownHashError, InvalidHashError, PasswordValueError):
             return False
 
-    def update_hash_if_needed(self, plain_password: str, current_hash: str) -> str | None:
+    def update_hash_if_needed(
+        self, plain_password: str, current_hash: str
+    ) -> str | None:
         """Update hash if using deprecated scheme, return new hash if updated."""
         if not self.is_hash_valid(current_hash):
             return self.get_password_hash(plain_password)

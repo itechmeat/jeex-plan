@@ -2,10 +2,12 @@
 HashiCorp Vault adapter for secrets management.
 """
 
+import os
 from typing import Any
 
 import hvac
 from hvac.exceptions import VaultError
+from requests import exceptions as requests_exceptions
 
 from app.core.config import settings
 from app.core.logger import LoggerMixin, get_logger
@@ -27,18 +29,16 @@ class VaultAdapter(LoggerMixin):
             self.client = hvac.Client(
                 url=settings.VAULT_ADDR,
                 token=settings.VAULT_TOKEN,
-                verify=False  # For development - use proper SSL in production
+                verify=False,  # For development - use proper SSL in production
             )
 
-            # Test connection
             if self.client.is_authenticated():
                 logger.info("Vault client initialized", url=settings.VAULT_ADDR)
             else:
-                raise Exception("Vault authentication failed")
+                raise VaultError("Vault authentication failed")
 
-        except Exception as e:
-            logger.error("Failed to initialize Vault client", error=str(e))
-            # Don't raise exception - continue without Vault for development
+        except (VaultError, requests_exceptions.RequestException) as exc:
+            logger.error("Failed to initialize Vault client", error=str(exc))
             self.client = None
 
     async def health_check(self) -> dict[str, Any]:
@@ -48,7 +48,7 @@ class VaultAdapter(LoggerMixin):
                 return {
                     "status": "unhealthy",
                     "message": "Vault client not initialized",
-                    "details": {}
+                    "details": {},
                 }
 
             health = self.client.sys.health()
@@ -59,16 +59,16 @@ class VaultAdapter(LoggerMixin):
                     "initialized": health.get("initialized", False),
                     "sealed": health.get("sealed", True),
                     "version": health.get("version", "unknown"),
-                    "cluster_name": health.get("cluster_name", "unknown")
-                }
+                    "cluster_name": health.get("cluster_name", "unknown"),
+                },
             }
 
-        except Exception as e:
-            logger.error("Vault health check failed", error=str(e))
+        except (VaultError, requests_exceptions.RequestException) as exc:
+            logger.error("Vault health check failed", error=str(exc))
             return {
                 "status": "unhealthy",
-                "message": f"Vault connection failed: {e!s}",
-                "details": {"error": str(e)}
+                "message": f"Vault connection failed: {exc!s}",
+                "details": {"error": str(exc)},
             }
 
     async def read_secret(self, path: str) -> dict[str, Any] | None:
@@ -111,10 +111,7 @@ class VaultAdapter(LoggerMixin):
                 logger.warning("Vault client not available, cannot write secret")
                 return False
 
-            self.client.secrets.kv.v2.create_or_update_secret(
-                path=path,
-                secret=data
-            )
+            self.client.secrets.kv.v2.create_or_update_secret(path=path, secret=data)
             logger.info("Secret written to Vault", path=path)
             return True
 
@@ -183,7 +180,9 @@ class VaultAdapter(LoggerMixin):
         path = f"secret/data/jeex_plan/{environment}"
         return await self.read_secret(path) or {}
 
-    async def set_environment_secrets(self, environment: str, secrets: dict[str, Any]) -> bool:
+    async def set_environment_secrets(
+        self, environment: str, secrets: dict[str, Any]
+    ) -> bool:
         """
         Set secrets for a specific environment.
 
@@ -304,11 +303,8 @@ class VaultAdapter(LoggerMixin):
 
     # Fallback to environment variables when Vault is not available
     async def get_secret_with_fallback(
-        self,
-        vault_path: str,
-        env_var: str,
-        default: Any = None
-    ) -> Any:
+        self, vault_path: str, env_var: str, default: str | None = None
+    ) -> str | None:
         """
         Get secret from Vault with fallback to environment variable.
 
@@ -320,17 +316,14 @@ class VaultAdapter(LoggerMixin):
         Returns:
             Secret value or default
         """
-        try:
-            # Try to get from Vault first
-            if self.client:
-                secret_data = await self.read_secret(vault_path)
-                if secret_data and "value" in secret_data:
-                    return secret_data["value"]
-        except Exception as e:
-            logger.warning("Failed to get secret from Vault, falling back to environment", error=str(e))
+        if self.client:
+            secret_data = await self.read_secret(vault_path)
+            if secret_data and "value" in secret_data:
+                value = secret_data["value"]
+                if value is None:
+                    return default
+                return str(value)
 
-        # Fall back to environment variable
-        import os
         return os.getenv(env_var, default)
 
     async def initialize_vault_secrets(self) -> bool:
@@ -349,16 +342,14 @@ class VaultAdapter(LoggerMixin):
                 "development": {
                     "openai_api_key": settings.OPENAI_API_KEY,
                     "anthropic_api_key": settings.ANTHROPIC_API_KEY,
-                    "debug": True
+                    "debug": True,
                 },
-                "production": {
-                    "debug": False
-                },
+                "production": {"debug": False},
                 "config": {
                     "app_name": settings.APP_NAME,
                     "version": "1.0.0",
-                    "environment": settings.ENVIRONMENT
-                }
+                    "environment": settings.ENVIRONMENT,
+                },
             }
 
             for path, data in initial_secrets.items():
@@ -367,6 +358,6 @@ class VaultAdapter(LoggerMixin):
             logger.info("Vault secrets initialized successfully")
             return True
 
-        except Exception as e:
-            logger.error("Failed to initialize Vault secrets", error=str(e))
+        except (VaultError, requests_exceptions.RequestException) as exc:
+            logger.error("Failed to initialize Vault secrets", error=str(exc))
             return False

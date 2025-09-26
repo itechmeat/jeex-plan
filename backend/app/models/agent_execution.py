@@ -23,6 +23,7 @@ from .base import BaseModel
 
 class AgentType(str, Enum):
     """Agent type enumeration for the four-stage workflow."""
+
     BUSINESS_ANALYST = "business_analyst"
     SOLUTION_ARCHITECT = "solution_architect"
     PROJECT_PLANNER = "project_planner"
@@ -31,6 +32,7 @@ class AgentType(str, Enum):
 
 class ExecutionStatus(str, Enum):
     """Agent execution status enumeration."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -52,9 +54,13 @@ class AgentExecution(BaseModel):
     output_data = Column(JSON, nullable=True)
 
     # Status and timing
-    status = Column(String(50), default=ExecutionStatus.PENDING.value, nullable=False, index=True)
+    status = Column(
+        String(50), default=ExecutionStatus.PENDING.value, nullable=False, index=True
+    )
     error_message = Column(Text, nullable=True)
-    started_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    started_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Project relationship
@@ -63,7 +69,7 @@ class AgentExecution(BaseModel):
         "Project",
         back_populates="agent_executions",
         primaryjoin="and_(AgentExecution.project_id==Project.id, AgentExecution.tenant_id==Project.tenant_id)",
-        foreign_keys=[project_id]
+        foreign_keys=[project_id],
     )
 
     # User who initiated the execution

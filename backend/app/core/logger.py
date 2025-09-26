@@ -24,7 +24,7 @@ def setup_logging() -> None:
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -139,7 +139,7 @@ def log_function_call(func):
 
             raise
 
-    if hasattr(func, '__code__') and func.__code__.co_flags & 0x80:
+    if hasattr(func, "__code__") and func.__code__.co_flags & 0x80:
         # Async function
         return async_wrapper
     else:

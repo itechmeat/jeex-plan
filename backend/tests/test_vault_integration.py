@@ -412,7 +412,7 @@ class TestVaultSettingsDatabaseUrl:
         """Return async URL when both async and canonical URLs are stored."""
         vault_settings = VaultSettings(Settings(USE_VAULT=True))
 
-        async def fake_get_secret(self, path: str, use_cache: bool = True):
+        async def fake_get_secret(self, path: str, *, use_cache: bool = True):
             return {
                 "async_url": "postgresql+asyncpg://agent:p%40ss@db:5432/jeex",
                 "url": "postgresql://agent:p%40ss@db:5432/jeex",
@@ -429,7 +429,7 @@ class TestVaultSettingsDatabaseUrl:
         """Return canonical URL when async URL is absent."""
         vault_settings = VaultSettings(Settings(USE_VAULT=True))
 
-        async def fake_get_secret(self, path: str, use_cache: bool = True):
+        async def fake_get_secret(self, path: str, *, use_cache: bool = True):
             return {
                 "url": "postgresql://agent:p%40ss@db:5432/jeex",
                 "username": "agent",
@@ -545,11 +545,11 @@ class TestVaultClientLifecycle:
             mock_client_class.return_value = mock_client_instance
 
             # Use the client multiple times
-            async with client.client():
-                pass
+            async with client.client() as c1:
+                assert c1 is not None  # Verify client is usable
 
-            async with client.client():
-                pass
+            async with client.client() as c2:
+                assert c2 is not None  # Verify client reuse works
 
             # Client should only be created once
             assert mock_client_class.call_count == 1

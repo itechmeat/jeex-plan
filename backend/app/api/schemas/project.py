@@ -40,9 +40,7 @@ class ProjectUpdate(BaseModel):
     name: str | None = Field(
         None, min_length=2, max_length=100, description="Project name"
     )
-    language: str | None = Field(
-        None, description="Project language code (ISO 639-1)"
-    )
+    language: str | None = Field(None, description="Project language code (ISO 639-1)")
 
     @field_validator("language")
     @classmethod
@@ -236,9 +234,7 @@ class ExportResponse(BaseModel):
 class StepInput(BaseModel):
     """Step input data schema"""
 
-    idea_description: str | None = Field(
-        None, description="Initial idea description"
-    )
+    idea_description: str | None = Field(None, description="Initial idea description")
     user_clarifications: dict | None = Field(None, description="User clarifications")
     target_audience: str | None = Field(None, description="Target audience")
     requirements: dict | None = Field(None, description="Project requirements")

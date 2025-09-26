@@ -15,7 +15,9 @@ from ..core.database import get_db
 class TenantIsolationMiddleware(BaseHTTPMiddleware):
     """Middleware to enforce tenant isolation for all API requests."""
 
-    def __init__(self, app, excluded_path_prefixes: Iterable[str] | None = None) -> None:
+    def __init__(
+        self, app, excluded_path_prefixes: Iterable[str] | None = None
+    ) -> None:
         super().__init__(app)
         default_prefixes = (
             "/docs",
@@ -48,7 +50,7 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
             if request.url.path.startswith("/api/"):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    detail="Authentication required",
                 )
 
         response = await call_next(request)
@@ -94,13 +96,13 @@ class TenantContextManager:
     @staticmethod
     def get_tenant_id(request: Request) -> uuid.UUID | None:
         """Get tenant ID from request state."""
-        state = getattr(request, 'state', None)
+        state = getattr(request, "state", None)
         if state is None:
             return None
-        if not hasattr(state, 'tenant_id'):
+        if not hasattr(state, "tenant_id"):
             return None
         tenant_id = state.tenant_id
-        if tenant_id in (None, ''):
+        if tenant_id in (None, ""):
             return None
         return tenant_id
 
@@ -111,7 +113,7 @@ class TenantContextManager:
         if not tenant_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Tenant context required"
+                detail="Tenant context required",
             )
         return tenant_id
 

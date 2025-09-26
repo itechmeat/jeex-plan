@@ -470,10 +470,11 @@ class LLMManager:
                     correlation_id=correlation_id,
                     **kwargs,
                 )
-            except LLMError as e:
+            except LLMError as exc:
                 self.logger.warning(
-                    f"Primary LLM provider {provider} failed",
-                    error=str(e),
+                    "Primary LLM provider failed",
+                    provider=provider,
+                    error=str(exc),
                     correlation_id=correlation_id,
                 )
 
@@ -482,7 +483,8 @@ class LLMManager:
             if fallback_provider != provider:
                 try:
                     self.logger.info(
-                        f"Trying fallback LLM provider {fallback_provider}",
+                        "Trying fallback LLM provider",
+                        provider=fallback_provider,
                         correlation_id=correlation_id,
                     )
                     return await client.generate(
@@ -491,10 +493,11 @@ class LLMManager:
                         correlation_id=correlation_id,
                         **kwargs,
                     )
-                except LLMError as e:
+                except LLMError as exc:
                     self.logger.warning(
-                        f"Fallback LLM provider {fallback_provider} failed",
-                        error=str(e),
+                        "Fallback LLM provider failed",
+                        provider=fallback_provider,
+                        error=str(exc),
                         correlation_id=correlation_id,
                     )
 
@@ -510,8 +513,7 @@ class LLMManager:
         if provider == LLMProvider.OPENAI:
             # Try environment variable, then fallback to current recommended models
             return (
-                os.getenv("OPENAI_DEFAULT_MODEL")
-                or "gpt-4o"  # Legacy fallback
+                os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-4o"  # Legacy fallback
             )
         elif provider == LLMProvider.ANTHROPIC:
             # Try environment variable, then fallback to current recommended models

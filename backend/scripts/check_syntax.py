@@ -4,7 +4,6 @@ Syntax checker for Python files in the project.
 """
 
 import ast
-import os
 import sys
 from pathlib import Path
 
@@ -12,7 +11,7 @@ from pathlib import Path
 def check_syntax(file_path: Path) -> tuple[bool, str]:
     """Check syntax of a Python file."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             content = f.read()
 
         # Try to parse the file

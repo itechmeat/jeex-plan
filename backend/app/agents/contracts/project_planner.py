@@ -34,9 +34,7 @@ class ProjectPlannerInput(AgentInput):
         ..., description="Technical architecture from Solution Architect"
     )
     team_size: int | None = Field(None, description="Development team size")
-    timeline_constraints: str | None = Field(
-        None, description="Timeline requirements"
-    )
+    timeline_constraints: str | None = Field(None, description="Timeline requirements")
     priority_features: list[str] | None = Field(
         None, description="High-priority features"
     )
