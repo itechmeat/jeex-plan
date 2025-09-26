@@ -3,8 +3,10 @@ Engineering Standards agent contracts.
 Handles code quality standards, review processes, and technical guidelines.
 """
 
-from typing import Dict, List, Optional, Any, ClassVar
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, ClassVar
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from .base import AgentInput, AgentOutput
 
 
@@ -14,11 +16,11 @@ class CodeStandard(BaseModel):
     category: str = Field(
         ..., description="Standard category (naming, structure, etc.)"
     )
-    rules: List[str] = Field(..., description="Specific rules and guidelines")
-    examples: Optional[Dict[str, str]] = Field(
+    rules: list[str] = Field(..., description="Specific rules and guidelines")
+    examples: dict[str, str] | None = Field(
         None, description="Code examples (good/bad)"
     )
-    tools: List[str] = Field(
+    tools: list[str] = Field(
         default_factory=list, description="Recommended tools for enforcement"
     )
 
@@ -27,14 +29,14 @@ class EngineeringStandardsInput(AgentInput):
     """Input data for Engineering Standards agent."""
 
     project_description: str = Field(..., description="Complete project description")
-    technology_stack: List[str] = Field(..., description="Selected technology stack")
-    team_experience_level: Optional[str] = Field(
+    technology_stack: list[str] = Field(..., description="Selected technology stack")
+    team_experience_level: str | None = Field(
         None, description="Team experience level"
     )
-    existing_standards: Optional[Dict[str, Any]] = Field(
+    existing_standards: dict[str, Any] | None = Field(
         None, description="Existing team standards"
     )
-    compliance_requirements: Optional[List[str]] = Field(
+    compliance_requirements: list[str] | None = Field(
         None, description="Compliance requirements"
     )
 
@@ -44,22 +46,22 @@ class EngineeringStandardsInput(AgentInput):
 class EngineeringStandardsOutput(AgentOutput):
     """Output from Engineering Standards agent."""
 
-    coding_standards: List[CodeStandard] = Field(
+    coding_standards: list[CodeStandard] = Field(
         ..., description="Code quality standards"
     )
     review_process: str = Field(..., description="Code review process and guidelines")
-    definition_of_done: List[str] = Field(
+    definition_of_done: list[str] = Field(
         ..., description="Definition of Done criteria"
     )
     testing_strategy: str = Field(..., description="Testing approach and requirements")
-    security_guidelines: List[str] = Field(..., description="Security best practices")
-    performance_standards: List[str] = Field(
+    security_guidelines: list[str] = Field(..., description="Security best practices")
+    performance_standards: list[str] = Field(
         ..., description="Performance requirements"
     )
-    documentation_requirements: List[str] = Field(
+    documentation_requirements: list[str] = Field(
         ..., description="Documentation standards"
     )
-    toolchain_recommendations: Dict[str, List[str]] = Field(
+    toolchain_recommendations: dict[str, list[str]] = Field(
         default_factory=dict, description="Recommended tools by category"
     )
 

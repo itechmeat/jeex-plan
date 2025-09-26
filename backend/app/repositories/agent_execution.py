@@ -3,15 +3,16 @@ Agent execution repository with tenant isolation.
 Handles audit trail for agent executions in the document generation workflow.
 """
 
-from typing import Optional, List, Dict, Any
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
-from datetime import datetime, timezone, timedelta
-from sqlalchemy import and_, select, desc, func, update
+
+from sqlalchemy import and_, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logger import get_logger
 from app.models.agent_execution import AgentExecution, AgentType, ExecutionStatus
 from app.repositories.base import TenantRepository
-from app.core.logger import get_logger
 
 logger = get_logger()
 
@@ -19,7 +20,7 @@ logger = get_logger()
 class AgentExecutionRepository(TenantRepository[AgentExecution]):
     """Repository for agent executions with tenant isolation."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, tenant_id: UUID) -> None:
         super().__init__(session, AgentExecution, tenant_id)
 
     async def start_execution(
@@ -27,7 +28,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         project_id: UUID,
         agent_type: AgentType,
         correlation_id: UUID,
-        input_data: Dict[str, Any],
+        input_data: dict[str, Any],
         initiated_by: UUID
     ) -> AgentExecution:
         """Start a new agent execution."""
@@ -38,44 +39,44 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
             input_data=input_data,
             status=ExecutionStatus.RUNNING.value,
             initiated_by=initiated_by,
-            started_at=datetime.now(timezone.utc)
+            started_at=datetime.now(UTC)
         )
 
     async def complete_execution(
         self,
         execution_id: UUID,
-        output_data: Dict[str, Any]
-    ) -> Optional[AgentExecution]:
+        output_data: dict[str, Any]
+    ) -> AgentExecution | None:
         """Mark execution as completed with output data."""
         return await self.update(
             execution_id,
             status=ExecutionStatus.COMPLETED.value,
             output_data=output_data,
-            completed_at=datetime.now(timezone.utc)
+            completed_at=datetime.now(UTC)
         )
 
     async def fail_execution(
         self,
         execution_id: UUID,
         error_message: str
-    ) -> Optional[AgentExecution]:
+    ) -> AgentExecution | None:
         """Mark execution as failed with error message."""
         return await self.update(
             execution_id,
             status=ExecutionStatus.FAILED.value,
             error_message=error_message,
-            completed_at=datetime.now(timezone.utc)
+            completed_at=datetime.now(UTC)
         )
 
-    async def cancel_execution(self, execution_id: UUID) -> Optional[AgentExecution]:
+    async def cancel_execution(self, execution_id: UUID) -> AgentExecution | None:
         """Cancel a running execution."""
         return await self.update(
             execution_id,
             status=ExecutionStatus.CANCELLED.value,
-            completed_at=datetime.now(timezone.utc)
+            completed_at=datetime.now(UTC)
         )
 
-    async def get_by_correlation_id(self, correlation_id: UUID) -> Optional[AgentExecution]:
+    async def get_by_correlation_id(self, correlation_id: UUID) -> AgentExecution | None:
         """Get execution by correlation ID."""
         return await self.get_by_field("correlation_id", correlation_id)
 
@@ -84,7 +85,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         project_id: UUID,
         limit: int = 50,
         offset: int = 0
-    ) -> List[AgentExecution]:
+    ) -> list[AgentExecution]:
         """Get executions for a project, ordered by start time desc."""
         stmt = select(self.model).where(
             and_(
@@ -97,14 +98,14 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_active_executions(self, project_id: UUID) -> List[AgentExecution]:
+    async def get_active_executions(self, project_id: UUID) -> list[AgentExecution]:
         """Get currently running executions for a project."""
         return await self.get_by_fields(
             project_id=project_id,
             status=ExecutionStatus.RUNNING.value
         )
 
-    async def get_execution_stats(self, project_id: UUID) -> Dict[str, Any]:
+    async def get_execution_stats(self, project_id: UUID) -> dict[str, Any]:
         """Get execution statistics for a project."""
         # Count by status
         stmt = select(
@@ -165,7 +166,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
 
     async def cleanup_old_executions(self, days_old: int = 30) -> int:
         """Soft delete old completed/failed executions."""
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+        cutoff_date = datetime.now(UTC) - timedelta(days=days_old)
         stmt = (
             update(self.model)
             .where(
@@ -187,10 +188,10 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
 
     async def get_recent_executions(
         self,
-        agent_type: Optional[AgentType] = None,
-        status: Optional[ExecutionStatus] = None,
+        agent_type: AgentType | None = None,
+        status: ExecutionStatus | None = None,
         limit: int = 20
-    ) -> List[AgentExecution]:
+    ) -> list[AgentExecution]:
         """Get recent executions with optional filtering."""
         filters = {}
         if agent_type:

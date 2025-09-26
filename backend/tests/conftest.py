@@ -13,11 +13,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.core.config import settings
+from app.core.database import get_db
 from app.main import app
 from app.models import Base
-from app.core.database import get_db
-from app.core.config import settings
-
 
 # Test database setup
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -55,7 +54,7 @@ async def test_session(test_db):
 @pytest.fixture
 async def async_db(test_session):
     """Backward-compatible alias for async DB session."""
-    yield test_session
+    return test_session
 
 
 @pytest.fixture
@@ -139,7 +138,7 @@ async def async_test_client():
 
 
 # Pytest configuration
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Configure pytest"""
     config.addinivalue_line(
         "markers", "asyncio: mark test as async"
@@ -152,7 +151,7 @@ def pytest_configure(config):
     )
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config, items) -> None:
     """Modify test collection to add markers"""
     for item in items:
         # Mark async tests

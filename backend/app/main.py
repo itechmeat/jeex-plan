@@ -6,23 +6,24 @@ and infrastructure for AI-powered documentation generation.
 """
 
 from contextlib import asynccontextmanager
+
+import redis.asyncio as redis
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from structlog import get_logger
-import redis.asyncio as redis
 
-from app.api.routes import health, projects, auth, agents
+from app.api.routes import agents, auth, health, projects
 from app.core.config import settings
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security import (
+    CSRFProtectionMiddleware,
+    RequestSizeMiddleware,
+    SecurityHeadersMiddleware,
+)
 
 # from app.core.observability import setup_observability  # NOTE: Disabled due to OpenTelemetry version conflicts
 from app.middleware.tenant import TenantIsolationMiddleware
-from app.middleware.rate_limit import RateLimitMiddleware
-from app.middleware.security import (
-    SecurityHeadersMiddleware,
-    CSRFProtectionMiddleware,
-    RequestSizeMiddleware,
-)
 
 # Configure structured logging
 logger = get_logger()
@@ -102,13 +103,23 @@ app.add_middleware(
 # 5. Tenant isolation
 app.add_middleware(TenantIsolationMiddleware)
 
-# 6. CORS (should be close to the end)
+# 6. CORS (should be close to the end) - More restrictive settings for security
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods instead of *
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Request-ID",
+        "X-Tenant-ID",
+        "Cache-Control"
+    ],  # Explicit headers instead of *
+    expose_headers=["X-Request-ID", "X-Process-Time"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 
@@ -156,9 +167,9 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Include API routers
+# Include API routers with proper prefixes
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
-app.include_router(auth.router, prefix="/auth", tags=["authentication"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
 app.include_router(projects.router, prefix="/api/v1", tags=["projects"])
 app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
 

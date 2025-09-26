@@ -2,22 +2,21 @@
 Qdrant vector database adapter with multi-tenancy support.
 """
 
-from typing import List, Dict, Any, Optional, Union
-from app.schemas.vector import DocumentType, VisibilityLevel
+from typing import Any, Union
+
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
     Distance,
-    VectorParams,
-    PointStruct,
-    Filter,
     FieldCondition,
+    Filter,
     MatchValue,
-    CreateCollection,
-    CollectionInfo
+    PointStruct,
+    VectorParams,
 )
 
 from app.core.config import settings
-from app.core.logger import get_logger, LoggerMixin
+from app.core.logger import LoggerMixin, get_logger
+from app.schemas.vector import DocumentType, VisibilityLevel
 
 logger = get_logger(__name__)
 
@@ -25,13 +24,13 @@ logger = get_logger(__name__)
 class QdrantAdapter(LoggerMixin):
     """Qdrant vector database adapter with multi-tenancy support"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.client = None
         self.collection_name = settings.QDRANT_COLLECTION
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize Qdrant client connection"""
         try:
             self.client = QdrantClient(
@@ -44,7 +43,7 @@ class QdrantAdapter(LoggerMixin):
             logger.error("Failed to initialize Qdrant client", error=str(e))
             raise
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Qdrant service health"""
         try:
             # Test basic connectivity
@@ -62,16 +61,16 @@ class QdrantAdapter(LoggerMixin):
             logger.error("Qdrant health check failed", error=str(e))
             return {
                 "status": "unhealthy",
-                "message": f"Qdrant connection failed: {str(e)}",
+                "message": f"Qdrant connection failed: {e!s}",
                 "details": {"error": str(e)}
             }
 
-    async def ensure_collection_exists(self):
+    async def ensure_collection_exists(self) -> None:
         """Ensure the collection exists with proper configuration"""
         try:
             # Check if collection exists
             try:
-                collection_info = self.client.get_collection(self.collection_name)
+                self.client.get_collection(self.collection_name)
                 logger.info("Collection already exists", collection=self.collection_name)
                 return
             except Exception:
@@ -143,13 +142,13 @@ class QdrantAdapter(LoggerMixin):
         self,
         tenant_id: str,
         project_id: str,
-        vectors: List[List[float]],
-        payloads: List[Dict[str, Any]],
+        vectors: list[list[float]],
+        payloads: list[dict[str, Any]],
         doc_type: Union[str, "DocumentType"] = "knowledge",
         visibility: Union[str, "VisibilityLevel"] = "private",
-        version: Union[str, None] = "1.0",
-        lang: Union[str, None] = "en"
-    ) -> Dict[str, Any]:
+        version: str | None = "1.0",
+        lang: str | None = "en"
+    ) -> dict[str, Any]:
         """
         Upsert vector points with tenant and project isolation.
 
@@ -168,7 +167,7 @@ class QdrantAdapter(LoggerMixin):
 
             # Add tenant and project context to all payloads
             enriched_payloads = []
-            for i, (vector, payload) in enumerate(zip(vectors, payloads)):
+            for i, (_vector, payload) in enumerate(zip(vectors, payloads, strict=False)):
                 # Convert enum values to strings for JSON serialization
                 doc_type_str = doc_type.value if hasattr(doc_type, 'value') else str(doc_type)
                 visibility_str = visibility.value if hasattr(visibility, 'value') else str(visibility)
@@ -196,7 +195,7 @@ class QdrantAdapter(LoggerMixin):
                     vector=vector,
                     payload=payload
                 )
-                for i, (vector, payload) in enumerate(zip(vectors, enriched_payloads))
+                for i, (vector, payload) in enumerate(zip(vectors, enriched_payloads, strict=False))
             ]
 
             # Upsert points
@@ -235,11 +234,11 @@ class QdrantAdapter(LoggerMixin):
         self,
         tenant_id: str,
         project_id: str,
-        query_vector: List[float],
+        query_vector: list[float],
         limit: int = 10,
         score_threshold: float = 0.7,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        filters: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """
         Search vectors with strict tenant and project isolation.
 
@@ -311,8 +310,8 @@ class QdrantAdapter(LoggerMixin):
         self,
         tenant_id: str,
         project_id: str,
-        point_ids: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        point_ids: list[str] | None = None
+    ) -> dict[str, Any]:
         """
         Delete points by tenant/project or specific point IDs.
 
@@ -368,7 +367,7 @@ class QdrantAdapter(LoggerMixin):
             )
             raise
 
-    async def get_collection_stats(self, tenant_id: str = None, project_id: str = None) -> Dict[str, Any]:
+    async def get_collection_stats(self, tenant_id: str | None = None, project_id: str | None = None) -> dict[str, Any]:
         """Get collection statistics with optional filtering"""
         try:
             collection_info = self.client.get_collection(self.collection_name)

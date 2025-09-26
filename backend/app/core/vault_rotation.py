@@ -2,11 +2,9 @@
 Vault secret rotation policies and management.
 """
 
-import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from datetime import datetime
 
 from .vault import vault_client
 
@@ -20,17 +18,17 @@ class RotationPolicy:
     rotation_interval_days: int
     auto_rotate: bool = True
     notification_days_before: int = 7
-    last_rotated: Optional[datetime] = None
+    last_rotated: datetime | None = None
 
 
 class SecretRotationManager:
     """Manages secret rotation policies and schedules."""
 
-    def __init__(self):
-        self.policies: Dict[str, RotationPolicy] = {}
+    def __init__(self) -> None:
+        self.policies: dict[str, RotationPolicy] = {}
         self._setup_default_policies()
 
-    def _setup_default_policies(self):
+    def _setup_default_policies(self) -> None:
         """Setup default rotation policies for development."""
         self.policies = {
             "auth/jwt": RotationPolicy(
@@ -53,13 +51,13 @@ class SecretRotationManager:
             )
         }
 
-    async def add_policy(self, policy: RotationPolicy):
+    async def add_policy(self, policy: RotationPolicy) -> None:
         """Add a new rotation policy."""
         self.policies[policy.path] = policy
         await self._store_policy(policy)
         logger.info(f"Added rotation policy for {policy.path}")
 
-    async def _store_policy(self, policy: RotationPolicy):
+    async def _store_policy(self, policy: RotationPolicy) -> None:
         """Store rotation policy metadata in Vault."""
         metadata = {
             "rotation_interval_days": policy.rotation_interval_days,
@@ -75,11 +73,11 @@ class SecretRotationManager:
             mount_point="secret"
         )
 
-    async def get_policy(self, path: str) -> Optional[RotationPolicy]:
+    async def get_policy(self, path: str) -> RotationPolicy | None:
         """Get rotation policy for a secret path."""
         return self.policies.get(path)
 
-    async def check_rotation_needed(self, path: str) -> tuple[bool, Optional[str]]:
+    async def check_rotation_needed(self, path: str) -> tuple[bool, str | None]:
         """Check if a secret needs rotation."""
         policy = await self.get_policy(path)
         if not policy:
@@ -184,17 +182,17 @@ class SecretRotationManager:
             logger.error(f"Error rotating database password: {e}")
             return False
 
-    async def check_all_secrets(self) -> Dict[str, tuple[bool, str]]:
+    async def check_all_secrets(self) -> dict[str, tuple[bool, str]]:
         """Check rotation status for all managed secrets."""
         results = {}
 
-        for path in self.policies.keys():
+        for path in self.policies:
             needs_rotation, reason = await self.check_rotation_needed(path)
             results[path] = (needs_rotation, reason)
 
         return results
 
-    async def auto_rotate_eligible_secrets(self) -> Dict[str, bool]:
+    async def auto_rotate_eligible_secrets(self) -> dict[str, bool]:
         """Automatically rotate eligible secrets."""
         results = {}
 
@@ -215,7 +213,7 @@ class SecretRotationManager:
 
         return results
 
-    async def get_rotation_report(self) -> Dict[str, dict]:
+    async def get_rotation_report(self) -> dict[str, dict]:
         """Generate rotation status report."""
         report = {}
 
@@ -242,7 +240,7 @@ class SecretRotationManager:
 rotation_manager = SecretRotationManager()
 
 
-async def init_rotation_policies():
+async def init_rotation_policies() -> None:
     """Initialize rotation policies."""
     logger.info("Initializing secret rotation policies...")
 
@@ -253,7 +251,7 @@ async def init_rotation_policies():
     logger.info(f"Initialized {len(rotation_manager.policies)} rotation policies")
 
 
-async def run_rotation_check():
+async def run_rotation_check() -> None:
     """Run periodic rotation check (called by scheduler)."""
     logger.info("Running scheduled rotation check...")
 

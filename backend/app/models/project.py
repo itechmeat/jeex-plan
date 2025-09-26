@@ -2,23 +2,26 @@
 Project model with multi-tenant support.
 """
 
+from enum import Enum
+
 from sqlalchemy import (
     Column,
+    ForeignKeyConstraint,
     String,
     Text,
-    Enum as SQLEnum,
     UniqueConstraint,
-    ForeignKey,
-    ForeignKeyConstraint,
     and_,
 )
-from sqlalchemy.orm import relationship, foreign, remote
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
+from sqlalchemy.orm import foreign, relationship, remote
+
 from .base import BaseModel
-from .user import User
-from .tenant import Tenant
 from .document import Document
+from .tenant import Tenant
+from .user import User
 
 
 class ProjectStatus(str, Enum):

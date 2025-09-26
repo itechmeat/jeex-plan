@@ -3,15 +3,16 @@ Document version repository with tenant isolation and versioning support.
 Handles document versioning for the four-stage generation workflow.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Any
 from uuid import UUID
-from sqlalchemy import and_, select, desc, func
+
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.document_version import DocumentVersion, DocumentType
-from app.repositories.base import TenantRepository
 from app.core.logger import get_logger
+from app.models.document_version import DocumentType, DocumentVersion
+from app.repositories.base import TenantRepository
 
 logger = get_logger()
 
@@ -19,7 +20,7 @@ logger = get_logger()
 class DocumentVersionRepository(TenantRepository[DocumentVersion]):
     """Repository for document versions with tenant isolation."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, tenant_id: UUID) -> None:
         super().__init__(session, DocumentVersion, tenant_id)
 
     async def create_version(
@@ -29,9 +30,9 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         title: str,
         content: str,
         created_by: UUID,
-        epic_number: Optional[int] = None,
-        epic_name: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        epic_number: int | None = None,
+        epic_name: str | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> DocumentVersion:
         """Create a new document version.
 
@@ -61,7 +62,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
             base_data["epic_number"] = epic_number
             base_data["epic_name"] = epic_name
 
-        last_error: Optional[IntegrityError] = None
+        last_error: IntegrityError | None = None
         for attempt in range(3):
             next_version = await self.get_next_version(project_id, document_type, epic_number)
             try:
@@ -84,7 +85,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         self,
         project_id: UUID,
         document_type: DocumentType,
-        epic_number: Optional[int] = None
+        epic_number: int | None = None
     ) -> int:
         """Get the next version number for a document type."""
         filters = {
@@ -111,8 +112,8 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         self,
         project_id: UUID,
         document_type: DocumentType,
-        epic_number: Optional[int] = None
-    ) -> Optional[DocumentVersion]:
+        epic_number: int | None = None
+    ) -> DocumentVersion | None:
         """Get the latest version of a document."""
         filters = {
             "project_id": project_id,
@@ -140,8 +141,8 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         project_id: UUID,
         document_type: DocumentType,
         version: int,
-        epic_number: Optional[int] = None
-    ) -> Optional[DocumentVersion]:
+        epic_number: int | None = None
+    ) -> DocumentVersion | None:
         """Get a specific version of a document."""
         filters = {
             "project_id": project_id,
@@ -165,8 +166,8 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         self,
         project_id: UUID,
         document_type: DocumentType,
-        epic_number: Optional[int] = None
-    ) -> List[DocumentVersion]:
+        epic_number: int | None = None
+    ) -> list[DocumentVersion]:
         """Get all versions of a document, ordered by version desc."""
         filters = {
             "project_id": project_id,
@@ -189,7 +190,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_project_documents(self, project_id: UUID) -> List[DocumentVersion]:
+    async def get_project_documents(self, project_id: UUID) -> list[DocumentVersion]:
         """Get all latest document versions for a project."""
         # Subquery to get max version for each document type/epic combination
         subquery = select(
@@ -233,7 +234,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_epic_documents(self, project_id: UUID) -> List[DocumentVersion]:
+    async def get_epic_documents(self, project_id: UUID) -> list[DocumentVersion]:
         """Get latest PLAN_EPIC documents (one per epic)."""
         subq = (
             select(
@@ -273,7 +274,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_by_ids(self, ids: List[UUID]) -> List[DocumentVersion]:
+    async def get_by_ids(self, ids: list[UUID]) -> list[DocumentVersion]:
         """Get documents by IDs preserving input order."""
         if not ids:
             return []
@@ -295,7 +296,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         self,
         project_id: UUID,
         document_type: DocumentType,
-        epic_number: Optional[int] = None
+        epic_number: int | None = None
     ) -> int:
         """Soft delete all versions of a document."""
         filters = {

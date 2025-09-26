@@ -2,11 +2,12 @@
 Database configuration and connection management.
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool
-from sqlalchemy import text
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.logger import get_logger
@@ -64,7 +65,7 @@ async def get_db_session():
             await session.close()
 
 
-async def create_tables():
+async def create_tables() -> None:
     """Create database tables on startup"""
     try:
         async with engine.begin() as conn:
@@ -75,7 +76,7 @@ async def create_tables():
         raise
 
 
-async def close_database_connections():
+async def close_database_connections() -> None:
     """Close all database connections"""
     await engine.dispose()
     logger.info("Database connections closed")
@@ -102,12 +103,12 @@ class DatabaseManager:
             logger.error("Database health check failed", error=str(e))
             return {
                 "status": "unhealthy",
-                "message": f"Database connection failed: {str(e)}",
+                "message": f"Database connection failed: {e!s}",
                 "details": {"error": str(e)}
             }
 
     @staticmethod
-    async def execute_raw_sql(session: AsyncSession, sql: str, params: dict = None):
+    async def execute_raw_sql(session: AsyncSession, sql: str, params: dict | None = None):
         """Execute raw SQL query"""
         try:
             result = await session.execute(sql, params or {})

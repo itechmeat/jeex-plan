@@ -2,10 +2,11 @@
 Base models for multi-tenant architecture.
 """
 
-from sqlalchemy import Column, DateTime, Boolean, ForeignKey, func
+import uuid
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
-import uuid
 
 Base = declarative_base()
 

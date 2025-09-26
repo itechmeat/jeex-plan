@@ -2,10 +2,10 @@
 HashiCorp Vault client integration for JEEX Plan.
 """
 
-import os
 import logging
-from typing import Optional, Dict, Any
+import os
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -22,9 +22,9 @@ class VaultClient:
     def __init__(
         self,
         vault_url: str = "http://vault:8200",
-        vault_token: Optional[str] = None,
+        vault_token: str | None = None,
         timeout: int = 10,
-    ):
+    ) -> None:
         self.vault_url = vault_url.rstrip("/")
 
         resolved_token = vault_token or os.getenv("VAULT_TOKEN")
@@ -54,7 +54,7 @@ class VaultClient:
 
         self.vault_token = resolved_token
         self.timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     @asynccontextmanager
     async def client(self):
@@ -71,7 +71,7 @@ class VaultClient:
             raise
         # Don't close the client here - reuse it
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         if self._client:
             await self._client.aclose()
@@ -96,7 +96,7 @@ class VaultClient:
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
     async def put_secret(
-        self, path: str, secrets: Dict[str, Any], mount_point: str = "secret"
+        self, path: str, secrets: dict[str, Any], mount_point: str = "secret"
     ) -> bool:
         """Store secrets in Vault KV store."""
         try:
@@ -121,7 +121,7 @@ class VaultClient:
     )
     async def get_secret(
         self, path: str, mount_point: str = "secret"
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Retrieve secrets from Vault KV store."""
         try:
             async with self.client() as client:
@@ -158,7 +158,7 @@ class VaultClient:
             logger.error(f"Error deleting secret at {path}: {e}")
             return False
 
-    async def list_secrets(self, path: str = "", mount_point: str = "secret") -> Optional[list]:
+    async def list_secrets(self, path: str = "", mount_point: str = "secret") -> list | None:
         """List secrets in Vault KV store."""
         try:
             async with self.client() as client:
@@ -188,7 +188,7 @@ async def get_vault_client() -> VaultClient:
     return vault_client
 
 
-async def init_vault_secrets():
+async def init_vault_secrets() -> None:
     """Initialize default secrets in Vault for development."""
     logger.info("Initializing Vault secrets...")
 
@@ -228,7 +228,7 @@ async def init_vault_secrets():
     logger.info("Vault secrets initialized successfully")
 
 
-async def get_jwt_secret() -> Optional[str]:
+async def get_jwt_secret() -> str | None:
     """Get JWT secret from Vault."""
     secrets = await vault_client.get_secret("auth/jwt")
     if secrets:
@@ -236,7 +236,7 @@ async def get_jwt_secret() -> Optional[str]:
     return None
 
 
-async def get_oauth_secrets(provider: str) -> Optional[Dict[str, str]]:
+async def get_oauth_secrets(provider: str) -> dict[str, str] | None:
     """Get OAuth secrets for a specific provider from Vault."""
     secrets = await vault_client.get_secret(f"oauth/{provider}")
     return secrets
@@ -255,7 +255,7 @@ async def store_oauth_config(
     provider: str,
     client_id: str,
     client_secret: str,
-    additional_config: Optional[Dict[str, Any]] = None
+    additional_config: dict[str, Any] | None = None
 ) -> bool:
     """Store OAuth provider configuration in Vault."""
     config = {
@@ -269,6 +269,6 @@ async def store_oauth_config(
     return await vault_client.put_secret(f"oauth/{provider}", config)
 
 
-async def cleanup_vault():
+async def cleanup_vault() -> None:
     """Cleanup Vault client on shutdown."""
     await vault_client.close()

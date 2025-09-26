@@ -2,12 +2,11 @@
 Security middleware for headers, CSRF protection, and other security measures.
 """
 
-import secrets
 import hashlib
-from typing import Optional
-from fastapi import Request, HTTPException, status
+import secrets
+
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
 
 from ..core.config import get_settings
 
@@ -17,7 +16,7 @@ settings = get_settings()
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Middleware to add security headers to all responses."""
 
-    def __init__(self, app):
+    def __init__(self, app) -> None:
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next):
@@ -79,7 +78,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     """CSRF protection middleware for state-changing operations."""
 
-    def __init__(self, app, exempt_paths: Optional[list] = None):
+    def __init__(self, app, exempt_paths: list | None = None) -> None:
         super().__init__(app)
         self.exempt_paths = exempt_paths or [
             "/docs",
@@ -157,7 +156,7 @@ class SecurityService:
         return secrets.token_urlsafe(32)
 
     @staticmethod
-    def hash_password(password: str, salt: Optional[str] = None) -> tuple:
+    def hash_password(password: str, salt: str | None = None) -> tuple:
         """Hash password with salt (additional security layer)."""
         if not salt:
             salt = secrets.token_hex(32)
@@ -202,8 +201,8 @@ class SecurityService:
     @staticmethod
     def sanitize_filename(filename: str) -> str:
         """Sanitize filename to prevent path traversal."""
-        import re
         import os.path
+        import re
 
         # Remove path components
         filename = os.path.basename(filename)
@@ -289,12 +288,12 @@ class SecurityService:
 
     @staticmethod
     def generate_audit_log_entry(
-        user_id: Optional[str],
+        user_id: str | None,
         action: str,
         resource: str,
-        details: Optional[dict] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        details: dict | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None
     ) -> dict:
         """Generate standardized audit log entry."""
         from datetime import datetime
@@ -314,7 +313,7 @@ class SecurityService:
 class RequestSizeMiddleware(BaseHTTPMiddleware):
     """Middleware to limit request size for DoS protection."""
 
-    def __init__(self, app, max_size: int = 10 * 1024 * 1024):  # 10MB default
+    def __init__(self, app, max_size: int = 10 * 1024 * 1024) -> None:  # 10MB default
         super().__init__(app)
         self.max_size = max_size
 

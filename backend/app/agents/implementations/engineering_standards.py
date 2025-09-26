@@ -4,22 +4,24 @@ Handles code quality standards, review processes, and technical guidelines.
 """
 
 import re
-from typing import Type, Dict, Any, List
+from typing import Any
 
 from ..base.agent_base import AgentBase
-from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
+from ..base.vector_context import vector_context
 from ..contracts.base import (
-    ProjectContext,
     AgentInput,
     AgentOutput,
+    ProjectContext,
     ValidationResult,
+)
+from ..contracts.base import (
     ValidationError as AgentValidationError,
 )
 from ..contracts.engineering_standards import (
+    CodeStandard,
     EngineeringStandardsInput,
     EngineeringStandardsOutput,
-    CodeStandard,
 )
 
 
@@ -40,10 +42,10 @@ class EngineeringStandardsAgent(AgentBase):
             without hindering productivity.""",
         )
 
-    def get_input_model(self) -> Type[AgentInput]:
+    def get_input_model(self) -> type[AgentInput]:
         return EngineeringStandardsInput
 
-    def get_output_model(self) -> Type[AgentOutput]:
+    def get_output_model(self) -> type[AgentOutput]:
         return EngineeringStandardsOutput
 
     async def validate_input(self, input_data: EngineeringStandardsInput) -> None:
@@ -119,13 +121,13 @@ for a technical project.
 
 Create practical, enforceable standards that improve quality without hindering productivity."""
 
-    async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
+    async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         return await vector_context.get_previous_steps_context(
             context, context.current_step
         )
 
     def _build_task_description(
-        self, input_data: EngineeringStandardsInput, context_data: Dict[str, Any]
+        self, input_data: EngineeringStandardsInput, context_data: dict[str, Any]
     ) -> str:
         # NOTE: Task description uses basic template
         # Could be enhanced with technology-specific prompts
@@ -146,7 +148,7 @@ Focus on standards that can be automated and enforced through tooling."""
             "testing strategy, and quality processes."
         )
 
-    def _parse_markdown_section(self, content: str, section_name: str) -> List[str]:
+    def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
         pattern = rf"#{1,2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1,2}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
@@ -161,7 +163,7 @@ Focus on standards that can be automated and enforced through tooling."""
 
         return [bullet.strip() for bullet in bullets if bullet.strip()]
 
-    def _parse_code_standards(self, content: str) -> List[CodeStandard]:
+    def _parse_code_standards(self, content: str) -> list[CodeStandard]:
         """Parse code quality standards section into CodeStandard objects."""
         standards_bullets = self._parse_markdown_section(content, "Code Quality Standards")
         code_standards = []
@@ -193,7 +195,7 @@ Focus on standards that can be automated and enforced through tooling."""
 
         return ' '.join(paragraphs) if paragraphs else ""
 
-    def _parse_toolchain_recommendations(self, content: str) -> Dict[str, List[str]]:
+    def _parse_toolchain_recommendations(self, content: str) -> dict[str, list[str]]:
         """Parse toolchain recommendations into categorized dictionary."""
         tools_bullets = self._parse_markdown_section(content, "Recommended Toolchain")
         toolchain = {}

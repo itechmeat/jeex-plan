@@ -2,20 +2,20 @@
 Document repository for document management operations with tenant isolation.
 """
 
-from typing import Optional, List
 from uuid import UUID
 
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, select, func
 
-from app.models.document import Document, DocumentType, DocumentStatus
+from app.models.document import Document, DocumentStatus, DocumentType
+
 from .base import TenantRepository
 
 
 class DocumentRepository(TenantRepository[Document]):
     """Repository for document operations with tenant isolation."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, tenant_id: UUID) -> None:
         super().__init__(session, Document, tenant_id)
 
     async def get_by_project(
@@ -23,7 +23,7 @@ class DocumentRepository(TenantRepository[Document]):
         project_id: UUID,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Get documents by project within tenant."""
         stmt = (
             select(self.model)
@@ -45,7 +45,7 @@ class DocumentRepository(TenantRepository[Document]):
         document_type: DocumentType,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Get documents by type within tenant."""
         stmt = (
             select(self.model)
@@ -67,7 +67,7 @@ class DocumentRepository(TenantRepository[Document]):
         status: DocumentStatus,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Get documents by status within tenant."""
         stmt = (
             select(self.model)
@@ -88,7 +88,7 @@ class DocumentRepository(TenantRepository[Document]):
         self,
         project_id: UUID,
         document_type: DocumentType
-    ) -> Optional[Document]:
+    ) -> Document | None:
         """Get document by project and type within tenant."""
         stmt = (
             select(self.model)
@@ -109,7 +109,7 @@ class DocumentRepository(TenantRepository[Document]):
         title: str,
         project_id: UUID,
         document_type: DocumentType,
-        content: Optional[str] = None,
+        content: str | None = None,
         status: DocumentStatus = DocumentStatus.PENDING
     ) -> Document:
         """Create a new document within tenant."""
@@ -127,8 +127,8 @@ class DocumentRepository(TenantRepository[Document]):
         self,
         document_id: UUID,
         status: DocumentStatus,
-        error_message: Optional[str] = None
-    ) -> Optional[Document]:
+        error_message: str | None = None
+    ) -> Document | None:
         """Update document status."""
         updates = {'status': status}
         if error_message is not None:
@@ -141,7 +141,7 @@ class DocumentRepository(TenantRepository[Document]):
         document_id: UUID,
         generation_step: int,
         generation_progress: int
-    ) -> Optional[Document]:
+    ) -> Document | None:
         """Update document generation progress."""
         return await self.update(
             document_id,
@@ -149,7 +149,7 @@ class DocumentRepository(TenantRepository[Document]):
             generation_progress=generation_progress
         )
 
-    async def update_content(self, document_id: UUID, content: str) -> Optional[Document]:
+    async def update_content(self, document_id: UUID, content: str) -> Document | None:
         """Update document content."""
         return await self.update(document_id, content=content)
 
@@ -157,7 +157,7 @@ class DocumentRepository(TenantRepository[Document]):
         self,
         document_id: UUID,
         content: str
-    ) -> Optional[Document]:
+    ) -> Document | None:
         """Mark document as completed with final content."""
         return await self.update(
             document_id,
@@ -170,7 +170,7 @@ class DocumentRepository(TenantRepository[Document]):
         self,
         document_id: UUID,
         error_message: str
-    ) -> Optional[Document]:
+    ) -> Document | None:
         """Mark document generation as failed."""
         return await self.update(
             document_id,
@@ -183,7 +183,7 @@ class DocumentRepository(TenantRepository[Document]):
         search_term: str,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Search documents by title or content within tenant."""
         return await self.search(
             search_fields=['title', 'content'],
@@ -196,7 +196,7 @@ class DocumentRepository(TenantRepository[Document]):
         self,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Get pending documents within tenant."""
         return await self.get_by_status(DocumentStatus.PENDING, skip, limit)
 
@@ -204,7 +204,7 @@ class DocumentRepository(TenantRepository[Document]):
         self,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Get documents currently being generated within tenant."""
         return await self.get_by_status(DocumentStatus.GENERATING, skip, limit)
 

@@ -3,21 +3,22 @@ User management service with authentication and profile operations.
 """
 
 import uuid
-from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
+from typing import Any
+
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import AuthService
 from ..models.user import User
-from ..repositories.user import UserRepository
 from ..repositories.tenant import TenantRepository
+from ..repositories.user import UserRepository
 
 
 class UserService:
     """Service for user management operations."""
 
-    def __init__(self, db: AsyncSession, tenant_id: Optional[uuid.UUID] = None):
+    def __init__(self, db: AsyncSession, tenant_id: uuid.UUID | None = None) -> None:
         self.db = db
         self.tenant_id = tenant_id
         # Repositories that require tenant_id
@@ -34,9 +35,9 @@ class UserService:
         email: str,
         username: str,
         password: str,
-        full_name: Optional[str] = None,
-        tenant_id: Optional[uuid.UUID] = None
-    ) -> Dict[str, Any]:
+        full_name: str | None = None,
+        tenant_id: uuid.UUID | None = None
+    ) -> dict[str, Any]:
         """Register a new user with password authentication."""
 
         # Compute effective tenant_id first
@@ -89,8 +90,8 @@ class UserService:
         self,
         email: str,
         password: str,
-        tenant_id: Optional[uuid.UUID] = None
-    ) -> Dict[str, Any]:
+        tenant_id: uuid.UUID | None = None
+    ) -> dict[str, Any]:
         """Authenticate user with email and password."""
 
         user = await self.auth_service.authenticate_user(email, password, tenant_id)
@@ -119,7 +120,7 @@ class UserService:
             "tokens": tokens
         }
 
-    async def refresh_tokens(self, refresh_token: str) -> Optional[Dict[str, Any]]:
+    async def refresh_tokens(self, refresh_token: str) -> dict[str, Any] | None:
         """Refresh access token using refresh token."""
         tokens = await self.auth_service.refresh_access_token(refresh_token)
 
@@ -273,9 +274,9 @@ class UserService:
         self,
         skip: int = 0,
         limit: int = 100,
-        search: Optional[str] = None,
+        search: str | None = None,
         active_only: bool = True
-    ) -> List[User]:
+    ) -> list[User]:
         """Get list of users with optional search."""
         if self.user_repo is None:
             raise HTTPException(
@@ -291,7 +292,7 @@ class UserService:
 
         return await self.user_repo.get_all(skip, limit)
 
-    async def get_user_statistics(self) -> Dict[str, int]:
+    async def get_user_statistics(self) -> dict[str, int]:
         """Get user statistics."""
         return await self.user_repo.get_user_count_by_status()
 
@@ -349,7 +350,7 @@ class UserService:
 
         return user
 
-    def _serialize_user(self, user: User) -> Dict[str, Any]:
+    def _serialize_user(self, user: User) -> dict[str, Any]:
         """Serialize user data safely, excluding sensitive fields."""
         return {
             "id": str(user.id),

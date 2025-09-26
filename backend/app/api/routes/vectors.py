@@ -5,19 +5,24 @@ Provides endpoints for document storage, semantic search, and vector management
 with automatic tenant/project scoping and server-side filtering.
 """
 
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from fastapi.responses import JSONResponse
+from typing import Any
 
+from fastapi import APIRouter, HTTPException, Query, Request, status
+
+from app.adapters.qdrant import QdrantAdapter
 from app.core.logger import get_logger
 from app.middleware.tenant_filter import VectorOperationFilter
 from app.schemas.vector import (
-    SearchRequest, UpsertRequest, DeleteRequest,
-    SearchResult, CollectionStats, VectorPayload,
-    DocumentType, VisibilityLevel
+    CollectionStats,
+    DeleteRequest,
+    DocumentType,
+    SearchRequest,
+    SearchResult,
+    UpsertRequest,
+    VectorPayload,
+    VisibilityLevel,
 )
-from app.adapters.qdrant import QdrantAdapter
-from app.services.embedding import EmbeddingService, ChunkingStrategy, TextNormalization
+from app.services.embedding import ChunkingStrategy, EmbeddingService, TextNormalization
 
 logger = get_logger(__name__)
 
@@ -28,7 +33,7 @@ qdrant_adapter = QdrantAdapter()
 embedding_service = EmbeddingService()
 
 
-async def get_tenant_context(request: Request) -> Dict[str, str]:
+async def get_tenant_context(request: Request) -> dict[str, str]:
     """Extract tenant context from request state (set by middleware)"""
     if not hasattr(request.state, 'tenant_context'):
         raise HTTPException(
@@ -38,11 +43,11 @@ async def get_tenant_context(request: Request) -> Dict[str, str]:
     return request.state.tenant_context
 
 
-@router.post("/search", response_model=List[SearchResult])
+@router.post("/search", response_model=list[SearchResult])
 async def search_vectors(
     request: SearchRequest,
     http_request: Request
-) -> List[SearchResult]:
+) -> list[SearchResult]:
     """
     Search vectors with strict tenant/project isolation.
 
@@ -74,7 +79,7 @@ async def search_vectors(
         if request.version:
             additional_filters["version"] = request.version
 
-        search_filter = VectorOperationFilter.build_search_filter(
+        VectorOperationFilter.build_search_filter(
             tenant_id=request.tenant_id,
             project_id=request.project_id,
             additional_filters=additional_filters
@@ -117,7 +122,7 @@ async def search_vectors(
         logger.error("Vector search failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Search failed: {str(e)}"
+            detail=f"Search failed: {e!s}"
         )
 
 
@@ -125,7 +130,7 @@ async def search_vectors(
 async def upsert_vectors(
     request: UpsertRequest,
     http_request: Request
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Bulk upsert pre-computed vectors with tenant isolation.
 
@@ -204,7 +209,7 @@ async def upsert_vectors(
         logger.error("Vector upsert failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Upsert failed: {str(e)}"
+            detail=f"Upsert failed: {e!s}"
         )
 
 
@@ -218,7 +223,7 @@ async def embed_and_store(
     version: str = Query("1.0", description="Document version"),
     lang: str = Query("en", description="Document language"),
     http_request: Request = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Simplified endpoint: process text and store embeddings in one call.
 
@@ -259,7 +264,7 @@ async def embed_and_store(
             payloads.append(payload)
 
         # Upsert vectors to Qdrant
-        upsert_result = await qdrant_adapter.upsert_points(
+        await qdrant_adapter.upsert_points(
             tenant_id=tenant_id,
             project_id=project_id,
             vectors=embedding_result.embeddings,
@@ -300,7 +305,7 @@ async def embed_and_store(
         logger.error("Embed and store failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Embed and store failed: {str(e)}"
+            detail=f"Embed and store failed: {e!s}"
         )
 
 
@@ -308,7 +313,7 @@ async def embed_and_store(
 async def delete_vectors(
     request: DeleteRequest,
     http_request: Request
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Delete vectors with tenant isolation and optional filtering.
 
@@ -372,7 +377,7 @@ async def delete_vectors(
         logger.error("Vector deletion failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Delete failed: {str(e)}"
+            detail=f"Delete failed: {e!s}"
         )
 
 
@@ -422,12 +427,12 @@ async def get_collection_stats(
         logger.error("Failed to get collection stats", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Stats retrieval failed: {str(e)}"
+            detail=f"Stats retrieval failed: {e!s}"
         )
 
 
 @router.get("/health")
-async def vector_health_check() -> Dict[str, Any]:
+async def vector_health_check() -> dict[str, Any]:
     """
     Health check for vector database operations.
 

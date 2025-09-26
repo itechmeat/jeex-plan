@@ -4,19 +4,24 @@ Handles vector storage, search, and multi-tenant isolation.
 """
 
 import asyncio
-from typing import List, Dict, Any, Optional, Tuple
-from uuid import UUID, uuid4
+from typing import Any
+from uuid import uuid4
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import (
-    VectorParams, Distance, HnswConfigDiff,
-    Filter, FieldCondition, MatchValue, PointStruct, ScoredPoint
+    Distance,
+    FieldCondition,
+    Filter,
+    HnswConfigDiff,
+    MatchValue,
+    PointStruct,
+    VectorParams,
 )
 
 from app.core.config import settings
-from app.services.embedding import EmbeddingService
 from app.core.logger import get_logger
+from app.services.embedding import EmbeddingService
 
 logger = get_logger()
 
@@ -24,7 +29,7 @@ logger = get_logger()
 class QdrantService:
     """Service for vector database operations with multi-tenant support."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
         self.collection_name = settings.QDRANT_COLLECTION
         self.embedding_service = EmbeddingService()
@@ -105,10 +110,10 @@ class QdrantService:
 
     async def upsert_documents(
         self,
-        documents: List[str],
-        metadata_list: List[Dict[str, Any]],
-        ids: Optional[List[str]] = None
-    ) -> List[str]:
+        documents: list[str],
+        metadata_list: list[dict[str, Any]],
+        ids: list[str] | None = None
+    ) -> list[str]:
         """Upsert documents with embeddings into Qdrant."""
         await self.initialize()
 
@@ -137,7 +142,7 @@ class QdrantService:
 
             # Create points
             points = []
-            for i, (doc, embedding, metadata) in enumerate(zip(documents, embeddings, metadata_list)):
+            for i, (doc, embedding, metadata) in enumerate(zip(documents, embeddings, metadata_list, strict=False)):
                 # Add document content to metadata
                 full_metadata = {
                     **metadata,
@@ -177,9 +182,9 @@ class QdrantService:
         project_id: str,
         limit: int = 10,
         score_threshold: float = 0.7,
-        document_type: Optional[str] = None,
-        additional_filters: Optional[Dict[str, Any]] = None
-    ) -> List[Tuple[str, Dict[str, Any], float]]:
+        document_type: str | None = None,
+        additional_filters: dict[str, Any] | None = None
+    ) -> list[tuple[str, dict[str, Any], float]]:
         """Search documents with tenant and project isolation."""
         await self.initialize()
 
@@ -328,7 +333,7 @@ class QdrantService:
             logger.error(f"Failed to delete document: {e}")
             raise
 
-    async def get_collection_stats(self) -> Dict[str, Any]:
+    async def get_collection_stats(self) -> dict[str, Any]:
         """Get collection statistics."""
         await self.initialize()
 
@@ -354,7 +359,7 @@ class QdrantService:
             logger.error(f"Failed to get collection stats: {e}")
             raise
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Qdrant service health."""
         try:
             await self.initialize()

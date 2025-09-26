@@ -4,14 +4,15 @@ Ensures content quality and completeness.
 """
 
 import re
-from typing import Dict, List, Any, Optional
 from abc import ABC, abstractmethod
+from typing import Any
 
-import textstat
 import markdown
+import textstat
 
 from app.core.logger import get_logger
-from ..contracts.base import ValidationResult, AgentOutput
+
+from ..contracts.base import AgentOutput, ValidationResult
 
 logger = get_logger()
 
@@ -21,16 +22,15 @@ class ContentValidator(ABC):
 
     @abstractmethod
     async def validate(
-        self, content: str, _metadata: Optional[Dict[str, Any]] = None
+        self, content: str, _metadata: dict[str, Any] | None = None
     ) -> ValidationResult:
         """Validate content and return results."""
-        pass
 
 
 class MarkdownValidator(ContentValidator):
     """Validates Markdown content structure and quality."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.required_sections = [
             "# ",  # At least one H1 header
         ]
@@ -40,7 +40,7 @@ class MarkdownValidator(ContentValidator):
         ]
 
     async def validate(
-        self, content: str, _metadata: Optional[Dict[str, Any]] = None
+        self, content: str, _metadata: dict[str, Any] | None = None
     ) -> ValidationResult:
         """Validate Markdown content."""
         checks = []
@@ -130,12 +130,12 @@ class MarkdownValidator(ContentValidator):
 class ReadabilityValidator(ContentValidator):
     """Validates content readability using textstat."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.target_grade_level = 12  # College level
         self.min_reading_ease = 30  # Somewhat difficult
 
     async def validate(
-        self, content: str, _metadata: Optional[Dict[str, Any]] = None
+        self, content: str, _metadata: dict[str, Any] | None = None
     ) -> ValidationResult:
         """Validate content readability."""
         suggestions = []
@@ -213,7 +213,7 @@ class ReadabilityValidator(ContentValidator):
 class BusinessAnalystValidator(ContentValidator):
     """Specialized validator for Business Analyst outputs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.required_sections = [
             "problem",
             "target audience",
@@ -223,7 +223,7 @@ class BusinessAnalystValidator(ContentValidator):
         ]
 
     async def validate(
-        self, content: str, _metadata: Optional[Dict[str, Any]] = None
+        self, content: str, _metadata: dict[str, Any] | None = None
     ) -> ValidationResult:
         """Validate Business Analyst document."""
         content_lower = content.lower()
@@ -283,7 +283,7 @@ class BusinessAnalystValidator(ContentValidator):
 class SolutionArchitectValidator(ContentValidator):
     """Specialized validator for Solution Architect outputs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.required_sections = [
             "technology stack",
             "architecture",
@@ -293,7 +293,7 @@ class SolutionArchitectValidator(ContentValidator):
         ]
 
     async def validate(
-        self, content: str, _metadata: Optional[Dict[str, Any]] = None
+        self, content: str, _metadata: dict[str, Any] | None = None
     ) -> ValidationResult:
         """Validate Solution Architect document."""
         content_lower = content.lower()
@@ -357,7 +357,7 @@ class SolutionArchitectValidator(ContentValidator):
 class QualityController:
     """Main quality control system for agent outputs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.validators = {
             "markdown": MarkdownValidator(),
             "readability": ReadabilityValidator(),

@@ -37,9 +37,26 @@ Run CodeRabbit CLI analysis in prompt-only mode optimized for AI agents, then sy
 **Step 1: CodeRabbit Analysis**
 Run CodeRabbit analysis on ${ARGUMENTS:-.} (current directory if no arguments provided):
 
-!coderabbit --prompt-only ${ARGUMENTS:+--cwd $ARGUMENTS}
+!timeout 600 coderabbit --prompt-only ${ARGUMENTS:+--cwd $ARGUMENTS}
+
+**IMPORTANT: Analysis Duration**
+CodeRabbit analysis can take up to 10 minutes to complete, especially for large changesets or projects with many files. **Wait patiently** - do NOT interrupt the process.
+
+**CRITICAL: Error Handling**
+If CodeRabbit returns any error (rate limits, authentication, network issues, etc.):
+1. **Immediately stop execution** - do NOT proceed with agent activation
+2. **Notify the user** about the specific error encountered
+3. **Provide guidance** on how to resolve the issue (e.g., wait for rate limit reset, check authentication)
+4. **Exit gracefully** without launching any agents
+
+Common error scenarios:
+- **Rate limit exceeded**: "CodeRabbit API rate limit exceeded. Please wait and try again later."
+- **Authentication failed**: "CodeRabbit authentication failed. Please check your API credentials."
+- **Network/connectivity issues**: "CodeRabbit API is unreachable. Please check your internet connection."
+- **Invalid arguments**: "Invalid CodeRabbit arguments provided. Please check the command syntax."
 
 **Step 2: Agent Selection and Activation**
+**ONLY proceed if CodeRabbit analysis completed successfully without errors.**
 
 **If the argument equals "frontend" or includes "frontend/":**
 ```

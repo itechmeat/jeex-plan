@@ -146,6 +146,52 @@ exclude = [
     ".pytest_cache",
 ]
 
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+# Enable the same set of rules as flake8 + more
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "YTT",  # flake8-2020
+    "ANN",  # flake8-annotations
+    "S",    # flake8-bandit
+    "BLE",  # flake8-blind-except
+    "FBT",  # flake8-boolean-trap
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "EXE",  # flake8-executable
+    "ISC",  # flake8-implicit-str-concat
+    "ICN",  # flake8-import-conventions
+    "G",    # flake8-logging-format
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "PYI",  # flake8-pyi
+    "RUF",  # ruff-specific rules
+    "SIM",  # flake8-simplify
+    "UP",   # pyupgrade
+    "W",    # pycodestyle warnings
+    "YTT",  # flake8-2020
+]
+# Allow unused variables when they start with underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings
+quote-style = "double"
+# Like Black, ensure files end with a newline
+line-ending = "auto"
+# Enable range formatting
+skip-magic-trailing-comma = false
+
 [tool.bandit]
 exclude_dirs = ["tests", ".git", "__pycache__"]
 skips = ["B101", "B601", "B602"]

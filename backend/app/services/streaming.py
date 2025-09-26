@@ -5,9 +5,9 @@ Handles real-time progress updates for document generation workflow.
 
 import asyncio
 import json
-from typing import AsyncGenerator, Dict, Any, Optional
-from uuid import UUID
-from datetime import datetime, timezone
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from typing import Any
 
 import redis.asyncio as redis
 
@@ -20,9 +20,9 @@ logger = get_logger()
 class StreamingService:
     """Service for SSE streaming and Redis pub/sub."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.redis_url = settings.REDIS_URL
-        self._redis_pool: Optional[redis.ConnectionPool] = None
+        self._redis_pool: redis.ConnectionPool | None = None
 
     async def get_redis(self) -> redis.Redis:
         """Get Redis connection."""
@@ -50,7 +50,7 @@ class StreamingService:
         tenant_id: str,
         project_id: str,
         event_type: str,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> None:
         """Publish event to project channel."""
         try:
@@ -59,7 +59,7 @@ class StreamingService:
 
             event_data = {
                 "type": event_type,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "project_id": project_id,
                 "tenant_id": tenant_id,
                 **data
@@ -78,8 +78,8 @@ class StreamingService:
         step: int,
         progress: float,
         message: str,
-        correlation_id: Optional[str] = None,
-        additional_data: Optional[Dict[str, Any]] = None
+        correlation_id: str | None = None,
+        additional_data: dict[str, Any] | None = None
     ) -> None:
         """Publish progress update."""
         try:
@@ -95,7 +95,7 @@ class StreamingService:
             channel = self._get_progress_channel(tenant_id, project_id)
             event_data = {
                 "type": "progress",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "project_id": project_id,
                 "tenant_id": tenant_id,
                 **data
@@ -111,7 +111,7 @@ class StreamingService:
         project_id: str,
         step: int,
         step_name: str,
-        correlation_id: Optional[str] = None
+        correlation_id: str | None = None
     ) -> None:
         """Publish step start event."""
         await self.publish_event(
@@ -132,7 +132,7 @@ class StreamingService:
         step_name: str,
         document_id: str,
         confidence_score: float,
-        correlation_id: Optional[str] = None
+        correlation_id: str | None = None
     ) -> None:
         """Publish step completion event."""
         await self.publish_event(
@@ -154,7 +154,7 @@ class StreamingService:
         step: int,
         step_name: str,
         error_message: str,
-        correlation_id: Optional[str] = None
+        correlation_id: str | None = None
     ) -> None:
         """Publish step error event."""
         await self.publish_event(
@@ -172,8 +172,8 @@ class StreamingService:
         self,
         tenant_id: str,
         project_id: str,
-        correlation_id: Optional[str] = None,
-        summary: Optional[Dict[str, Any]] = None
+        correlation_id: str | None = None,
+        summary: dict[str, Any] | None = None
     ) -> None:
         """Publish workflow completion event."""
         await self.publish_event(
@@ -275,7 +275,7 @@ class StreamingService:
             await pubsub.unsubscribe(progress_channel, events_channel)
             await pubsub.close()
 
-    def _format_sse_event(self, event_type: str, data: Dict[str, Any]) -> str:
+    def _format_sse_event(self, event_type: str, data: dict[str, Any]) -> str:
         """Format data as SSE event."""
         event_data = json.dumps(data)
         return f"event: {event_type}\ndata: {event_data}\n\n"
@@ -284,7 +284,7 @@ class StreamingService:
         self,
         tenant_id: str,
         project_id: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get current project status from Redis cache."""
         try:
             redis_client = await self.get_redis()
@@ -312,7 +312,7 @@ class StreamingService:
         self,
         tenant_id: str,
         project_id: str,
-        status_data: Dict[str, Any],
+        status_data: dict[str, Any],
         ttl_seconds: int = 3600
     ) -> None:
         """Update project status in Redis cache."""
@@ -320,7 +320,7 @@ class StreamingService:
             redis_client = await self.get_redis()
             cache_key = f"project_status:{tenant_id}:{project_id}"
 
-            status_data["last_updated"] = datetime.now(timezone.utc).isoformat()
+            status_data["last_updated"] = datetime.now(UTC).isoformat()
             await redis_client.setex(
                 cache_key,
                 ttl_seconds,
@@ -333,7 +333,7 @@ class StreamingService:
     async def cleanup_old_streams(self, max_age_hours: int = 24) -> int:
         """Clean up old Redis pub/sub data."""
         try:
-            redis_client = await self.get_redis()
+            await self.get_redis()
 
             # This would require custom cleanup logic based on Redis configuration
             # For now, Redis handles TTL automatically for pub/sub channels

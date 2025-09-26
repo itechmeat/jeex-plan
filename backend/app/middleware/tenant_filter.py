@@ -5,11 +5,12 @@ This middleware ensures that all vector database operations are automatically
 scoped to the correct tenant and project, preventing cross-tenant data access.
 """
 
-from typing import Dict, Any, Optional, List
-from fastapi import Request, HTTPException, status
+import uuid
+from typing import Any
+
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-import uuid
 
 from app.core.logger import get_logger
 from app.schemas.vector import DocumentType
@@ -23,7 +24,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
     for all vector database operations.
     """
 
-    def __init__(self, app):
+    def __init__(self, app) -> None:
         super().__init__(app)
         self.vector_endpoints = {
             "/api/v1/vectors/search",
@@ -81,7 +82,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
                 detail="Internal server error during tenant isolation"
             )
 
-    async def _extract_tenant_context(self, request: Request) -> Optional[Dict[str, str]]:
+    async def _extract_tenant_context(self, request: Request) -> dict[str, str] | None:
         """
         Extract tenant and project context from the request.
 
@@ -127,7 +128,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
 
         return None
 
-    async def _validate_tenant_isolation(self, request: Request, context: Dict[str, str]):
+    async def _validate_tenant_isolation(self, request: Request, context: dict[str, str]) -> None:
         """
         Validate that the request respects tenant isolation boundaries.
         """
@@ -197,8 +198,8 @@ class VectorOperationFilter:
     def build_search_filter(
         tenant_id: str,
         project_id: str,
-        additional_filters: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        additional_filters: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Build search filter with mandatory tenant/project isolation.
 
@@ -250,9 +251,9 @@ class VectorOperationFilter:
     def build_delete_filter(
         tenant_id: str,
         project_id: str,
-        doc_types: Optional[List[DocumentType]] = None,
-        version: Optional[str] = None
-    ) -> Dict[str, Any]:
+        doc_types: list[DocumentType] | None = None,
+        version: str | None = None
+    ) -> dict[str, Any]:
         """
         Build delete filter with tenant/project isolation.
 
@@ -284,7 +285,7 @@ class VectorOperationFilter:
         return {"must": must_conditions}
 
     @staticmethod
-    def validate_payload_integrity(payload: Dict[str, Any]) -> bool:
+    def validate_payload_integrity(payload: dict[str, Any]) -> bool:
         """
         Validate payload integrity for tenant isolation.
 
@@ -302,14 +303,10 @@ class VectorOperationFilter:
 
         # Validate no cross-tenant references
         forbidden_fields = ["cross_tenant_ref", "global_access"]
-        for field in forbidden_fields:
-            if field in payload:
-                return False
-
-        return True
+        return all(field not in payload for field in forbidden_fields)
 
     @staticmethod
-    def sanitize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    def sanitize_payload(payload: dict[str, Any]) -> dict[str, Any]:
         """
         Sanitize payload to remove any potential cross-tenant data.
 

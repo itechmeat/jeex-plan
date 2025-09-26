@@ -1,20 +1,18 @@
-"""
-API routes for agent workflow execution.
-"""
-
-import uuid
-import json
 import asyncio
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Depends, Security, status
+import json
+import uuid
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Security, status
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
-from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.agents.contracts.base import ProjectContext
-from app.agents.orchestration.workflow import workflow_engine
 from app.agents.orchestration.orchestrator import orchestrator
+from app.agents.orchestration.workflow import workflow_engine
 from app.core.config import get_settings
 from app.core.logger import get_logger
 
@@ -33,8 +31,8 @@ class BusinessAnalysisRequest(BaseModel):
         ..., min_length=10, description="Project idea description"
     )
     language: str = Field(default="en", description="Target language for documents")
-    target_audience: Optional[str] = Field(None, description="Known target audience")
-    user_clarifications: Optional[Dict[str, Any]] = Field(
+    target_audience: str | None = Field(None, description="Known target audience")
+    user_clarifications: dict[str, Any] | None = Field(
         None, description="User clarifications"
     )
 
@@ -49,7 +47,7 @@ class ArchitectureDesignRequest(BaseModel):
         ..., min_length=50, description="Project description from business analysis"
     )
     language: str = Field(default="en", description="Target language for documents")
-    user_tech_preferences: Optional[Dict[str, Any]] = Field(
+    user_tech_preferences: dict[str, Any] | None = Field(
         None, description="Technology preferences"
     )
 
@@ -63,7 +61,7 @@ class PlanningRequest(BaseModel):
     project_description: str = Field(..., description="Project description")
     architecture_overview: str = Field(..., description="Architecture overview")
     language: str = Field(default="en", description="Target language for documents")
-    team_size: Optional[int] = Field(None, description="Team size")
+    team_size: int | None = Field(None, description="Team size")
 
 
 class StandardsRequest(BaseModel):
@@ -75,7 +73,7 @@ class StandardsRequest(BaseModel):
     project_description: str = Field(..., description="Project description")
     technology_stack: list[str] = Field(..., description="Technology stack")
     language: str = Field(default="en", description="Target language for documents")
-    team_experience_level: Optional[str] = Field(
+    team_experience_level: str | None = Field(
         None, description="Team experience level"
     )
 
@@ -84,20 +82,20 @@ class AgentResponse(BaseModel):
     """Standard agent response."""
 
     status: str = Field(..., description="Execution status")
-    content: Optional[str] = Field(None, description="Generated content")
+    content: str | None = Field(None, description="Generated content")
     confidence_score: float = Field(..., description="Agent confidence score")
-    validation_result: Optional[Dict[str, Any]] = Field(
+    validation_result: dict[str, Any] | None = Field(
         None, description="Validation results"
     )
     execution_time_ms: int = Field(..., description="Execution time in milliseconds")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    error_message: str | None = Field(None, description="Error message if failed")
     correlation_id: str = Field(..., description="Request correlation ID")
 
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def get_current_user(api_key: str = Security(api_key_header)):
+async def get_current_user(api_key: str = Security(api_key_header)) -> dict:
     """Simple API key auth; replace with real auth provider."""
     if not api_key:
         logger.warning("Authentication failed: missing API key")
@@ -113,8 +111,12 @@ async def get_current_user(api_key: str = Security(api_key_header)):
 
 @router.post("/business-analysis", response_model=AgentResponse)
 async def execute_business_analysis(
-    request: BusinessAnalysisRequest, _current_user: dict = Depends(get_current_user)
-):
+    request: BusinessAnalysisRequest,
+    _current_user: dict | None = None
+) -> AgentResponse:
+    """Execute business analysis workflow step."""
+    if _current_user is None:
+        _current_user = await get_current_user()
     """Execute business analysis workflow step."""
     correlation_id = str(uuid.uuid4())
 
@@ -162,8 +164,12 @@ async def execute_business_analysis(
 
 @router.post("/architecture-design", response_model=AgentResponse)
 async def execute_architecture_design(
-    request: ArchitectureDesignRequest, _current_user: dict = Depends(get_current_user)
-):
+    request: ArchitectureDesignRequest,
+    _current_user: dict | None = None
+) -> AgentResponse:
+    """Execute architecture design workflow step."""
+    if _current_user is None:
+        _current_user = await get_current_user()
     """Execute architecture design workflow step."""
     correlation_id = str(uuid.uuid4())
 
@@ -201,8 +207,12 @@ async def execute_architecture_design(
 
 @router.post("/implementation-planning", response_model=AgentResponse)
 async def execute_implementation_planning(
-    request: PlanningRequest, _current_user: dict = Depends(get_current_user)
-):
+    request: PlanningRequest,
+    _current_user: dict | None = None
+) -> AgentResponse:
+    """Execute implementation planning workflow step."""
+    if _current_user is None:
+        _current_user = await get_current_user()
     """Execute implementation planning workflow step."""
     correlation_id = str(uuid.uuid4())
 
@@ -241,8 +251,12 @@ async def execute_implementation_planning(
 
 @router.post("/engineering-standards", response_model=AgentResponse)
 async def execute_engineering_standards(
-    request: StandardsRequest, _current_user: dict = Depends(get_current_user)
-):
+    request: StandardsRequest,
+    _current_user: dict | None = None
+) -> AgentResponse:
+    """Execute engineering standards workflow step."""
+    if _current_user is None:
+        _current_user = await get_current_user()
     """Execute engineering standards workflow step."""
     correlation_id = str(uuid.uuid4())
 
@@ -280,7 +294,7 @@ async def execute_engineering_standards(
 
 
 @router.get("/health")
-async def agent_health_check():
+async def agent_health_check() -> dict:
     """Health check for agent system."""
     try:
         health = await orchestrator.health_check()
@@ -290,7 +304,7 @@ async def agent_health_check():
             content={
                 "status": status_str,
                 "agent_system": health,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
             status_code=code,
         )
@@ -300,7 +314,7 @@ async def agent_health_check():
             content={
                 "status": "unhealthy",
                 "agent_system": {"status": "unhealthy"},
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
             status_code=503,
         )
@@ -316,25 +330,25 @@ class FullWorkflowRequest(BaseModel):
         ..., min_length=10, description="Project idea description"
     )
     language: str = Field(default="en", description="Target language for documents")
-    target_audience: Optional[str] = Field(None, description="Known target audience")
-    technology_stack: Optional[list[str]] = Field(
+    target_audience: str | None = Field(None, description="Known target audience")
+    technology_stack: list[str] | None = Field(
         None, description="Technology stack for engineering standards"
     )
-    user_tech_preferences: Optional[Dict[str, Any]] = Field(
+    user_tech_preferences: dict[str, Any] | None = Field(
         None, description="Technology preferences"
     )
-    team_size: Optional[int] = Field(None, description="Team size")
-    team_experience_level: Optional[str] = Field(
+    team_size: int | None = Field(None, description="Team size")
+    team_experience_level: str | None = Field(
         None, description="Team experience level"
     )
 
 
 async def generate_progress_stream(
-    workflow_id: str, context: ProjectContext, input_data: Dict[str, Any]
+    workflow_id: str, context: ProjectContext, input_data: dict[str, Any]
 ) -> AsyncGenerator[str, None]:
     """Generate SSE stream for workflow progress updates."""
     try:
-        yield f"data: {json.dumps({'type': 'start', 'workflow_id': workflow_id, 'timestamp': datetime.now(timezone.utc).isoformat()})}\n\n"
+        yield f"data: {json.dumps({'type': 'start', 'workflow_id': workflow_id, 'timestamp': datetime.now(UTC).isoformat()})}\n\n"
 
         # Step 1: Business Analysis
         yield f"data: {json.dumps({'type': 'step_start', 'step': 1, 'name': 'Business Analysis', 'status': 'running'})}\n\n"
@@ -348,7 +362,9 @@ async def generate_progress_stream(
                 user_clarifications=input_data.get("user_clarifications"),
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 1, 'status': 'completed', 'confidence': ba_result.get('confidence_score', 0.8)})}\n\n"
-        except Exception as e:
+        except HTTPException:
+            raise
+        except Exception:
             yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': 'Business analysis failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
@@ -369,7 +385,9 @@ async def generate_progress_stream(
                 team_experience_level=input_data.get("team_experience_level"),
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 2, 'status': 'completed', 'confidence': standards_result.get('confidence_score', 0.8)})}\n\n"
-        except Exception as e:
+        except HTTPException:
+            raise
+        except Exception:
             yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': 'Engineering standards failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
@@ -386,7 +404,9 @@ async def generate_progress_stream(
                 user_tech_preferences=input_data.get("user_tech_preferences"),
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 3, 'status': 'completed', 'confidence': arch_result.get('confidence_score', 0.8)})}\n\n"
-        except Exception as e:
+        except HTTPException:
+            raise
+        except Exception:
             yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': 'Architecture design failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
@@ -404,7 +424,9 @@ async def generate_progress_stream(
                 team_size=input_data.get("team_size"),
             )
             yield f"data: {json.dumps({'type': 'step_complete', 'step': 4, 'status': 'completed', 'confidence': planning_result.get('confidence_score', 0.8)})}\n\n"
-        except Exception as e:
+        except HTTPException:
+            raise
+        except Exception:
             yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': 'Implementation planning failed', 'correlation_id': context.correlation_id})}\n\n"
             return
 
@@ -418,8 +440,12 @@ async def generate_progress_stream(
 
 @router.post("/workflow/execute-stream")
 async def execute_full_workflow_stream(
-    request: FullWorkflowRequest, _current_user: dict = Depends(get_current_user)
-):
+    request: FullWorkflowRequest,
+    _current_user: dict | None = None
+) -> StreamingResponse:
+    """Execute complete agent workflow with real-time progress updates via SSE."""
+    if _current_user is None:
+        _current_user = await get_current_user()
     """Execute complete agent workflow with real-time progress updates via SSE."""
     workflow_id = str(uuid.uuid4())
 
@@ -453,8 +479,12 @@ async def execute_full_workflow_stream(
 
 @router.get("/workflow/{workflow_id}/status")
 async def get_workflow_status(
-    workflow_id: str, _current_user: dict = Depends(get_current_user)
-):
+    workflow_id: str,
+    _current_user: dict | None = None
+) -> dict:
+    """Get current workflow execution status."""
+    if _current_user is None:
+        _current_user = await get_current_user()
     """Get current workflow execution status."""
     # NOTE: Workflow status tracking not implemented - returns HTTP 501
     # Should track workflow execution state in Redis or database
@@ -466,8 +496,12 @@ async def get_workflow_status(
 
 @router.get("/history/{project_id}")
 async def get_agent_execution_history(
-    project_id: str, _current_user: dict = Depends(get_current_user)
-):
+    project_id: str,
+    _current_user: dict | None = None
+) -> dict:
+    """Get agent execution history for a project."""
+    if _current_user is None:
+        _current_user = await get_current_user()
     """Get agent execution history for a project."""
     # NOTE: Execution history tracking not implemented - returns HTTP 501
     # Should store and retrieve execution history from database

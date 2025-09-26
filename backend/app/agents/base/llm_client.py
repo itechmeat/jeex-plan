@@ -4,22 +4,22 @@ Supports multiple LLM providers with failover.
 """
 
 import os
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
-from enum import Enum
 import time
+from abc import ABC, abstractmethod
+from enum import Enum
 
 import httpx
 from tenacity import (
+    before_sleep_log,
     retry,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception,
-    before_sleep_log,
 )
 
-from app.core.logger import get_logger
 from app.core.config import get_vault_settings
+from app.core.logger import get_logger
+
 from ..contracts.base import LLMError
 
 logger = get_logger()
@@ -57,7 +57,7 @@ class CircuitBreaker:
         failure_threshold: int = 5,
         success_threshold: int = 2,
         timeout: int = 60,
-    ):
+    ) -> None:
         self.failure_threshold = failure_threshold
         self.success_threshold = success_threshold
         self.timeout = timeout
@@ -88,7 +88,7 @@ class CircuitBreaker:
             self._on_failure()
             raise
 
-    def _on_success(self):
+    def _on_success(self) -> None:
         """Handle successful call."""
         if self.state == CircuitBreakerState.HALF_OPEN:
             self.success_count += 1
@@ -98,7 +98,7 @@ class CircuitBreaker:
         elif self.state == CircuitBreakerState.CLOSED:
             self.failure_count = 0
 
-    def _on_failure(self):
+    def _on_failure(self) -> None:
         """Handle failed call."""
         self.failure_count += 1
         self.last_failure_time = time.time()
@@ -111,8 +111,8 @@ class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
     def __init__(
-        self, provider: LLMProvider, circuit_breaker: Optional[CircuitBreaker] = None
-    ):
+        self, provider: LLMProvider, circuit_breaker: CircuitBreaker | None = None
+    ) -> None:
         self.provider = provider
         self.circuit_breaker = circuit_breaker or CircuitBreaker()
         self.logger = get_logger(f"llm.{provider}")
@@ -120,14 +120,13 @@ class LLMClient(ABC):
     @abstractmethod
     async def generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         **kwargs,
     ) -> str:
         """Generate text completion."""
-        pass
 
     @retry(
         stop=stop_after_attempt(3),
@@ -137,10 +136,10 @@ class LLMClient(ABC):
     )
     async def _make_request(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str,
         correlation_id: str,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         **kwargs,
     ) -> str:
@@ -158,15 +157,14 @@ class LLMClient(ABC):
     @abstractmethod
     async def _internal_generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str,
         correlation_id: str,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         **kwargs,
     ) -> str:
         """Internal implementation of text generation."""
-        pass
 
 
 class OpenAIClient(LLMClient):
@@ -174,10 +172,10 @@ class OpenAIClient(LLMClient):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        circuit_breaker: Optional[CircuitBreaker] = None,
+        api_key: str | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
         request_timeout_s: float = 30.0,
-    ):
+    ) -> None:
         super().__init__(LLMProvider.OPENAI, circuit_breaker)
         self.api_key = api_key
         self.base_url = "https://api.openai.com/v1"
@@ -185,9 +183,9 @@ class OpenAIClient(LLMClient):
 
     async def generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str = "gpt-4",
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         correlation_id: str = "unknown",
         **kwargs,
@@ -204,10 +202,10 @@ class OpenAIClient(LLMClient):
 
     async def _internal_generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str,
         correlation_id: str,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         **kwargs,
     ) -> str:
@@ -284,7 +282,7 @@ class OpenAIClient(LLMClient):
                 correlation_id=correlation_id,
             )
             raise LLMError(
-                message=f"OpenAI API request failed: {str(e)}",
+                message=f"OpenAI API request failed: {e!s}",
                 agent_type="openai_client",
                 correlation_id=correlation_id,
                 details={"error": str(e)},
@@ -296,10 +294,10 @@ class AnthropicClient(LLMClient):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        circuit_breaker: Optional[CircuitBreaker] = None,
+        api_key: str | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
         request_timeout_s: float = 30.0,
-    ):
+    ) -> None:
         super().__init__(LLMProvider.ANTHROPIC, circuit_breaker)
         self.api_key = api_key
         self.base_url = "https://api.anthropic.com/v1"
@@ -307,9 +305,9 @@ class AnthropicClient(LLMClient):
 
     async def generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str = "claude-3-sonnet-20240229",
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         correlation_id: str = "unknown",
         **kwargs,
@@ -326,10 +324,10 @@ class AnthropicClient(LLMClient):
 
     async def _internal_generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str,
         correlation_id: str,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         **kwargs,
     ) -> str:
@@ -418,7 +416,7 @@ class AnthropicClient(LLMClient):
                 correlation_id=correlation_id,
             )
             raise LLMError(
-                message=f"Anthropic API request failed: {str(e)}",
+                message=f"Anthropic API request failed: {e!s}",
                 agent_type="anthropic_client",
                 correlation_id=correlation_id,
                 details={"error": str(e)},
@@ -428,12 +426,12 @@ class AnthropicClient(LLMClient):
 class LLMManager:
     """Manages multiple LLM providers with failover."""
 
-    def __init__(self):
-        self.clients: Dict[LLMProvider, LLMClient] = {}
+    def __init__(self) -> None:
+        self.clients: dict[LLMProvider, LLMClient] = {}
         self.default_provider = LLMProvider.OPENAI
         self.logger = get_logger("llm_manager")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize LLM clients with API keys from Vault."""
         vault_settings = get_vault_settings()
 
@@ -454,9 +452,9 @@ class LLMManager:
 
     async def generate(
         self,
-        messages: List[Dict[str, str]],
-        model: Optional[str] = None,
-        provider: Optional[LLMProvider] = None,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        provider: LLMProvider | None = None,
         correlation_id: str = "unknown",
         **kwargs,
     ) -> str:
@@ -513,18 +511,13 @@ class LLMManager:
             # Try environment variable, then fallback to current recommended models
             return (
                 os.getenv("OPENAI_DEFAULT_MODEL")
-                or "gpt-4o"  # Current recommended model
-                or "gpt-4.1"  # Alternative if gpt-4o not available
-                or "gpt-4"  # Legacy fallback
+                or "gpt-4o"  # Legacy fallback
             )
         elif provider == LLMProvider.ANTHROPIC:
             # Try environment variable, then fallback to current recommended models
             return (
                 os.getenv("ANTHROPIC_DEFAULT_MODEL")
-                or "claude-sonnet-4"  # Current recommended model
-                or "claude-opus-4"  # Alternative high-end model
-                or "claude-sonnet-4-20250514"  # Dated version fallback
-                or "claude-3-sonnet-20240229"  # Legacy fallback
+                or "claude-sonnet-4"  # Legacy fallback
             )
         else:
             return "gpt-4"  # Default fallback

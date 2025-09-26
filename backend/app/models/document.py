@@ -2,17 +2,21 @@
 Document model with multi-tenant support.
 """
 
+from enum import Enum
+
 from sqlalchemy import (
     Column,
+    ForeignKeyConstraint,
+    Integer,
     String,
     Text,
-    Enum as SQLEnum,
-    Integer,
-    ForeignKeyConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
+from sqlalchemy.orm import relationship
+
 from .base import BaseModel
 
 

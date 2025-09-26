@@ -1,10 +1,10 @@
-from logging.config import fileConfig
-import sys
-import os
 import asyncio
+import os
+import sys
+from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from alembic import context
@@ -87,13 +87,13 @@ def run_migrations_online() -> None:
                 context.run_migrations()
 
 
-async def run_async_migrations(connectable):
+async def run_async_migrations(connectable: AsyncEngine) -> None:
     """Run migrations in async mode."""
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
 
-def do_run_migrations(connection):
+def do_run_migrations(connection: Connection) -> None:
     """Helper function to run migrations synchronously within async context."""
     context.configure(connection=connection, target_metadata=target_metadata)
 

@@ -4,6 +4,7 @@ Simple test to verify agent system functionality.
 
 import asyncio
 import uuid
+
 from app.agents.contracts.base import ProjectContext
 from app.agents.contracts.business_analyst import BusinessAnalystInput
 from app.agents.implementations.business_analyst import BusinessAnalystAgent
@@ -12,7 +13,7 @@ from app.core.logger import get_logger
 logger = get_logger()
 
 
-async def test_business_analyst_basic():
+async def test_business_analyst_basic() -> bool | None:
     """Test basic Business Analyst functionality without LLM."""
     print("🧪 Testing Business Analyst Agent...")
 
@@ -47,7 +48,7 @@ async def test_business_analyst_basic():
 
         # Test context data retrieval (should work even if vector DB is not available)
         try:
-            context_data = await agent.get_context_data(context)
+            await agent.get_context_data(context)
             print("✅ Context data retrieval completed")
         except Exception as e:
             print(
@@ -62,7 +63,7 @@ async def test_business_analyst_basic():
         return False
 
 
-async def test_agent_contracts():
+async def test_agent_contracts() -> bool | None:
     """Test Pydantic contracts validation."""
     print("\n🧪 Testing Agent Contracts...")
 
@@ -94,7 +95,7 @@ async def test_agent_contracts():
         return False
 
 
-async def test_quality_control():
+async def test_quality_control() -> bool | None:
     """Test quality control validation."""
     print("\n🧪 Testing Quality Control...")
 
@@ -141,16 +142,14 @@ print("Hello, World!")
         return False
 
 
-async def test_llm_client_imports():
+async def test_llm_client_imports() -> bool | None:
     """Test that LLM client components can be imported."""
     print("\n🧪 Testing LLM Client Imports...")
 
     try:
         from app.agents.base.llm_client import (
-            LLMManager,
-            OpenAIClient,
-            AnthropicClient,
             CircuitBreaker,
+            LLMManager,
         )
 
         # Test circuit breaker
@@ -171,7 +170,7 @@ async def test_llm_client_imports():
         return False
 
 
-async def main():
+async def main() -> bool:
     """Run all tests."""
     print("🚀 Starting JEEX Plan Agent System Tests...\n")
 

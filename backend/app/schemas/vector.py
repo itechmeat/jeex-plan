@@ -2,10 +2,11 @@
 Vector database payload schemas for multi-tenant Qdrant implementation.
 """
 
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class DocumentType(str, Enum):
@@ -34,38 +35,38 @@ class VectorPayload(BaseModel):
     lang: str = Field(default="en", description="Content language (ISO 639-1)")
 
     # Content information
-    content_type: Optional[str] = Field(None, description="MIME type or content classification")
-    source: Optional[str] = Field(None, description="Source document or agent")
-    chunk_index: Optional[int] = Field(None, description="Index in chunked content")
-    total_chunks: Optional[int] = Field(None, description="Total chunks in source")
+    content_type: str | None = Field(None, description="MIME type or content classification")
+    source: str | None = Field(None, description="Source document or agent")
+    chunk_index: int | None = Field(None, description="Index in chunked content")
+    total_chunks: int | None = Field(None, description="Total chunks in source")
 
     # Search and filtering metadata
-    tags: List[str] = Field(default_factory=list, description="Arbitrary tags for categorization")
-    title: Optional[str] = Field(None, description="Document or section title")
-    section: Optional[str] = Field(None, description="Document section name")
+    tags: list[str] = Field(default_factory=list, description="Arbitrary tags for categorization")
+    title: str | None = Field(None, description="Document or section title")
+    section: str | None = Field(None, description="Document section name")
 
     # Timestamps
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Creation timestamp")
-    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+    updated_at: str | None = Field(None, description="Last update timestamp")
 
     # Quality metrics
-    confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Content confidence score")
-    relevance_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Search relevance score")
+    confidence_score: float | None = Field(None, ge=0.0, le=1.0, description="Content confidence score")
+    relevance_score: float | None = Field(None, ge=0.0, le=1.0, description="Search relevance score")
 
     # Technical metadata
-    vector_index: Optional[int] = Field(None, description="Index in batch upload")
-    batch_id: Optional[str] = Field(None, description="Batch upload identifier")
-    embedding_model: Optional[str] = Field(None, description="Model used for embedding")
+    vector_index: int | None = Field(None, description="Index in batch upload")
+    batch_id: str | None = Field(None, description="Batch upload identifier")
+    embedding_model: str | None = Field(None, description="Model used for embedding")
 
     # Additional flexible metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional custom metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional custom metadata")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for Qdrant payload"""
         return self.model_dump(exclude_none=True)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VectorPayload":
+    def from_dict(cls, data: dict[str, Any]) -> "VectorPayload":
         """Create from dictionary payload"""
         return cls(**data)
 
@@ -76,7 +77,7 @@ class SearchResult(BaseModel):
     score: float = Field(..., description="Similarity score", ge=0.0, le=1.0)
     payload: VectorPayload = Field(..., description="Vector payload data")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             "id": self.id,
@@ -89,16 +90,16 @@ class SearchRequest(BaseModel):
     """Search request parameters"""
     tenant_id: str = Field(..., description="Tenant identifier")
     project_id: str = Field(..., description="Project identifier")
-    query_vector: List[float] = Field(..., description="Query embedding vector")
+    query_vector: list[float] = Field(..., description="Query embedding vector")
     limit: int = Field(default=10, ge=1, le=100, description="Maximum results")
     score_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum similarity score")
 
     # Optional filters
-    doc_types: Optional[List[DocumentType]] = Field(None, description="Filter by document types")
-    visibility: Optional[VisibilityLevel] = Field(None, description="Filter by visibility")
-    lang: Optional[str] = Field(None, description="Filter by language")
-    tags: Optional[List[str]] = Field(None, description="Filter by tags")
-    version: Optional[str] = Field(None, description="Filter by version")
+    doc_types: list[DocumentType] | None = Field(None, description="Filter by document types")
+    visibility: VisibilityLevel | None = Field(None, description="Filter by visibility")
+    lang: str | None = Field(None, description="Filter by language")
+    tags: list[str] | None = Field(None, description="Filter by tags")
+    version: str | None = Field(None, description="Filter by version")
 
     # Search options
     include_vectors: bool = Field(default=False, description="Include vector data in results")
@@ -109,8 +110,8 @@ class UpsertRequest(BaseModel):
     """Bulk upsert request parameters"""
     tenant_id: str = Field(..., description="Tenant identifier")
     project_id: str = Field(..., description="Project identifier")
-    vectors: List[List[float]] = Field(..., description="List of embedding vectors")
-    payloads: List[Dict[str, Any]] = Field(..., description="List of payload dictionaries")
+    vectors: list[list[float]] = Field(..., description="List of embedding vectors")
+    payloads: list[dict[str, Any]] = Field(..., description="List of payload dictionaries")
     doc_type: DocumentType = Field(default=DocumentType.KNOWLEDGE, description="Document type")
     visibility: VisibilityLevel = Field(default=VisibilityLevel.PRIVATE, description="Visibility level")
     version: str = Field(default="1.0", description="Document version")
@@ -120,7 +121,7 @@ class UpsertRequest(BaseModel):
         """Validate that vectors and payloads match"""
         return len(self.vectors) == len(self.payloads)
 
-    def enrich_payloads(self) -> List[VectorPayload]:
+    def enrich_payloads(self) -> list[VectorPayload]:
         """Add common fields to all payloads"""
         enriched = []
         for i, payload in enumerate(self.payloads):
@@ -144,11 +145,11 @@ class DeleteRequest(BaseModel):
     project_id: str = Field(..., description="Project identifier")
 
     # Optional specific filters
-    point_ids: Optional[List[str]] = Field(None, description="Specific point IDs to delete")
-    doc_types: Optional[List[DocumentType]] = Field(None, description="Filter by document types")
-    version: Optional[str] = Field(None, description="Filter by version")
+    point_ids: list[str] | None = Field(None, description="Specific point IDs to delete")
+    doc_types: list[DocumentType] | None = Field(None, description="Filter by document types")
+    version: str | None = Field(None, description="Filter by version")
 
-    def get_filter_conditions(self) -> Dict[str, Any]:
+    def get_filter_conditions(self) -> dict[str, Any]:
         """Build filter conditions for deletion"""
         conditions = {
             "must": [
@@ -176,9 +177,9 @@ class CollectionStats(BaseModel):
     vectors_count: int = Field(..., description="Total vectors in collection")
     indexed_vectors_count: int = Field(..., description="Indexed vectors count")
     collection_status: str = Field(..., description="Collection status")
-    tenant_project_points: Optional[int] = Field(None, description="Points for specific tenant/project")
-    collection_config: Dict[str, Any] = Field(..., description="Collection configuration")
+    tenant_project_points: int | None = Field(None, description="Points for specific tenant/project")
+    collection_config: dict[str, Any] = Field(..., description="Collection configuration")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return self.model_dump(exclude_none=True)

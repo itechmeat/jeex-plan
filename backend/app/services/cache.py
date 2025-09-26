@@ -5,14 +5,14 @@ Provides intelligent caching for search results, embeddings, and frequently
 accessed data with automatic tenant isolation and cache management.
 """
 
-import json
-import hashlib
-from typing import Any, Optional, List, Dict
 import asyncio
+import hashlib
+import json
+from typing import Any
 
-from app.core.logger import get_logger, LoggerMixin
 from app.adapters.redis import RedisAdapter
 from app.core.config import settings
+from app.core.logger import LoggerMixin, get_logger
 
 logger = get_logger(__name__)
 
@@ -25,7 +25,7 @@ class CacheKey:
         tenant_id: str,
         project_id: str,
         query_hash: str,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int
     ) -> str:
         """Generate cache key for search results"""
@@ -69,7 +69,7 @@ class VectorCache(LoggerMixin):
     High-performance caching service for vector operations.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.redis = RedisAdapter()
         self.default_ttl = settings.CACHE_DEFAULT_TTL
@@ -85,9 +85,9 @@ class VectorCache(LoggerMixin):
         tenant_id: str,
         project_id: str,
         query_hash: str,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         """
         Get cached search results if available.
 
@@ -133,9 +133,9 @@ class VectorCache(LoggerMixin):
         tenant_id: str,
         project_id: str,
         query_hash: str,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int,
-        results: List[Dict[str, Any]]
+        results: list[dict[str, Any]]
     ) -> bool:
         """
         Cache search results with automatic TTL.
@@ -187,7 +187,7 @@ class VectorCache(LoggerMixin):
         text: str,
         model: str,
         normalization: str
-    ) -> Optional[List[float]]:
+    ) -> list[float] | None:
         """
         Get cached embedding if available.
 
@@ -229,7 +229,7 @@ class VectorCache(LoggerMixin):
         text: str,
         model: str,
         normalization: str,
-        embedding: List[float]
+        embedding: list[float]
     ) -> bool:
         """
         Cache embedding with automatic TTL.
@@ -271,7 +271,7 @@ class VectorCache(LoggerMixin):
         self,
         tenant_id: str,
         project_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get cached collection statistics.
 
@@ -310,7 +310,7 @@ class VectorCache(LoggerMixin):
         self,
         tenant_id: str,
         project_id: str,
-        stats: Dict[str, Any]
+        stats: dict[str, Any]
     ) -> bool:
         """
         Cache collection statistics.
@@ -444,7 +444,7 @@ class VectorCache(LoggerMixin):
             logger.warning("Failed to add to project index", error=str(e))
             return False
 
-    async def get_cache_stats(self) -> Dict[str, Any]:
+    async def get_cache_stats(self) -> dict[str, Any]:
         """Get cache performance statistics"""
         total_requests = self.cache_hits + self.cache_misses
         hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0
@@ -463,8 +463,8 @@ class VectorCache(LoggerMixin):
         self,
         tenant_id: str,
         project_id: str,
-        common_queries: List[str]
-    ) -> Dict[str, Any]:
+        common_queries: list[str]
+    ) -> dict[str, Any]:
         """
         Pre-warm cache with common queries for a project.
 

@@ -3,9 +3,9 @@ HNSW configuration optimizer for multi-tenant Qdrant collections.
 Provides specialized configurations for different use cases and workloads.
 """
 
-from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class WorkloadType(str, Enum):
@@ -32,7 +32,7 @@ class HNSWParams:
     ef: int                         # Size of dynamic candidate list during search
     max_indexing_threads: int       # Number of threads for indexing
     full_scan_threshold: int         # Threshold for switching to full scan
-    payload_m: Optional[int] = None  # Payload-specific connections for multi-tenancy
+    payload_m: int | None = None  # Payload-specific connections for multi-tenancy
 
 
 class HNSWConfigurator:
@@ -86,7 +86,7 @@ class HNSWConfigurator:
         }
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.workload_type = WorkloadType.BALANCED
         self.dataset_size = DatasetSize.MEDIUM
 
@@ -94,8 +94,8 @@ class HNSWConfigurator:
         self,
         workload_type: WorkloadType,
         dataset_size: DatasetSize = DatasetSize.MEDIUM,
-        custom_params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        custom_params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Generate HNSW configuration for specific workload and dataset size.
 
@@ -132,7 +132,7 @@ class HNSWConfigurator:
 
         return config
 
-    def get_optimized_config_for_tenant_isolation(self) -> Dict[str, Any]:
+    def get_optimized_config_for_tenant_isolation(self) -> dict[str, Any]:
         """
         Get HNSW configuration optimized for strict tenant isolation.
 
@@ -150,7 +150,7 @@ class HNSWConfigurator:
             }
         )
 
-    def get_memory_efficient_config(self) -> Dict[str, Any]:
+    def get_memory_efficient_config(self) -> dict[str, Any]:
         """
         Get memory-efficient configuration for large multi-tenant deployments.
 
@@ -168,7 +168,7 @@ class HNSWConfigurator:
             }
         )
 
-    def get_high_quality_config(self) -> Dict[str, Any]:
+    def get_high_quality_config(self) -> dict[str, Any]:
         """
         Get high-quality search configuration for critical applications.
 
@@ -186,7 +186,7 @@ class HNSWConfigurator:
             }
         )
 
-    def validate_configuration(self, config: Dict[str, Any]) -> bool:
+    def validate_configuration(self, config: dict[str, Any]) -> bool:
         """
         Validate HNSW configuration for multi-tenant compatibility.
 
@@ -213,7 +213,7 @@ class HNSWConfigurator:
 
         return True
 
-    def estimate_memory_usage(self, config: Dict[str, Any], vector_count: int) -> Dict[str, float]:
+    def estimate_memory_usage(self, config: dict[str, Any], vector_count: int) -> dict[str, float]:
         """
         Estimate memory usage for HNSW configuration.
 
@@ -242,7 +242,7 @@ class HNSWConfigurator:
             "total_estimated_mb": vector_size_mb + graph_connections + index_overhead
         }
 
-    def get_configuration_summary(self, config: Dict[str, Any]) -> Dict[str, str]:
+    def get_configuration_summary(self, config: dict[str, Any]) -> dict[str, str]:
         """
         Get human-readable summary of HNSW configuration.
 

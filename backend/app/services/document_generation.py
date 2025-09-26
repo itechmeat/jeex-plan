@@ -3,24 +3,20 @@ Document generation service.
 Orchestrates the four-stage document generation workflow with agent coordination.
 """
 
-import asyncio
-import json
-from typing import Dict, Any, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
 
-from app.models.document_version import DocumentVersion, DocumentType
-from app.models.agent_execution import AgentExecution, AgentType, ExecutionStatus
-from app.models.project import Project, ProjectStatus
-from app.repositories.document_version import DocumentVersionRepository
-from app.repositories.agent_execution import AgentExecutionRepository
-from app.repositories.project import ProjectRepository
-from app.agents.contracts.base import ProjectContext, AgentInput, AgentOutput
-from app.agents.contracts.business_analyst import BusinessAnalystInput, BusinessAnalystOutput
+from app.agents.contracts.base import ProjectContext
 from app.agents.orchestration.workflow import workflow_engine
-from app.services.qdrant import QdrantService
-from app.core.logger import get_logger
 from app.core.database import AsyncSession
+from app.core.logger import get_logger
+from app.models.agent_execution import AgentType
+from app.models.document_version import DocumentType
+from app.models.project import ProjectStatus
+from app.repositories.agent_execution import AgentExecutionRepository
+from app.repositories.document_version import DocumentVersionRepository
+from app.repositories.project import ProjectRepository
+from app.services.qdrant import QdrantService
 
 logger = get_logger()
 
@@ -28,7 +24,7 @@ logger = get_logger()
 class DocumentGenerationService:
     """Service for managing document generation workflow."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, tenant_id: UUID) -> None:
         self.session = session
         self.tenant_id = tenant_id
         self.doc_repo = DocumentVersionRepository(session, tenant_id)
@@ -42,9 +38,9 @@ class DocumentGenerationService:
         idea_description: str,
         user_id: UUID,
         language: str = "en",
-        target_audience: Optional[str] = None,
-        user_clarifications: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        target_audience: str | None = None,
+        user_clarifications: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Execute Step 1: Business Analysis."""
         correlation_id = uuid4()
 
@@ -153,10 +149,10 @@ class DocumentGenerationService:
         self,
         project_id: UUID,
         user_id: UUID,
-        technology_stack: List[str],
+        technology_stack: list[str],
         language: str = "en",
-        team_experience_level: Optional[str] = None
-    ) -> Dict[str, Any]:
+        team_experience_level: str | None = None
+    ) -> dict[str, Any]:
         """Execute Step 2: Engineering Standards."""
         correlation_id = uuid4()
 
@@ -272,8 +268,8 @@ class DocumentGenerationService:
         project_id: UUID,
         user_id: UUID,
         language: str = "en",
-        user_tech_preferences: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        user_tech_preferences: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Execute Step 3: Architecture Design."""
         correlation_id = uuid4()
 
@@ -392,8 +388,8 @@ class DocumentGenerationService:
         project_id: UUID,
         user_id: UUID,
         language: str = "en",
-        team_size: Optional[int] = None
-    ) -> Dict[str, Any]:
+        team_size: int | None = None
+    ) -> dict[str, Any]:
         """Execute Step 4: Implementation Planning."""
         correlation_id = uuid4()
 
@@ -504,7 +500,7 @@ class DocumentGenerationService:
             if "epics" in result and epic_docs:
                 epic_chunks = []
                 epic_metadata = []
-                for epic, doc in zip(result["epics"], epic_docs):
+                for epic, doc in zip(result["epics"], epic_docs, strict=False):
                     epic_chunks.append(epic["content"])
                     epic_metadata.append({
                         "document_id": str(doc.id),
@@ -553,7 +549,7 @@ class DocumentGenerationService:
             logger.exception("Implementation planning failed", correlation_id=str(correlation_id))
             raise
 
-    async def get_project_progress(self, project_id: UUID) -> Dict[str, Any]:
+    async def get_project_progress(self, project_id: UUID) -> dict[str, Any]:
         """Get current project progress and status."""
         project = await self.project_repo.get_by_id(project_id)
         if not project:
@@ -562,7 +558,7 @@ class DocumentGenerationService:
         # Get document versions
         documents = await self.doc_repo.get_project_documents(project_id)
         # Normalize keys and preserve multiple epics
-        doc_by_type: Dict[str, Any] = {}
+        doc_by_type: dict[str, Any] = {}
         for doc in documents:
             key = doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type)
             if key == DocumentType.PLAN_EPIC.value:
@@ -623,8 +619,8 @@ class DocumentGenerationService:
         self,
         project_id: UUID,
         document_type: str,
-        content_chunks: List[str],
-        metadata: Dict[str, Any]
+        content_chunks: list[str],
+        metadata: dict[str, Any]
     ) -> None:
         """Store content chunks in vector database for context retrieval."""
         try:

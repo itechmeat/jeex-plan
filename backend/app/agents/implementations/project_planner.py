@@ -4,19 +4,21 @@ Handles implementation planning, task breakdown, and project roadmap.
 """
 
 import re
-from typing import Type, Dict, Any, List
+from typing import Any
 
 from ..base.agent_base import AgentBase
-from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
+from ..base.vector_context import vector_context
 from ..contracts.base import (
-    ProjectContext,
     AgentInput,
     AgentOutput,
+    ProjectContext,
     ValidationResult,
+)
+from ..contracts.base import (
     ValidationError as AgentValidationError,
 )
-from ..contracts.project_planner import ProjectPlannerInput, ProjectPlannerOutput, Epic
+from ..contracts.project_planner import Epic, ProjectPlannerInput, ProjectPlannerOutput
 
 
 class ProjectPlannerAgent(AgentBase):
@@ -36,10 +38,10 @@ class ProjectPlannerAgent(AgentBase):
             while considering team capabilities and technical dependencies.""",
         )
 
-    def get_input_model(self) -> Type[AgentInput]:
+    def get_input_model(self) -> type[AgentInput]:
         return ProjectPlannerInput
 
-    def get_output_model(self) -> Type[AgentOutput]:
+    def get_output_model(self) -> type[AgentOutput]:
         return ProjectPlannerOutput
 
     async def validate_input(self, input_data: ProjectPlannerInput) -> None:
@@ -116,13 +118,13 @@ for technical projects.
 
 Create practical, actionable plans that teams can execute successfully."""
 
-    async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
+    async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         return await vector_context.get_previous_steps_context(
             context, context.current_step
         )
 
     def _build_task_description(
-        self, input_data: ProjectPlannerInput, context_data: Dict[str, Any]
+        self, input_data: ProjectPlannerInput, context_data: dict[str, Any]
     ) -> str:
         # NOTE: Task description uses basic template
         # Could be enhanced with context-aware prompts
@@ -147,7 +149,7 @@ Include realistic timelines, dependencies, and risk assessment."""
             "timeline estimates, and risk analysis."
         )
 
-    def _parse_markdown_section(self, content: str, section_name: str) -> List[str]:
+    def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
         pattern = rf"#{1,2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1,2}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
@@ -177,7 +179,7 @@ Include realistic timelines, dependencies, and risk assessment."""
 
         return ' '.join(paragraphs) if paragraphs else ""
 
-    def _parse_epics_section(self, content: str) -> List[Epic]:
+    def _parse_epics_section(self, content: str) -> list[Epic]:
         """Parse epics from markdown content."""
         epics = []
 
@@ -218,7 +220,7 @@ Include realistic timelines, dependencies, and risk assessment."""
 
         return epics
 
-    def _parse_milestones(self, content: str) -> Dict[str, str]:
+    def _parse_milestones(self, content: str) -> dict[str, str]:
         """Parse milestones into a dictionary."""
         milestones = {}
         milestone_bullets = self._parse_markdown_section(content, "Milestones")

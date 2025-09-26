@@ -2,14 +2,15 @@
 FastAPI application routes and schemas.
 """
 
-from .routes import health, auth, projects, agents
-from .schemas import auth as auth_schemas, project as project_schemas
+from . import agents, auth, health, projects
+from .schemas import auth as auth_schemas
+from .schemas import project as project_schemas
 
 __all__ = [
-    "health",
-    "auth",
-    "projects",
     "agents",
+    "auth",
     "auth_schemas",
+    "health",
     "project_schemas",
+    "projects",
 ]

@@ -2,15 +2,15 @@
 Structured logging configuration using structlog.
 """
 
-import structlog
 import logging
 import sys
-from typing import Any, Dict
+
+import structlog
 
 from app.core.config import settings
 
 
-def setup_logging():
+def setup_logging() -> None:
     """Configure structured logging for the application"""
 
     # Configure structlog
@@ -46,7 +46,7 @@ def setup_logging():
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def get_logger(name: str = None) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     """Get a structured logger instance"""
     return structlog.get_logger(name or "jeex_plan")
 
@@ -62,8 +62,8 @@ class LoggerMixin:
 
 def log_function_call(func):
     """Decorator to log function calls with arguments and timing"""
-    import time
     import functools
+    import time
 
     @functools.wraps(func)
     async def async_wrapper(*args, **kwargs):

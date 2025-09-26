@@ -3,21 +3,22 @@ Agent execution audit trail model with multi-tenant support.
 Tracks all agent executions for observability and debugging.
 """
 
+from datetime import UTC, datetime
+from enum import Enum
+
 from sqlalchemy import (
+    JSON,
     Column,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
     String,
     Text,
-    DateTime,
-    Index,
-    JSON,
-    ForeignKeyConstraint,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
-from datetime import datetime, timezone
+from sqlalchemy.orm import relationship
+
 from .base import BaseModel
-from .project import Project
 
 
 class AgentType(str, Enum):
@@ -53,7 +54,7 @@ class AgentExecution(BaseModel):
     # Status and timing
     status = Column(String(50), default=ExecutionStatus.PENDING.value, nullable=False, index=True)
     error_message = Column(Text, nullable=True)
-    started_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    started_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Project relationship

@@ -1,111 +1,44 @@
 """
 Core authentication module with JWT and OAuth2 support.
+Refactored to follow Single Responsibility Principle.
 """
 
 import uuid
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Any
 from uuid import UUID
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ..core.config import get_settings
 from ..core.database import get_db
+from ..core.password_service import PasswordService
+from ..core.token_service import TokenService
 from ..models.user import User
-from ..models.tenant import Tenant
-from ..repositories.user import UserRepository
 from ..repositories.tenant import TenantRepository
+from ..repositories.user import UserRepository
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
 class AuthService:
-    """Service for handling authentication and authorization."""
+    """Service for handling authentication and authorization - now focused only on auth logic."""
 
-    def __init__(self, db: AsyncSession, tenant_id: Optional[UUID] = None):
+    def __init__(self, db: AsyncSession, tenant_id: UUID | None = None) -> None:
         self.db = db
         self.tenant_id = tenant_id
         self.user_repo = UserRepository(db, tenant_id) if tenant_id else None
         self.tenant_repo = TenantRepository(db)
 
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify a plaintext password against its hash."""
-        return pwd_context.verify(plain_password, hashed_password)
+        # Use separate services for specific responsibilities
+        self.password_service = PasswordService()
+        self.token_service = TokenService()
 
-    def get_password_hash(self, password: str) -> str:
-        """Generate password hash."""
-        return pwd_context.hash(password)
-
-    def create_access_token(
-        self,
-        data: Dict[str, Any],
-        expires_delta: Optional[timedelta] = None
-    ) -> str:
-        """Create JWT access token."""
-        to_encode = data.copy()
-
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(
-                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-            )
-
-        to_encode.update({"exp": expire, "type": "access"})
-        encoded_jwt = jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
-        )
-        return encoded_jwt
-
-    def create_refresh_token(
-        self,
-        data: Dict[str, Any],
-        expires_delta: Optional[timedelta] = None
-    ) -> str:
-        """Create JWT refresh token."""
-        to_encode = data.copy()
-
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(
-                days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-            )
-
-        to_encode.update({"exp": expire, "type": "refresh"})
-        encoded_jwt = jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
-        )
-        return encoded_jwt
-
-    def verify_token(self, token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
-        """Verify and decode JWT token."""
-        try:
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=[settings.ALGORITHM]
-            )
-
-            if payload.get("type") != token_type:
-                return None
-
-            return payload
-        except JWTError:
-            return None
-
-    async def get_user_by_token(self, token: str) -> Optional[User]:
+    async def get_user_by_token(self, token: str) -> User | None:
         """Get user from JWT token."""
-        payload = self.verify_token(token)
+        payload = self.token_service.verify_token(token)
         if not payload:
             return None
 
@@ -113,65 +46,88 @@ class AuthService:
         if not user_id:
             return None
 
+        try:
+            user_uuid = uuid.UUID(user_id)
+        except (ValueError, TypeError):
+            return None
+
         # For token validation, we need to search across all tenants
-        from ..models.user import User
         from sqlalchemy import select
 
-        stmt = select(User).where(User.id == uuid.UUID(user_id), User.is_active == True)
-        result = await self.db.execute(stmt)
-        user = result.scalar_one_or_none()
+        from ..models.user import User
 
-        return user
+        stmt = select(User).where(
+            User.id == user_uuid,
+            User.is_active.is_(True),
+            User.is_deleted.is_(False)
+        )
+
+        try:
+            result = await self.db.execute(stmt)
+            user = result.scalar_one_or_none()
+            return user
+        except Exception:
+            return None
 
     async def authenticate_user(
         self,
         email: str,
         password: str,
-        tenant_id: Optional[uuid.UUID] = None
-    ) -> Optional[User]:
+        tenant_id: uuid.UUID | None = None
+    ) -> User | None:
         """Authenticate user with email and password."""
+        if not email or not password:
+            return None
+
         # For authentication, we need to search across all tenants
-        from ..models.user import User
         from sqlalchemy import select
 
-        stmt = select(User).where(User.email == email, User.is_active == True)
+        from ..models.user import User
+
+        stmt = select(User).where(
+            User.email == email,
+            User.is_active.is_(True),
+            User.is_deleted.is_(False)
+        )
+
         if tenant_id:
             stmt = stmt.where(User.tenant_id == tenant_id)
 
-        result = await self.db.execute(stmt)
-        user = result.scalar_one_or_none()
+        try:
+            result = await self.db.execute(stmt)
+            user = result.scalar_one_or_none()
 
-        if not user or not user.hashed_password:
+            if not user or not user.hashed_password:
+                return None
+
+            if not self.password_service.verify_password(password, user.hashed_password):
+                return None
+
+            # Check if password hash needs updating
+            new_hash = self.password_service.update_hash_if_needed(password, user.hashed_password)
+            if new_hash:
+                user.hashed_password = new_hash
+                await self.db.commit()
+
+            return user
+        except Exception:
             return None
 
-        if not self.verify_password(password, user.hashed_password):
-            return None
-
-        return user
-
-    async def create_tokens_for_user(self, user: User) -> Dict[str, Any]:
+    async def create_tokens_for_user(self, user: User) -> dict[str, Any]:
         """Create access and refresh tokens for user."""
-        token_data = {
-            "sub": str(user.id),
+        user_data = {
+            "id": user.id,
             "email": user.email,
-            "tenant_id": str(user.tenant_id),
+            "tenant_id": user.tenant_id,
             "username": user.username,
             "full_name": user.full_name or "",
         }
 
-        access_token = self.create_access_token(token_data)
-        refresh_token = self.create_refresh_token(token_data)
+        return self.token_service.create_tokens_for_user_data(user_data)
 
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        }
-
-    async def refresh_access_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
+    async def refresh_access_token(self, refresh_token: str) -> dict[str, Any] | None:
         """Create new access token from refresh token."""
-        payload = self.verify_token(refresh_token, "refresh")
+        payload = self.token_service.verify_token(refresh_token, "refresh")
         if not payload:
             return None
 

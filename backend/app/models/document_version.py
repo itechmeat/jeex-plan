@@ -3,20 +3,22 @@ Document versioning model with multi-tenant support.
 Handles document versions for the four-stage generation workflow.
 """
 
+from enum import Enum
+
 from sqlalchemy import (
+    JSON,
     Column,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
     String,
     Text,
-    Integer,
     and_,
-    Index,
-    JSON,
-    ForeignKeyConstraint,
     text,
 )
-from sqlalchemy.orm import relationship, foreign, remote
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
+from sqlalchemy.orm import foreign, relationship, remote
+
 from .base import BaseModel
 from .project import Project
 

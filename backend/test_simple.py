@@ -3,9 +3,11 @@
 Simple test script to verify auth endpoints work
 """
 import asyncio
+
 import httpx
 
-async def test_auth_endpoints():
+
+async def test_auth_endpoints() -> None:
     """Test authentication endpoints"""
     base_url = "http://172.20.0.1:5210"  # Docker gateway IP
 

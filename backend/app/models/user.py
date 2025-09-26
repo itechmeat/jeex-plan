@@ -2,9 +2,9 @@
 User model with multi-tenant support.
 """
 
-from sqlalchemy import Column, String, Boolean, ForeignKey, UniqueConstraint, DateTime
+from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID
+
 from .base import BaseModel
 
 

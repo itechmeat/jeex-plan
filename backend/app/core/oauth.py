@@ -3,18 +3,19 @@ OAuth2 providers for Google and GitHub authentication.
 """
 
 import uuid
-from typing import Optional, Dict, Any
+from typing import Any
+
+import httpx
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from fastapi import HTTPException, status
 from sqlalchemy import func
-import httpx
 
 from ..core.config import get_settings
 from ..core.logger import get_logger
-from ..models.user import User
 from ..models.tenant import Tenant
-from ..repositories.user import UserRepository
+from ..models.user import User
 from ..repositories.tenant import TenantRepository
+from ..repositories.user import UserRepository
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -23,7 +24,7 @@ logger = get_logger(__name__)
 class OAuthProvider:
     """Base OAuth provider class."""
 
-    def __init__(self, client_id: str, client_secret: str):
+    def __init__(self, client_id: str, client_secret: str) -> None:
         self.client_id = client_id
         self.client_secret = client_secret
 
@@ -31,7 +32,7 @@ class OAuthProvider:
         """Get authorization URL for OAuth flow."""
         raise NotImplementedError
 
-    async def get_user_info(self, code: str, state: str) -> Dict[str, Any]:
+    async def get_user_info(self, code: str, state: str) -> dict[str, Any]:
         """Get user information from OAuth provider."""
         raise NotImplementedError
 
@@ -39,7 +40,7 @@ class OAuthProvider:
 class GoogleOAuthProvider(OAuthProvider):
     """Google OAuth2 provider."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
             raise ValueError("Google OAuth credentials not configured")
 
@@ -62,7 +63,7 @@ class GoogleOAuthProvider(OAuthProvider):
 
         return authorization_url
 
-    async def get_user_info(self, code: str, state: str) -> Dict[str, Any]:
+    async def get_user_info(self, code: str, state: str) -> dict[str, Any]:
         """Get user information from Google."""
         try:
             async with AsyncOAuth2Client(
@@ -109,7 +110,7 @@ class GoogleOAuthProvider(OAuthProvider):
 class GitHubOAuthProvider(OAuthProvider):
     """GitHub OAuth2 provider."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
             raise ValueError("GitHub OAuth credentials not configured")
 
@@ -133,7 +134,7 @@ class GitHubOAuthProvider(OAuthProvider):
 
         return authorization_url
 
-    async def get_user_info(self, code: str, state: str) -> Dict[str, Any]:
+    async def get_user_info(self, code: str, state: str) -> dict[str, Any]:
         """Get user information from GitHub."""
         try:
             async with AsyncOAuth2Client(
@@ -217,7 +218,7 @@ class GitHubOAuthProvider(OAuthProvider):
 class OAuthService:
     """Service for handling OAuth authentication."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         self.db = db
         self.tenant_repo = TenantRepository(db)
         self.providers = {
@@ -245,7 +246,7 @@ class OAuthService:
         provider_name: str,
         code: str,
         state: str,
-        tenant_id: Optional[uuid.UUID] = None
+        tenant_id: uuid.UUID | None = None
     ) -> User:
         """Authenticate user with OAuth provider."""
         provider = self.get_provider(provider_name)

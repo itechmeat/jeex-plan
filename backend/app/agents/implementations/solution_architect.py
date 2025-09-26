@@ -5,16 +5,18 @@ Specializes in technical architecture, technology stack, and system design.
 
 import json
 import re
-from typing import Type, Dict, Any, List
+from typing import Any
 
 from ..base.agent_base import AgentBase
-from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
+from ..base.vector_context import vector_context
 from ..contracts.base import (
-    ProjectContext,
     AgentInput,
     AgentOutput,
+    ProjectContext,
     ValidationResult,
+)
+from ..contracts.base import (
     ValidationError as AgentValidationError,
 )
 from ..contracts.solution_architect import (
@@ -41,10 +43,10 @@ class SolutionArchitectAgent(AgentBase):
             while considering business requirements and team capabilities.""",
         )
 
-    def get_input_model(self) -> Type[AgentInput]:
+    def get_input_model(self) -> type[AgentInput]:
         return SolutionArchitectInput
 
-    def get_output_model(self) -> Type[AgentOutput]:
+    def get_output_model(self) -> type[AgentOutput]:
         return SolutionArchitectOutput
 
     async def validate_input(self, input_data: SolutionArchitectInput) -> None:
@@ -127,14 +129,14 @@ for projects.
 
 Focus on practical, implementable solutions that balance complexity with business needs."""
 
-    async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
+    async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         # Get business context from previous step
         return await vector_context.get_previous_steps_context(
             context, context.current_step
         )
 
     def _build_task_description(
-        self, input_data: SolutionArchitectInput, context_data: Dict[str, Any]
+        self, input_data: SolutionArchitectInput, context_data: dict[str, Any]
     ) -> str:
         # NOTE: Task description uses basic template
         # Could be enhanced with context-aware prompts
@@ -161,7 +163,7 @@ component design, and scalability considerations."""
             "component design, scalability strategy, and deployment approach."
         )
 
-    def _parse_markdown_section(self, content: str, section_name: str) -> List[str]:
+    def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
         pattern = rf"#{1,2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1,2}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
@@ -191,7 +193,7 @@ component design, and scalability considerations."""
 
         return ' '.join(paragraphs) if paragraphs else ""
 
-    def _parse_technology_stack(self, content: str) -> List[TechnologyChoice]:
+    def _parse_technology_stack(self, content: str) -> list[TechnologyChoice]:
         """Parse technology stack from markdown content."""
         tech_items = self._parse_markdown_section(content, "Technology Stack")
         technology_stack = []

@@ -2,29 +2,29 @@
 Project repository for project management operations with tenant isolation.
 """
 
-from typing import Optional, List
 from uuid import UUID
 
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, select, func, desc
 
 from app.models.project import Project, ProjectStatus
+
 from .base import TenantRepository
 
 
 class ProjectRepository(TenantRepository[Project]):
     """Repository for project operations with tenant isolation."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, tenant_id: UUID) -> None:
         super().__init__(session, Project, tenant_id)
 
-    async def get_by_name(self, name: str) -> Optional[Project]:
+    async def get_by_name(self, name: str) -> Project | None:
         """Get project by name within tenant."""
         stmt = select(self.model).where(
             and_(
                 self.model.name == name,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                not self.model.is_deleted
             )
         )
         result = await self.session.execute(stmt)
@@ -35,13 +35,13 @@ class ProjectRepository(TenantRepository[Project]):
         owner_id: UUID,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Project]:
+    ) -> list[Project]:
         """Get projects by owner within tenant."""
         stmt = select(self.model).where(
             and_(
                 self.model.owner_id == owner_id,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                not self.model.is_deleted
             )
         ).offset(skip).limit(limit)
         result = await self.session.execute(stmt)
@@ -52,13 +52,13 @@ class ProjectRepository(TenantRepository[Project]):
         status: ProjectStatus,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Project]:
+    ) -> list[Project]:
         """Get projects by status within tenant."""
         stmt = select(self.model).where(
             and_(
                 self.model.status == status,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                not self.model.is_deleted
             )
         ).offset(skip).limit(limit)
         result = await self.session.execute(stmt)
@@ -68,7 +68,7 @@ class ProjectRepository(TenantRepository[Project]):
         self,
         name: str,
         owner_id: UUID,
-        description: Optional[str] = None,
+        description: str | None = None,
         status: ProjectStatus = ProjectStatus.DRAFT
     ) -> Project:
         """Create a new project within tenant."""
@@ -79,19 +79,19 @@ class ProjectRepository(TenantRepository[Project]):
             status=status
         )
 
-    async def update_status(self, project_id: UUID, status: ProjectStatus) -> Optional[Project]:
+    async def update_status(self, project_id: UUID, status: ProjectStatus) -> Project | None:
         """Update project status."""
         return await self.update(project_id, status=status)
 
-    async def archive_project(self, project_id: UUID) -> Optional[Project]:
+    async def archive_project(self, project_id: UUID) -> Project | None:
         """Archive a project."""
         return await self.update_status(project_id, ProjectStatus.ARCHIVED)
 
-    async def complete_project(self, project_id: UUID) -> Optional[Project]:
+    async def complete_project(self, project_id: UUID) -> Project | None:
         """Mark project as completed."""
         return await self.update_status(project_id, ProjectStatus.COMPLETED)
 
-    async def start_project(self, project_id: UUID) -> Optional[Project]:
+    async def start_project(self, project_id: UUID) -> Project | None:
         """Start a project (set status to in_progress)."""
         return await self.update_status(project_id, ProjectStatus.IN_PROGRESS)
 
@@ -100,7 +100,7 @@ class ProjectRepository(TenantRepository[Project]):
         search_term: str,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Project]:
+    ) -> list[Project]:
         """Search projects by name or description within tenant."""
         return await self.search(
             search_fields=['name', 'description'],
@@ -111,14 +111,14 @@ class ProjectRepository(TenantRepository[Project]):
 
     async def get_recent_projects(
         self,
-        owner_id: Optional[UUID] = None,
+        owner_id: UUID | None = None,
         limit: int = 10
-    ) -> List[Project]:
+    ) -> list[Project]:
         """Get recent projects within tenant."""
         stmt = select(self.model).where(
             and_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                not self.model.is_deleted
             )
         )
 
@@ -135,7 +135,7 @@ class ProjectRepository(TenantRepository[Project]):
             and_(
                 self.model.status == status,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                not self.model.is_deleted
             )
         )
         result = await self.session.execute(stmt)
@@ -147,7 +147,7 @@ class ProjectRepository(TenantRepository[Project]):
             and_(
                 self.model.owner_id == owner_id,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                not self.model.is_deleted
             )
         )
         result = await self.session.execute(stmt)
@@ -156,14 +156,14 @@ class ProjectRepository(TenantRepository[Project]):
     async def check_name_availability(
         self,
         name: str,
-        exclude_project_id: Optional[UUID] = None
+        exclude_project_id: UUID | None = None
     ) -> bool:
         """Check if project name is available within tenant."""
         stmt = select(self.model.id).where(
             and_(
                 self.model.name == name,
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False
+                not self.model.is_deleted
             )
         )
 

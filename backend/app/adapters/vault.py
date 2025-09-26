@@ -2,13 +2,13 @@
 HashiCorp Vault adapter for secrets management.
 """
 
-import json
-from typing import Any, Dict, Optional, List
+from typing import Any
+
 import hvac
-from hvac.exceptions import VaultError, InvalidRequest
+from hvac.exceptions import VaultError
 
 from app.core.config import settings
-from app.core.logger import get_logger, LoggerMixin
+from app.core.logger import LoggerMixin, get_logger
 
 logger = get_logger(__name__)
 
@@ -16,12 +16,12 @@ logger = get_logger(__name__)
 class VaultAdapter(LoggerMixin):
     """HashiCorp Vault adapter for secrets management"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.client = None
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize Vault client connection"""
         try:
             self.client = hvac.Client(
@@ -41,7 +41,7 @@ class VaultAdapter(LoggerMixin):
             # Don't raise exception - continue without Vault for development
             self.client = None
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Vault service health"""
         try:
             if not self.client:
@@ -67,11 +67,11 @@ class VaultAdapter(LoggerMixin):
             logger.error("Vault health check failed", error=str(e))
             return {
                 "status": "unhealthy",
-                "message": f"Vault connection failed: {str(e)}",
+                "message": f"Vault connection failed: {e!s}",
                 "details": {"error": str(e)}
             }
 
-    async def read_secret(self, path: str) -> Optional[Dict[str, Any]]:
+    async def read_secret(self, path: str) -> dict[str, Any] | None:
         """
         Read secret from Vault.
 
@@ -95,7 +95,7 @@ class VaultAdapter(LoggerMixin):
             logger.error("Failed to read secret from Vault", path=path, error=str(e))
             return None
 
-    async def write_secret(self, path: str, data: Dict[str, Any]) -> bool:
+    async def write_secret(self, path: str, data: dict[str, Any]) -> bool:
         """
         Write secret to Vault.
 
@@ -145,7 +145,7 @@ class VaultAdapter(LoggerMixin):
             logger.error("Failed to delete secret from Vault", path=path, error=str(e))
             return False
 
-    async def list_secrets(self, path: str = "") -> Optional[List[str]]:
+    async def list_secrets(self, path: str = "") -> list[str] | None:
         """
         List secrets at given path.
 
@@ -170,7 +170,7 @@ class VaultAdapter(LoggerMixin):
             return None
 
     # Environment-specific secret management
-    async def get_environment_secrets(self, environment: str) -> Dict[str, Any]:
+    async def get_environment_secrets(self, environment: str) -> dict[str, Any]:
         """
         Get all secrets for a specific environment.
 
@@ -183,7 +183,7 @@ class VaultAdapter(LoggerMixin):
         path = f"secret/data/jeex_plan/{environment}"
         return await self.read_secret(path) or {}
 
-    async def set_environment_secrets(self, environment: str, secrets: Dict[str, Any]) -> bool:
+    async def set_environment_secrets(self, environment: str, secrets: dict[str, Any]) -> bool:
         """
         Set secrets for a specific environment.
 
@@ -198,7 +198,7 @@ class VaultAdapter(LoggerMixin):
         return await self.write_secret(path, secrets)
 
     # Tenant-specific secrets
-    async def get_tenant_secrets(self, tenant_id: str) -> Dict[str, Any]:
+    async def get_tenant_secrets(self, tenant_id: str) -> dict[str, Any]:
         """
         Get secrets for a specific tenant.
 
@@ -211,7 +211,7 @@ class VaultAdapter(LoggerMixin):
         path = f"secret/data/tenants/{tenant_id}"
         return await self.read_secret(path) or {}
 
-    async def set_tenant_secrets(self, tenant_id: str, secrets: Dict[str, Any]) -> bool:
+    async def set_tenant_secrets(self, tenant_id: str, secrets: dict[str, Any]) -> bool:
         """
         Set secrets for a specific tenant.
 
@@ -226,7 +226,7 @@ class VaultAdapter(LoggerMixin):
         return await self.write_secret(path, secrets)
 
     # API key management
-    async def get_api_key(self, provider: str) -> Optional[str]:
+    async def get_api_key(self, provider: str) -> str | None:
         """
         Get API key for a specific provider.
 
@@ -255,17 +255,17 @@ class VaultAdapter(LoggerMixin):
         return await self.set_environment_secrets(settings.ENVIRONMENT, secrets)
 
     # Database credentials management
-    async def get_database_credentials(self) -> Dict[str, Any]:
+    async def get_database_credentials(self) -> dict[str, Any]:
         """
         Get database credentials from Vault.
 
         Returns:
             Dictionary with database connection parameters
         """
-        path = f"secret/data/jeex_plan/database"
+        path = "secret/data/jeex_plan/database"
         return await self.read_secret(path) or {}
 
-    async def set_database_credentials(self, credentials: Dict[str, Any]) -> bool:
+    async def set_database_credentials(self, credentials: dict[str, Any]) -> bool:
         """
         Set database credentials in Vault.
 
@@ -275,21 +275,21 @@ class VaultAdapter(LoggerMixin):
         Returns:
             True if successful, False otherwise
         """
-        path = f"secret/data/jeex_plan/database"
+        path = "secret/data/jeex_plan/database"
         return await self.write_secret(path, credentials)
 
     # Configuration management
-    async def get_app_config(self) -> Dict[str, Any]:
+    async def get_app_config(self) -> dict[str, Any]:
         """
         Get application configuration from Vault.
 
         Returns:
             Dictionary with application configuration
         """
-        path = f"secret/data/jeex_plan/config"
+        path = "secret/data/jeex_plan/config"
         return await self.read_secret(path) or {}
 
-    async def set_app_config(self, config: Dict[str, Any]) -> bool:
+    async def set_app_config(self, config: dict[str, Any]) -> bool:
         """
         Set application configuration in Vault.
 
@@ -299,7 +299,7 @@ class VaultAdapter(LoggerMixin):
         Returns:
             True if successful, False otherwise
         """
-        path = f"secret/data/jeex_plan/config"
+        path = "secret/data/jeex_plan/config"
         return await self.write_secret(path, config)
 
     # Fallback to environment variables when Vault is not available
@@ -353,7 +353,6 @@ class VaultAdapter(LoggerMixin):
                 },
                 "production": {
                     "debug": False
-                    # Production secrets should be set manually
                 },
                 "config": {
                     "app_name": settings.APP_NAME,

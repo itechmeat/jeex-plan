@@ -2,13 +2,14 @@
 Rate limiting middleware with Redis backend for API endpoint protection.
 """
 
-import time
+import contextlib
 import hashlib
 import secrets
-from typing import Optional, Tuple, List
-from fastapi import Request, HTTPException, status
-from starlette.middleware.base import BaseHTTPMiddleware
+import time
+
 import redis.asyncio as redis
+from fastapi import HTTPException, Request, status
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..core.config import get_settings
 from ..middleware.tenant import TenantContextManager
@@ -22,10 +23,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
-        redis_client: Optional[redis.Redis] = None,
+        redis_client: redis.Redis | None = None,
         default_requests: int = 100,
         default_window: int = 60
-    ):
+    ) -> None:
         super().__init__(app)
         self.redis_client = redis_client
         self.default_requests = default_requests
@@ -70,7 +71,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    async def _check_rate_limit(self, request: Request, redis_client=None) -> Tuple[bool, dict]:
+    async def _check_rate_limit(self, request: Request, redis_client=None) -> tuple[bool, dict]:
         """Check if request is within rate limits."""
 
         # Get rate limit configuration based on endpoint and user
@@ -100,10 +101,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         is_allowed = current_requests <= requests_limit
         if not is_allowed:
-            try:
+            with contextlib.suppress(Exception):
                 await redis_client.zrem(key, unique_member)
-            except Exception:
-                pass
 
         ttl = 0
         try:
@@ -200,7 +199,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 class RateLimitService:
     """Service for managing rate limits."""
 
-    def __init__(self, redis_client: redis.Redis):
+    def __init__(self, redis_client: redis.Redis) -> None:
         self.redis_client = redis_client
 
     async def get_rate_limit_status(self, key: str) -> dict:
@@ -238,7 +237,7 @@ class RateLimitService:
         identifier: str,
         requests: int,
         window: int,
-        duration: Optional[int] = None
+        duration: int | None = None
     ) -> bool:
         """Set custom rate limit for a specific identifier."""
 
@@ -253,7 +252,7 @@ class RateLimitService:
 
         return True
 
-    async def get_custom_limit(self, identifier: str) -> Optional[dict]:
+    async def get_custom_limit(self, identifier: str) -> dict | None:
         """Get custom rate limit for a specific identifier."""
 
         key = f"custom_limit:{identifier}"
@@ -268,7 +267,7 @@ class RateLimitService:
 
         return None
 
-    async def list_active_limits(self, pattern: str = "*") -> List[dict]:
+    async def list_active_limits(self, pattern: str = "*") -> list[dict]:
         """List all active rate limit keys."""
 
         result = []

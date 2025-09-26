@@ -3,12 +3,13 @@ Application configuration with environment variable support,
 Vault integration, and type validation using Pydantic settings.
 """
 
-import os
 import logging
-from typing import List, Optional, Dict, Any
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from typing import Any
+
 from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings
+
 try:
     from pydantic.fields import FieldValidationInfo  # type: ignore
 except ImportError:  # Pydantic >=2.11 uses ValidationInfo instead
@@ -27,14 +28,14 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(default=False, env="DEBUG")
 
     # Default Technology Stack
-    DEFAULT_TECHNOLOGY_STACK: List[str] = Field(
+    DEFAULT_TECHNOLOGY_STACK: list[str] = Field(
         default=["JavaScript", "Node.js", "React", "PostgreSQL"],
         env="DEFAULT_TECHNOLOGY_STACK"
     )
 
     # API Settings
     API_V1_PREFIX: str = "/api/v1"
-    ALLOWED_ORIGINS_STR: Optional[str] = Field(default=None, env="ALLOWED_ORIGINS")
+    ALLOWED_ORIGINS_STR: str | None = Field(default=None, env="ALLOWED_ORIGINS")
 
     # Database
     DATABASE_URL: str = Field(
@@ -47,14 +48,14 @@ class Settings(BaseSettings):
         default="redis://localhost:6379",
         env="REDIS_URL"
     )
-    REDIS_PASSWORD: Optional[str] = Field(default=None, env="REDIS_PASSWORD")
+    REDIS_PASSWORD: str | None = Field(default=None, env="REDIS_PASSWORD")
 
     # Qdrant Vector Database
     QDRANT_URL: str = Field(
         default="http://localhost:6333",
         env="QDRANT_URL"
     )
-    QDRANT_API_KEY: Optional[str] = Field(default=None, env="QDRANT_API_KEY")
+    QDRANT_API_KEY: str | None = Field(default=None, env="QDRANT_API_KEY")
     QDRANT_COLLECTION: str = Field(default="jeex_plan_documents", env="QDRANT_COLLECTION")
 
     # HashiCorp Vault
@@ -62,7 +63,7 @@ class Settings(BaseSettings):
         default="http://vault:8200",
         env="VAULT_ADDR"
     )
-    VAULT_TOKEN: Optional[str] = Field(default=None, env="VAULT_TOKEN")
+    VAULT_TOKEN: str | None = Field(default=None, env="VAULT_TOKEN")
     USE_VAULT: bool = Field(default=True, env="USE_VAULT")
 
     # Authentication
@@ -71,10 +72,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # OAuth2 Settings
-    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_ID")
-    GOOGLE_CLIENT_SECRET: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_SECRET")
-    GITHUB_CLIENT_ID: Optional[str] = Field(default=None, env="GITHUB_CLIENT_ID")
-    GITHUB_CLIENT_SECRET: Optional[str] = Field(default=None, env="GITHUB_CLIENT_SECRET")
+    GOOGLE_CLIENT_ID: str | None = Field(default=None, env="GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET: str | None = Field(default=None, env="GOOGLE_CLIENT_SECRET")
+    GITHUB_CLIENT_ID: str | None = Field(default=None, env="GITHUB_CLIENT_ID")
+    GITHUB_CLIENT_SECRET: str | None = Field(default=None, env="GITHUB_CLIENT_SECRET")
     OAUTH_REDIRECT_URL: str = Field(default="http://localhost:5210/auth/callback", env="OAUTH_REDIRECT_URL")
 
     # Rate Limiting
@@ -82,9 +83,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW: int = Field(default=60, env="RATE_LIMIT_WINDOW")  # seconds
 
     # LLM Settings
-    OPENAI_API_KEY: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
-    OPENAI_BASE_URL: Optional[str] = Field(default=None, env="OPENAI_BASE_URL")
-    ANTHROPIC_API_KEY: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
+    OPENAI_API_KEY: str | None = Field(default=None, env="OPENAI_API_KEY")
+    OPENAI_BASE_URL: str | None = Field(default=None, env="OPENAI_BASE_URL")
+    ANTHROPIC_API_KEY: str | None = Field(default=None, env="ANTHROPIC_API_KEY")
     DEFAULT_LLM_MODEL: str = Field(default="gpt-4", env="DEFAULT_LLM_MODEL")
 
     # Embedding Settings
@@ -95,7 +96,7 @@ class Settings(BaseSettings):
 
     # Observability
     ENABLE_OBSERVABILITY: bool = Field(default=False, env="ENABLE_OBSERVABILITY")
-    OTLP_ENDPOINT: Optional[str] = Field(default=None, env="OTLP_ENDPOINT")
+    OTLP_ENDPOINT: str | None = Field(default=None, env="OTLP_ENDPOINT")
     LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
 
     # Cache Settings
@@ -123,7 +124,7 @@ class Settings(BaseSettings):
 
     @field_validator("VAULT_TOKEN", mode="before")
     @classmethod
-    def validate_vault_token(cls, token: Optional[str], info: FieldValidationInfo):
+    def validate_vault_token(cls, token: str | None, info: FieldValidationInfo) -> str | None:
         """Ensure Vault token is provided when Vault is enabled."""
         use_vault = info.data.get("USE_VAULT", True)
         placeholder = "__REPLACE_WITH_TOKEN__"
@@ -135,6 +136,9 @@ class Settings(BaseSettings):
             raise ValueError(
                 "VAULT_TOKEN must be set when USE_VAULT is true and cannot be the placeholder value"
             )
+
+        if isinstance(token, str) and len(token) < 10:
+            raise ValueError("VAULT_TOKEN appears to be too short to be valid")
 
         return token
 
@@ -149,7 +153,7 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT == "development"
 
     @property
-    def ALLOWED_ORIGINS(self) -> List[str]:
+    def ALLOWED_ORIGINS(self) -> list[str]:
         """Get allowed origins for CORS"""
         if self.ALLOWED_ORIGINS_STR:
             # Remove quotes and split by comma
@@ -197,12 +201,12 @@ class VaultSettings:
     In production: Uses Vault for sensitive secrets with .env fallbacks
     """
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._vault_cache: Dict[str, Any] = {}
+        self._vault_cache: dict[str, Any] = {}
         self._use_vault = settings.USE_VAULT and settings.is_production
 
-    async def get_vault_secret(self, path: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
+    async def get_vault_secret(self, path: str, use_cache: bool = True) -> dict[str, Any] | None:
         """Get secret from Vault with caching."""
         if not self._use_vault:
             logger.debug(f"Vault disabled or not in production, skipping secret {path}")
@@ -267,7 +271,7 @@ class VaultSettings:
         # Fallback to environment variables (development or Vault failure)
         return self.settings.SECRET_KEY
 
-    async def get_openai_api_key(self) -> Optional[str]:
+    async def get_openai_api_key(self) -> str | None:
         """Get OpenAI API key from Vault in production or fallback to env config."""
         if self._use_vault:
             secrets = await self.get_vault_secret("ai/openai")
@@ -279,7 +283,7 @@ class VaultSettings:
         # Fallback to environment variables (development or Vault failure)
         return self.settings.OPENAI_API_KEY
 
-    async def get_anthropic_api_key(self) -> Optional[str]:
+    async def get_anthropic_api_key(self) -> str | None:
         """Get Anthropic API key from Vault in production or fallback to env config."""
         if self._use_vault:
             secrets = await self.get_vault_secret("ai/anthropic")
@@ -292,7 +296,7 @@ class VaultSettings:
         return self.settings.ANTHROPIC_API_KEY
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Get application settings (cached)."""
     return Settings()

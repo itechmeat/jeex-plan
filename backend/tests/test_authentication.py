@@ -2,20 +2,20 @@
 Comprehensive tests for authentication system.
 """
 
-import pytest
 import uuid
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch
+
+import pytest
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import AuthService
-from app.core.oauth import OAuthService, GoogleOAuthProvider, GitHubOAuthProvider
-from app.services.user import UserService
-from app.models.user import User
+from app.core.oauth import GitHubOAuthProvider, GoogleOAuthProvider
 from app.models.tenant import Tenant
-from app.api.schemas.auth import UserCreate, LoginRequest
+from app.models.user import User
+from app.services.user import UserService
 
 
 class TestAuthService:
@@ -55,7 +55,7 @@ class TestAuthService:
 
         return user
 
-    def test_password_hashing(self, auth_service):
+    def test_password_hashing(self, auth_service) -> None:
         """Test password hashing and verification."""
         password = "test_password123"
 
@@ -70,7 +70,7 @@ class TestAuthService:
         assert auth_service.verify_password(password, hashed) is True
         assert auth_service.verify_password("wrong_password", hashed) is False
 
-    def test_create_access_token(self, auth_service):
+    def test_create_access_token(self, auth_service) -> None:
         """Test JWT access token creation."""
         data = {
             "sub": str(uuid.uuid4()),
@@ -90,7 +90,7 @@ class TestAuthService:
         assert payload["email"] == data["email"]
         assert payload["type"] == "access"
 
-    def test_create_refresh_token(self, auth_service):
+    def test_create_refresh_token(self, auth_service) -> None:
         """Test JWT refresh token creation."""
         data = {
             "sub": str(uuid.uuid4()),
@@ -108,7 +108,7 @@ class TestAuthService:
         assert payload["sub"] == data["sub"]
         assert payload["type"] == "refresh"
 
-    def test_verify_invalid_token(self, auth_service):
+    def test_verify_invalid_token(self, auth_service) -> None:
         """Test verification of invalid tokens."""
         # Test completely invalid token
         assert auth_service.verify_token("invalid_token") is None
@@ -117,7 +117,7 @@ class TestAuthService:
         refresh_token = auth_service.create_refresh_token({"sub": "test"})
         assert auth_service.verify_token(refresh_token, "access") is None
 
-    def test_create_tokens_with_custom_expiry(self, auth_service):
+    def test_create_tokens_with_custom_expiry(self, auth_service) -> None:
         """Test token creation with custom expiry time."""
         data = {"sub": "test"}
         expires_delta = timedelta(minutes=5)
@@ -136,7 +136,7 @@ class TestAuthService:
 class TestOAuthProviders:
     """Test suite for OAuth providers."""
 
-    def test_google_oauth_provider_initialization(self):
+    def test_google_oauth_provider_initialization(self) -> None:
         """Test Google OAuth provider initialization."""
         with patch('app.core.oauth.settings') as mock_settings:
             mock_settings.GOOGLE_CLIENT_ID = "test_client_id"
@@ -147,7 +147,7 @@ class TestOAuthProviders:
             assert provider.client_id == "test_client_id"
             assert provider.client_secret == "test_client_secret"
 
-    def test_google_oauth_provider_missing_credentials(self):
+    def test_google_oauth_provider_missing_credentials(self) -> None:
         """Test Google OAuth provider with missing credentials."""
         with patch('app.core.oauth.settings') as mock_settings:
             mock_settings.GOOGLE_CLIENT_ID = None
@@ -156,7 +156,7 @@ class TestOAuthProviders:
             with pytest.raises(ValueError):
                 GoogleOAuthProvider()
 
-    def test_github_oauth_provider_initialization(self):
+    def test_github_oauth_provider_initialization(self) -> None:
         """Test GitHub OAuth provider initialization."""
         with patch('app.core.oauth.settings') as mock_settings:
             mock_settings.GITHUB_CLIENT_ID = "test_client_id"
@@ -168,7 +168,7 @@ class TestOAuthProviders:
             assert provider.client_secret == "test_client_secret"
 
     @pytest.mark.asyncio
-    async def test_google_authorization_url_generation(self):
+    async def test_google_authorization_url_generation(self) -> None:
         """Test Google authorization URL generation."""
         with patch('app.core.oauth.settings') as mock_settings:
             mock_settings.GOOGLE_CLIENT_ID = "test_client_id"
@@ -186,7 +186,7 @@ class TestOAuthProviders:
             assert "scope=openid+email+profile" in auth_url
 
     @pytest.mark.asyncio
-    async def test_github_authorization_url_generation(self):
+    async def test_github_authorization_url_generation(self) -> None:
         """Test GitHub authorization URL generation."""
         with patch('app.core.oauth.settings') as mock_settings:
             mock_settings.GITHUB_CLIENT_ID = "test_client_id"
@@ -227,7 +227,7 @@ class TestUserService:
         return tenant
 
     @pytest.mark.asyncio
-    async def test_user_registration_success(self, user_service, async_db):
+    async def test_user_registration_success(self, user_service, async_db) -> None:
         """Test successful user registration."""
         email = "newuser@example.com"
         username = "newuser"
@@ -258,7 +258,7 @@ class TestUserService:
         assert tokens["token_type"] == "bearer"
 
     @pytest.mark.asyncio
-    async def test_user_registration_duplicate_email(self, user_service, test_tenant, async_db):
+    async def test_user_registration_duplicate_email(self, user_service, test_tenant, async_db) -> None:
         """Test user registration with duplicate email."""
         # Create first user
         user1 = User(
@@ -285,7 +285,7 @@ class TestUserService:
         assert "Email already registered" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_user_authentication_success(self, user_service, async_db):
+    async def test_user_authentication_success(self, user_service, async_db) -> None:
         """Test successful user authentication."""
         # First register a user
         email = "auth@example.com"
@@ -309,7 +309,7 @@ class TestUserService:
         assert user.is_active is True
 
     @pytest.mark.asyncio
-    async def test_user_authentication_wrong_password(self, user_service, async_db):
+    async def test_user_authentication_wrong_password(self, user_service, async_db) -> None:
         """Test user authentication with wrong password."""
         # Register a user
         email = "wrongpass@example.com"
@@ -328,7 +328,7 @@ class TestUserService:
         assert "Invalid email or password" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_user_authentication_nonexistent_user(self, user_service):
+    async def test_user_authentication_nonexistent_user(self, user_service) -> None:
         """Test authentication with nonexistent user."""
         with pytest.raises(HTTPException) as exc_info:
             await user_service.authenticate_user("nonexistent@example.com", "password")
@@ -336,7 +336,7 @@ class TestUserService:
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
-    async def test_refresh_token_success(self, user_service, async_db):
+    async def test_refresh_token_success(self, user_service, async_db) -> None:
         """Test successful token refresh."""
         # Register and get tokens
         result = await user_service.register_user(
@@ -356,7 +356,7 @@ class TestUserService:
         assert new_tokens["token_type"] == "bearer"
 
     @pytest.mark.asyncio
-    async def test_refresh_token_invalid(self, user_service):
+    async def test_refresh_token_invalid(self, user_service) -> None:
         """Test token refresh with invalid token."""
         with pytest.raises(HTTPException) as exc_info:
             await user_service.refresh_tokens("invalid_refresh_token")
@@ -364,7 +364,7 @@ class TestUserService:
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
-    async def test_change_password_success(self, user_service, async_db):
+    async def test_change_password_success(self, user_service, async_db) -> None:
         """Test successful password change."""
         # Register user
         result = await user_service.register_user(
@@ -393,7 +393,7 @@ class TestUserService:
         assert auth_result["user"].id == user_id
 
     @pytest.mark.asyncio
-    async def test_change_password_wrong_current(self, user_service, async_db):
+    async def test_change_password_wrong_current(self, user_service, async_db) -> None:
         """Test password change with wrong current password."""
         # Register user
         result = await user_service.register_user(
@@ -425,7 +425,7 @@ class TestAuthenticationEndpoints:
         """Create test client."""
         return TestClient(test_app)
 
-    def test_register_endpoint_success(self, client):
+    def test_register_endpoint_success(self, client) -> None:
         """Test user registration endpoint."""
         user_data = {
             "email": "register@example.com",
@@ -446,7 +446,7 @@ class TestAuthenticationEndpoints:
         assert "access_token" in data["token"]
         assert "refresh_token" in data["token"]
 
-    def test_register_endpoint_password_mismatch(self, client):
+    def test_register_endpoint_password_mismatch(self, client) -> None:
         """Test registration with password mismatch."""
         user_data = {
             "email": "mismatch@example.com",
@@ -461,7 +461,7 @@ class TestAuthenticationEndpoints:
         data = response.json()
         assert "Passwords do not match" in data["detail"]
 
-    def test_login_endpoint_success(self, client):
+    def test_login_endpoint_success(self, client) -> None:
         """Test user login endpoint."""
         # First register a user
         user_data = {
@@ -488,7 +488,7 @@ class TestAuthenticationEndpoints:
         assert data["user"]["email"] == login_data["email"]
         assert "access_token" in data["token"]
 
-    def test_login_endpoint_wrong_password(self, client):
+    def test_login_endpoint_wrong_password(self, client) -> None:
         """Test login with wrong password."""
         # Register user first
         user_data = {
@@ -511,7 +511,7 @@ class TestAuthenticationEndpoints:
         data = response.json()
         assert "Invalid credentials" in data["detail"]
 
-    def test_refresh_token_endpoint(self, client):
+    def test_refresh_token_endpoint(self, client) -> None:
         """Test token refresh endpoint."""
         # Register and get tokens
         user_data = {
@@ -532,7 +532,7 @@ class TestAuthenticationEndpoints:
         assert "access_token" in data
         assert "refresh_token" in data
 
-    def test_get_current_user_endpoint(self, client):
+    def test_get_current_user_endpoint(self, client) -> None:
         """Test get current user endpoint."""
         # Register user and get token
         user_data = {
@@ -553,13 +553,13 @@ class TestAuthenticationEndpoints:
         assert data["email"] == user_data["email"]
         assert data["name"] == user_data["name"]
 
-    def test_get_current_user_unauthorized(self, client):
+    def test_get_current_user_unauthorized(self, client) -> None:
         """Test get current user without token."""
         response = client.get("/auth/me")
 
         assert response.status_code == 403  # No Authorization header
 
-    def test_logout_endpoint(self, client):
+    def test_logout_endpoint(self, client) -> None:
         """Test logout endpoint."""
         # Register user and get token
         user_data = {
@@ -579,7 +579,7 @@ class TestAuthenticationEndpoints:
         data = response.json()
         assert "Successfully logged out" in data["message"]
 
-    def test_get_oauth_providers_endpoint(self, client):
+    def test_get_oauth_providers_endpoint(self, client) -> None:
         """Test get available OAuth providers endpoint."""
         response = client.get("/auth/providers")
 
@@ -588,7 +588,7 @@ class TestAuthenticationEndpoints:
         assert "providers" in data
         assert isinstance(data["providers"], list)
 
-    def test_validate_token_endpoint(self, client):
+    def test_validate_token_endpoint(self, client) -> None:
         """Test token validation endpoint."""
         # Register user and get token
         user_data = {

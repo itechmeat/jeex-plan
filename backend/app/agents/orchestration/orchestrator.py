@@ -5,28 +5,30 @@ Agent Orchestrator - manages agent execution and workflow coordination.
 import asyncio
 import inspect
 import os
-from typing import Dict, Any, Callable
+from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
+from typing import Any
+
+from app.core.logger import get_logger
 
 from ..base.agent_base import AgentBase
 from ..base.llm_client import llm_manager
 from ..base.vector_context import vector_context
-from ..implementations import (
-    BusinessAnalystAgent,
-    SolutionArchitectAgent,
-    ProjectPlannerAgent,
-    EngineeringStandardsAgent,
-)
 from ..contracts.base import (
-    ProjectContext,
-    AgentExecutionResult,
-    ProgressUpdate,
     AgentError,
+    AgentExecutionResult,
     AgentOutput,
+    ProgressUpdate,
+    ProjectContext,
     ValidationResult,
 )
-from app.core.logger import get_logger
+from ..implementations import (
+    BusinessAnalystAgent,
+    EngineeringStandardsAgent,
+    ProjectPlannerAgent,
+    SolutionArchitectAgent,
+)
 
 logger = get_logger()
 
@@ -44,14 +46,14 @@ class AgentOrchestrator:
     """Main orchestrator for agent workflow execution."""
 
     def __init__(self) -> None:
-        self.agents: Dict[WorkflowStep, AgentBase] = {
+        self.agents: dict[WorkflowStep, AgentBase] = {
             WorkflowStep.BUSINESS_ANALYSIS: BusinessAnalystAgent(),
             WorkflowStep.ARCHITECTURE_DESIGN: SolutionArchitectAgent(),
             WorkflowStep.IMPLEMENTATION_PLANNING: ProjectPlannerAgent(),
             WorkflowStep.ENGINEERING_STANDARDS: EngineeringStandardsAgent(),
         }
         self.logger = get_logger("agent_orchestrator")
-        self.progress_callbacks: Dict[str, Callable] = {}
+        self.progress_callbacks: dict[str, Callable] = {}
 
         # Configurable step pause - can be disabled by setting to 0
         try:
@@ -63,7 +65,7 @@ class AgentOrchestrator:
         except (ValueError, TypeError):
             self.step_pause_seconds = 1.0
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize orchestrator and dependencies."""
         try:
             await llm_manager.initialize()
@@ -75,11 +77,11 @@ class AgentOrchestrator:
 
     def register_progress_callback(
         self, correlation_id: str, callback: Callable[[ProgressUpdate], None]
-    ):
+    ) -> None:
         """Register progress callback for real-time updates."""
         self.progress_callbacks[correlation_id] = callback
 
-    def unregister_progress_callback(self, correlation_id: str):
+    def unregister_progress_callback(self, correlation_id: str) -> None:
         """Remove progress callback."""
         self.progress_callbacks.pop(correlation_id, None)
 
@@ -105,9 +107,9 @@ class AgentOrchestrator:
             # Emit progress update
             await self._emit_progress(
                 context,
-                "Starting {}".format(step.value),
+                f"Starting {step.value}",
                 0.0,
-                "Initializing {} agent".format(step.value),
+                f"Initializing {step.value} agent",
             )
 
             # Get appropriate agent
@@ -124,9 +126,7 @@ class AgentOrchestrator:
             if not isinstance(input_data, expected_input_type):
                 raise AgentError(
                     message=(
-                        "Invalid input type for {}: expected {}".format(
-                            step.value, expected_input_type.__name__
-                        )
+                        f"Invalid input type for {step.value}: expected {expected_input_type.__name__}"
                     ),
                     agent_type="orchestrator",
                     correlation_id=correlation_id,
@@ -144,7 +144,7 @@ class AgentOrchestrator:
                 context,
                 "Storing results",
                 0.8,
-                "Saving {} output for future context".format(step.value),
+                f"Saving {step.value} output for future context",
             )
 
             await vector_context.store_agent_output(
@@ -171,9 +171,9 @@ class AgentOrchestrator:
 
             await self._emit_progress(
                 context,
-                "Completed {}".format(step.value),
+                f"Completed {step.value}",
                 1.0,
-                "{} execution completed successfully".format(agent.name),
+                f"{agent.name} execution completed successfully",
             )
 
             self.logger.info(
@@ -216,7 +216,7 @@ class AgentOrchestrator:
             )
 
             await self._emit_progress(
-                context, "Failed {}".format(step.value), 0.0, "Execution failed"
+                context, f"Failed {step.value}", 0.0, "Execution failed"
             )
 
             self.logger.exception(
@@ -236,8 +236,8 @@ class AgentOrchestrator:
     async def execute_full_workflow(
         self,
         context: ProjectContext,
-        step_inputs: Dict[WorkflowStep, Any],
-    ) -> Dict[WorkflowStep, AgentExecutionResult]:
+        step_inputs: dict[WorkflowStep, Any],
+    ) -> dict[WorkflowStep, AgentExecutionResult]:
         """Execute complete 4-step workflow."""
         results = {}
         workflow_steps = [
@@ -276,9 +276,7 @@ class AgentOrchestrator:
                     #       relevant information
                     # For now, explicit input is required for each step
                     raise AgentError(
-                        message="No input provided for step {}".format(
-                            step.value
-                        ),
+                        message=f"No input provided for step {step.value}",
                         agent_type="orchestrator",
                         correlation_id=context.correlation_id,
                     )
@@ -313,7 +311,7 @@ class AgentOrchestrator:
 
     async def _emit_progress(
         self, context: ProjectContext, step: str, progress: float, message: str
-    ):
+    ) -> None:
         """Emit progress update to registered callbacks."""
         update = ProgressUpdate(
             correlation_id=context.correlation_id,
@@ -339,7 +337,7 @@ class AgentOrchestrator:
                     error=str(e),
                 )
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Health check for orchestrator and dependencies."""
         try:
             # Check LLM manager

@@ -3,11 +3,12 @@ Base contracts and data models for agent system.
 Defines core types and validation for agent communication.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Union
-from pydantic import BaseModel, Field, validator
-from datetime import datetime, timezone
 import uuid
+from abc import ABC
+from datetime import UTC, datetime
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class ProjectContext(BaseModel):
@@ -42,13 +43,13 @@ class ValidationResult(BaseModel):
 
     passed: bool = Field(..., description="Whether validation passed")
     score: float = Field(..., ge=0.0, le=1.0, description="Quality score (0-1)")
-    details: Dict[str, Any] = Field(
+    details: dict[str, Any] = Field(
         default_factory=dict, description="Validation details"
     )
-    missing_sections: List[str] = Field(
+    missing_sections: list[str] = Field(
         default_factory=list, description="Missing required sections"
     )
-    suggestions: List[str] = Field(
+    suggestions: list[str] = Field(
         default_factory=list, description="Improvement suggestions"
     )
 
@@ -63,7 +64,7 @@ class AgentOutput(BaseModel, ABC):
     validation_result: ValidationResult = Field(
         ..., description="Content validation results"
     )
-    metadata: Dict[str, Any] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata"
     )
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
@@ -78,7 +79,7 @@ class AgentExecutionResult(BaseModel):
     input_data: AgentInput = Field(..., description="Original input data")
     output_data: AgentOutput = Field(..., description="Generated output")
     status: str = Field(..., description="Execution status")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    error_message: str | None = Field(None, description="Error message if failed")
     started_at: datetime = Field(..., description="Execution start time")
     completed_at: datetime = Field(..., description="Execution completion time")
 
@@ -97,11 +98,11 @@ class ProgressUpdate(BaseModel):
     step: str = Field(..., description="Current processing step")
     progress: float = Field(..., ge=0.0, le=1.0, description="Progress percentage")
     message: str = Field(..., description="Human-readable progress message")
-    details: Optional[Dict[str, Any]] = Field(
+    details: dict[str, Any] | None = Field(
         None, description="Additional progress details"
     )
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Update timestamp",
     )
 
@@ -114,7 +115,7 @@ class AgentError(Exception):
         message: str,
         agent_type: str,
         correlation_id: str,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.agent_type = agent_type
@@ -125,16 +126,13 @@ class AgentError(Exception):
 class ValidationError(AgentError):
     """Exception for validation failures."""
 
-    pass
 
 
 class LLMError(AgentError):
     """Exception for LLM API failures."""
 
-    pass
 
 
 class ContextRetrievalError(AgentError):
     """Exception for vector context retrieval failures."""
 
-    pass

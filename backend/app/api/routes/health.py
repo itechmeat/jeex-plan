@@ -3,23 +3,24 @@ Health check endpoints for monitoring system status.
 """
 
 from datetime import datetime
-from typing import Dict, Any
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from typing import Any
 
-from app.core.database import get_db, DatabaseManager
-from app.core.logger import get_logger
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.adapters.qdrant import QdrantAdapter
 from app.adapters.redis import RedisAdapter
 from app.core.config import settings
+from app.core.database import DatabaseManager, get_db
+from app.core.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
 @router.get("/health")
-async def health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     Comprehensive health check endpoint for all system components.
 
@@ -53,7 +54,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         logger.error("Redis health check failed", error=str(e))
         health_status["components"]["redis"] = {
             "status": "unhealthy",
-            "message": f"Redis connection failed: {str(e)}",
+            "message": f"Redis connection failed: {e!s}",
             "details": {"error": str(e)}
         }
         health_status["status"] = "degraded"
@@ -71,7 +72,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         logger.error("Qdrant health check failed", error=str(e))
         health_status["components"]["qdrant"] = {
             "status": "unhealthy",
-            "message": f"Qdrant connection failed: {str(e)}",
+            "message": f"Qdrant connection failed: {e!s}",
             "details": {"error": str(e)}
         }
         health_status["status"] = "degraded"
@@ -89,7 +90,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
             logger.error("Vault health check failed", error=str(e))
             health_status["components"]["vault"] = {
                 "status": "unhealthy",
-                "message": f"Vault connection failed: {str(e)}",
+                "message": f"Vault connection failed: {e!s}",
                 "details": {"error": str(e)}
             }
             health_status["status"] = "degraded"
@@ -126,7 +127,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.get("/health/simple")
-async def simple_health_check() -> Dict[str, str]:
+async def simple_health_check() -> dict[str, str]:
     """
     Simple health check for load balancers and container health probes.
 
@@ -140,7 +141,7 @@ async def simple_health_check() -> Dict[str, str]:
 
 
 @router.get("/health/ready")
-async def readiness_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def readiness_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     Readiness check endpoint for Kubernetes and container orchestrators.
 
@@ -164,7 +165,7 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.get("/health/live")
-async def liveness_check() -> Dict[str, str]:
+async def liveness_check() -> dict[str, str]:
     """
     Liveness check endpoint for Kubernetes and container orchestrators.
 
@@ -177,7 +178,7 @@ async def liveness_check() -> Dict[str, str]:
 
 
 @router.get("/health/metrics")
-async def health_metrics() -> Dict[str, Any]:
+async def health_metrics() -> dict[str, Any]:
     """
     Health metrics endpoint with detailed system information.
 
@@ -217,7 +218,7 @@ async def health_metrics() -> Dict[str, Any]:
     }
 
 
-async def _check_vault_health() -> Dict[str, Any]:
+async def _check_vault_health() -> dict[str, Any]:
     """Check HashiCorp Vault health"""
     import httpx
 
@@ -246,6 +247,6 @@ async def _check_vault_health() -> Dict[str, Any]:
     except Exception as e:
         return {
             "status": "unhealthy",
-            "message": f"Vault health check failed: {str(e)}",
+            "message": f"Vault health check failed: {e!s}",
             "details": {"error": str(e)}
         }

@@ -5,24 +5,23 @@ Revises: 001
 Create Date: 2025-09-21 23:14:00.397471
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = '5fde290802d2'
-down_revision: Union[str, Sequence[str], None] = '9e95af11ace6'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = '9e95af11ace6'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     """Add partial indexes for active records optimization."""
 
     # Partial indexes for active records only (is_deleted = false)
-    # These indexes will be much smaller and more efficient for queries on active records
+    # These indexes will be much smaller and more efficient
+    # for queries on active records
 
     # Users - active users by tenant
     op.execute(

@@ -6,18 +6,18 @@ Comprehensive tests for vector database functionality with focus on:
 - Error handling and resilience
 """
 
-import pytest
 import asyncio
-from typing import List, Dict, Any
-import uuid
 import time
+import uuid
+
+import pytest
 
 from app.adapters.qdrant import QdrantAdapter
-from app.services.embedding import EmbeddingService
-from app.services.cache import VectorCache
+from app.core.hnsw_config import DatasetSize, HNSWConfigurator, WorkloadType
 from app.middleware.tenant_filter import VectorOperationFilter
-from app.schemas.vector import DocumentType, VisibilityLevel, VectorPayload
-from app.core.hnsw_config import HNSWConfigurator, WorkloadType, DatasetSize
+from app.schemas.vector import VisibilityLevel
+from app.services.cache import VectorCache
+from app.services.embedding import EmbeddingService
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ class TestTenantIsolation:
     @pytest.mark.asyncio
     async def test_cross_tenant_access_prevention(
         self, qdrant_adapter, test_tenants, test_documents
-    ):
+    ) -> None:
         """Test that tenants cannot access other tenants' data"""
         # Insert data for both tenants
         for tenant_key, tenant_data in test_tenants.items():
@@ -131,7 +131,7 @@ class TestTenantIsolation:
     @pytest.mark.asyncio
     async def test_project_isolation_within_tenant(
         self, qdrant_adapter, test_tenants, test_documents
-    ):
+    ) -> None:
         """Test that projects within the same tenant are isolated"""
         tenant_id = test_tenants["tenant1"]["id"]
         project1_id = test_tenants["tenant1"]["projects"]["project1"]
@@ -188,7 +188,7 @@ class TestTenantIsolation:
     @pytest.mark.asyncio
     async def test_tenant_specific_deletion(
         self, qdrant_adapter, test_tenants, test_documents
-    ):
+    ) -> None:
         """Test that deletion only affects the specified tenant"""
         # Insert data for both tenants
         for tenant_key, tenant_data in test_tenants.items():
@@ -264,7 +264,7 @@ class TestSearchRelevance:
     @pytest.mark.asyncio
     async def test_semantic_search_accuracy(
         self, embedding_service, qdrant_adapter, test_corpus
-    ):
+    ) -> None:
         """Test that semantic search returns relevant results"""
         tenant_id = f"test_tenant_{uuid.uuid4().hex[:8]}"
         project_id = f"test_project_{uuid.uuid4().hex[:8]}"
@@ -325,7 +325,7 @@ class TestSearchRelevance:
     @pytest.mark.asyncio
     async def test_filter_effectiveness(
         self, embedding_service, qdrant_adapter, test_corpus
-    ):
+    ) -> None:
         """Test that search filters work correctly"""
         tenant_id = f"test_tenant_{uuid.uuid4().hex[:8]}"
         project_id = f"test_project_{uuid.uuid4().hex[:8]}"
@@ -382,7 +382,7 @@ class TestPerformanceAndScalability:
     """Test suite for performance and scalability"""
 
     @pytest.mark.asyncio
-    async def test_search_latency(self, qdrant_adapter):
+    async def test_search_latency(self, qdrant_adapter) -> None:
         """Test that search latency meets requirements (< 200ms)"""
         tenant_id = f"perf_test_tenant_{uuid.uuid4().hex[:8]}"
         project_id = f"perf_test_project_{uuid.uuid4().hex[:8]}"
@@ -431,7 +431,7 @@ class TestPerformanceAndScalability:
         assert avg_latency < 100, f"Average latency {avg_latency:.2f}ms too high"
 
     @pytest.mark.asyncio
-    async def test_concurrent_operations(self, qdrant_adapter):
+    async def test_concurrent_operations(self, qdrant_adapter) -> None:
         """Test concurrent search operations"""
         tenant_id = f"concurrent_test_tenant_{uuid.uuid4().hex[:8]}"
         project_id = f"concurrent_test_project_{uuid.uuid4().hex[:8]}"
@@ -479,7 +479,7 @@ class TestPerformanceAndScalability:
 class TestHNSWConfiguration:
     """Test suite for HNSW configuration optimization"""
 
-    def test_hnsw_config_generation(self):
+    def test_hnsw_config_generation(self) -> None:
         """Test HNSW configuration generation for different workloads"""
         configurator = HNSWConfigurator()
 
@@ -496,7 +496,7 @@ class TestHNSWConfiguration:
                 assert config["m"] >= 2, "HNSW degree m must be >= 2"
                 assert config["payload_m"] >= 8, "Payload connections should be sufficient"
 
-    def test_memory_estimation(self):
+    def test_memory_estimation(self) -> None:
         """Test memory usage estimation"""
         configurator = HNSWConfigurator()
 
@@ -515,17 +515,18 @@ class TestErrorHandlingAndResilience:
     """Test suite for error handling and system resilience"""
 
     @pytest.mark.asyncio
-    async def test_invalid_tenant_context(self):
+    async def test_invalid_tenant_context(self) -> None:
         """Test handling of invalid tenant context"""
         filter_builder = VectorOperationFilter()
 
         # Test with empty tenant/project IDs
         # build_search_filter does not raise; ensure it returns a valid structure
         f = filter_builder.build_search_filter("", "", {})
-        assert isinstance(f, dict) and "must" in f
+        assert isinstance(f, dict)
+        assert "must" in f
 
     @pytest.mark.asyncio
-    async def test_payload_validation(self):
+    async def test_payload_validation(self) -> None:
         """Test payload validation and sanitization"""
         filter_builder = VectorOperationFilter()
 
@@ -561,7 +562,7 @@ class TestErrorHandlingAndResilience:
 
 
 @pytest.mark.asyncio
-async def test_full_integration_workflow():
+async def test_full_integration_workflow() -> None:
     """Test the complete workflow from text processing to search"""
     # Initialize services
     embedding_service = EmbeddingService()
@@ -571,10 +572,13 @@ async def test_full_integration_workflow():
     # Test data
     tenant_id = f"integration_test_tenant_{uuid.uuid4().hex[:8]}"
     project_id = f"integration_test_project_{uuid.uuid4().hex[:8]}"
-    test_text = """
-    Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed.
-    ML algorithms build mathematical models based on training data to make predictions or decisions.
-    """
+    test_text = (
+        "Machine learning is a subset of artificial intelligence that enables "
+        "systems to learn and improve from experience without being explicitly "
+        "programmed.\n"
+        "ML algorithms build mathematical models based on training data to make "
+        "predictions or decisions."
+    )
 
     # Step 1: Process text and generate embeddings
     embedding_result = await embedding_service.process_document(test_text)
@@ -586,7 +590,10 @@ async def test_full_integration_workflow():
         tenant_id=tenant_id,
         project_id=project_id,
         vectors=embedding_result.embeddings,
-        payloads=[{"text": chunk.text, "source": "integration_test"} for chunk in embedding_result.chunks]
+        payloads=[
+            {"text": chunk.text, "source": "integration_test"}
+            for chunk in embedding_result.chunks
+        ]
     )
     assert upsert_result["status"] == "success", "Vector storage failed"
 
@@ -601,7 +608,6 @@ async def test_full_integration_workflow():
     assert len(search_results) > 0, "Search returned no results"
 
     # Step 4: Test caching
-    cache_key = f"search:{tenant_id}:{project_id}"
     cache_success = await vector_cache.set_search_results(
         tenant_id, project_id, "test_hash", {}, 5, search_results
     )

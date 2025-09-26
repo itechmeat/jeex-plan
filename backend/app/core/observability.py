@@ -1,6 +1,6 @@
 """OpenTelemetry observability helpers with optional instrumentation."""
 
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.core.logger import get_logger
@@ -80,11 +80,11 @@ def _noop_setup_observability(_: Any) -> None:
     logger.debug("Observability disabled; instrumentation skipped")
 
 
-def _noop_get_tracer(_: Optional[str] = None) -> _NoOpTracer:
+def _noop_get_tracer(_: str | None = None) -> _NoOpTracer:
     return NOOP_TRACER
 
 
-def _noop_get_meter(_: Optional[str] = None) -> _NoOpMeter:
+def _noop_get_meter(_: str | None = None) -> _NoOpMeter:
     return NOOP_METER
 
 
@@ -95,21 +95,28 @@ NOOP_GET_METER = _noop_get_meter
 
 if settings.ENABLE_OBSERVABILITY:
     try:
-        from opentelemetry import trace, metrics
+        from opentelemetry import metrics, trace
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+            OTLPMetricExporter,
+        )
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
         from opentelemetry.instrumentation.redis import RedisInstrumentor
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
         from opentelemetry.sdk.metrics import MeterProvider
         from opentelemetry.sdk.metrics.export import (
-            PeriodicExportingMetricReader,
             ConsoleMetricExporter,
+            PeriodicExportingMetricReader,
         )
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-        from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
+        from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import (
+            BatchSpanProcessor,
+            ConsoleSpanExporter,
+        )
 
     except ImportError as exc:  # pragma: no cover - fallback path
         logger.warning(
@@ -219,11 +226,11 @@ class ObservabilityMixin:
 
 
 __all__ = [
-    "setup_observability",
-    "get_tracer",
-    "get_meter",
-    "ObservabilityMixin",
-    "NOOP_SETUP_OBSERVABILITY",
-    "NOOP_GET_TRACER",
     "NOOP_GET_METER",
+    "NOOP_GET_TRACER",
+    "NOOP_SETUP_OBSERVABILITY",
+    "ObservabilityMixin",
+    "get_meter",
+    "get_tracer",
+    "setup_observability",
 ]

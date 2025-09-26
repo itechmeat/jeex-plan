@@ -5,16 +5,23 @@ This service handles the complete pipeline from raw text to optimized embeddings
 including intelligent chunking, deduplication, and batch processing.
 """
 
-import re
+import asyncio
 import hashlib
-from typing import List, Dict, Any, Optional, Tuple, AsyncGenerator
+import re
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
-import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from typing import Any
 
-from app.core.logger import get_logger, LoggerMixin
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 from app.core.config import settings
+from app.core.logger import LoggerMixin, get_logger
 from app.schemas.vector import DocumentType
 
 logger = get_logger(__name__)
@@ -42,7 +49,7 @@ class TextChunk:
     chunk_index: int
     start_char: int
     end_char: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     hash: str
     confidence_score: float = 1.0
 
@@ -50,12 +57,12 @@ class TextChunk:
 @dataclass
 class EmbeddingResult:
     """Result of embedding computation"""
-    chunks: List[TextChunk]
-    embeddings: List[List[float]]
+    chunks: list[TextChunk]
+    embeddings: list[list[float]]
     model_used: str
     processing_time_ms: float
     total_tokens: int
-    deduplication_stats: Dict[str, int]
+    deduplication_stats: dict[str, int]
 
 
 class EmbeddingService(LoggerMixin):
@@ -63,7 +70,7 @@ class EmbeddingService(LoggerMixin):
     Service for computing document embeddings with preprocessing pipeline.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.embedding_model = settings.EMBEDDING_MODEL
         self.max_chunk_size = settings.EMBEDDING_MAX_CHUNK_SIZE
@@ -74,7 +81,7 @@ class EmbeddingService(LoggerMixin):
         self._embedding_client = None
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize the embedding API client"""
         try:
             # Import here to avoid circular dependencies
@@ -97,7 +104,7 @@ class EmbeddingService(LoggerMixin):
         doc_type: DocumentType = DocumentType.KNOWLEDGE,
         chunking_strategy: ChunkingStrategy = ChunkingStrategy.PARAGRAPH,
         normalization: TextNormalization = TextNormalization.STANDARD,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> EmbeddingResult:
         """
         Process a complete document through the embedding pipeline.
@@ -249,8 +256,8 @@ class EmbeddingService(LoggerMixin):
         self,
         text: str,
         strategy: ChunkingStrategy,
-        metadata: Dict[str, Any]
-    ) -> List[TextChunk]:
+        metadata: dict[str, Any]
+    ) -> list[TextChunk]:
         """
         Chunk text according to specified strategy.
 
@@ -272,7 +279,7 @@ class EmbeddingService(LoggerMixin):
             # Default to paragraph chunking
             return self._chunk_by_paragraphs(text, metadata)
 
-    def _chunk_by_paragraphs(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
+    def _chunk_by_paragraphs(self, text: str, metadata: dict[str, Any]) -> list[TextChunk]:
         """Chunk text by paragraphs"""
         # Split by double newlines (paragraph breaks)
         paragraphs = re.split(r'\n\s*\n', text)
@@ -313,7 +320,7 @@ class EmbeddingService(LoggerMixin):
 
         return chunks
 
-    def _chunk_by_sentences(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
+    def _chunk_by_sentences(self, text: str, metadata: dict[str, Any]) -> list[TextChunk]:
         """Chunk text by sentences"""
         # Simple sentence splitting (in production, use NLP library)
         sentences = re.split(r'(?<=[.!?])\s+', text)
@@ -351,7 +358,7 @@ class EmbeddingService(LoggerMixin):
 
         return chunks
 
-    def _chunk_by_fixed_size(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
+    def _chunk_by_fixed_size(self, text: str, metadata: dict[str, Any]) -> list[TextChunk]:
         """Chunk text by fixed size with overlap"""
         chunks = []
         text_length = len(text)
@@ -409,7 +416,7 @@ class EmbeddingService(LoggerMixin):
 
         return chunks
 
-    def _deduplicate_chunks(self, chunks: List[TextChunk]) -> Tuple[List[TextChunk], Dict[str, int]]:
+    def _deduplicate_chunks(self, chunks: list[TextChunk]) -> tuple[list[TextChunk], dict[str, int]]:
         """
         Remove duplicate chunks based on content hash.
 
@@ -477,7 +484,7 @@ class EmbeddingService(LoggerMixin):
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type((Exception,))
     )
-    async def _compute_embeddings(self, chunks: List[TextChunk]) -> List[List[float]]:
+    async def _compute_embeddings(self, chunks: list[TextChunk]) -> list[list[float]]:
         """
         Compute embeddings for text chunks with batching and retry logic.
 
@@ -536,7 +543,7 @@ class EmbeddingService(LoggerMixin):
         self,
         text_stream: AsyncGenerator[str, None],
         doc_type: DocumentType = DocumentType.KNOWLEDGE,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> AsyncGenerator[EmbeddingResult, None]:
         """
         Process text as a streaming input.
@@ -573,7 +580,7 @@ class EmbeddingService(LoggerMixin):
             yield result
 
 
-    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """
         Simple interface to embed a list of texts.
 

@@ -2,22 +2,24 @@
 Role-Based Access Control (RBAC) models for project-level permissions.
 """
 
+from enum import Enum
+
 from sqlalchemy import (
-    Column,
-    String,
     Boolean,
+    Column,
+    DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
+    String,
+    Table,
     Text,
     UniqueConstraint,
-    Table,
-    DateTime,
-    ForeignKeyConstraint,
     and_,
 )
-from sqlalchemy.orm import relationship, foreign
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
-from .base import BaseModel, Base
+from sqlalchemy.orm import foreign, relationship
+
+from .base import Base, BaseModel
 from .project import Project
 from .user import User
 

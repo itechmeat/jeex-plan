@@ -3,27 +3,32 @@ Authentication endpoints with OAuth2 support and full JWT implementation.
 """
 
 import secrets
-from datetime import datetime
-from typing import Any, Optional
-import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr
 
-from ...core.database import get_db
-from ...core.config import get_settings
-from ...core.logger import get_logger
-from ...core.auth import AuthService, get_current_user_dependency, get_current_active_user_dependency
-from ...core.oauth import OAuthService
-from ...services.user import UserService
 from ...api.schemas.auth import (
-    Token, UserCreate, UserResponse, LoginRequest, LoginResponse,
-    RefreshTokenRequest, LogoutResponse, TokenData
+    LoginRequest,
+    LoginResponse,
+    LogoutResponse,
+    RefreshTokenRequest,
+    Token,
+    UserCreate,
+    UserResponse,
 )
-from ...middleware.tenant import get_tenant_context
+from ...core.auth import (
+    AuthService,
+    get_current_active_user_dependency,
+    get_current_user_dependency,
+)
+from ...core.config import get_settings
+from ...core.database import get_db
+from ...core.logger import get_logger
+from ...core.oauth import OAuthService
 from ...models.user import User
+from ...services.user import UserService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -33,7 +38,7 @@ settings = get_settings()
 class OAuthInitRequest(BaseModel):
     """OAuth initialization request."""
     provider: str
-    redirect_url: Optional[str] = None
+    redirect_url: str | None = None
 
 
 class OAuthCallbackRequest(BaseModel):
@@ -51,9 +56,10 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/register", response_model=LoginResponse)
+@router.post("/register", response_model=LoginResponse)
 async def register_user(
     user_data: UserCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession
 ) -> LoginResponse:
     """
     User registration with email and password.
@@ -112,7 +118,7 @@ async def register_user(
 @router.post("/login", response_model=LoginResponse)
 async def login_user(
     login_data: LoginRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession
 ) -> LoginResponse:
     """
     User login with email and password.
@@ -162,7 +168,7 @@ async def login_user(
 @router.post("/refresh", response_model=Token)
 async def refresh_access_token(
     refresh_data: RefreshTokenRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession
 ) -> Token:
     """
     Refresh access token using refresh token.
@@ -202,11 +208,23 @@ async def logout_user(
     # For now, client should discard the tokens
 
     return LogoutResponse(message="Successfully logged out")
+    """
+    User logout endpoint.
+
+    Invalidates the current session (for future token blacklisting).
+    """
+    logger.info("Logout successful", user_id=str(current_user.id))
+
+    # NOTE: Token blacklisting in Redis not implemented for security
+                    # Should store invalidated tokens in Redis with expiration for proper logout
+    # For now, client should discard the tokens
+
+    return LogoutResponse(message="Successfully logged out")
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
-    current_user = Depends(get_current_active_user_dependency)
+    current_user: User = Depends(get_current_active_user_dependency)
 ) -> UserResponse:
     """
     Get current authenticated user profile.

@@ -2,27 +2,27 @@
 Base repository classes for data access patterns.
 """
 
-from abc import ABC, abstractmethod
-from typing import Generic, TypeVar, Type, Optional, List, Dict, Any
-from uuid import UUID
+from abc import ABC
 from datetime import datetime
+from typing import Any, Generic, TypeVar
+from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, select, func, update, delete
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models.base import BaseModel
 from app.core.logger import get_logger
+from app.models.base import BaseModel
 
 logger = get_logger()
 ModelType = TypeVar("ModelType", bound=BaseModel)
 
 
-class BaseRepository(Generic[ModelType], ABC):
+class BaseRepository(ABC, Generic[ModelType]):
     """Base repository with common async CRUD operations."""
 
-    def __init__(self, session: AsyncSession, model: Type[ModelType]):
+    def __init__(self, session: AsyncSession, model: type[ModelType]) -> None:
         self.session = session
         self.model = model
 
@@ -31,7 +31,7 @@ class BaseRepository(Generic[ModelType], ABC):
         try:
             instance = self.model(**kwargs)
             self.session.add(instance)
-            await self.session.commit()
+            await self.session.flush()  # Use flush instead of commit for better transaction control
             await self.session.refresh(instance)
             logger.info(f"Created {self.model.__name__} with id {instance.id}")
             return instance
@@ -40,7 +40,7 @@ class BaseRepository(Generic[ModelType], ABC):
             logger.error(f"Failed to create {self.model.__name__}: {e}")
             raise e
 
-    async def get_by_id(self, entity_id: UUID) -> Optional[ModelType]:
+    async def get_by_id(self, entity_id: UUID) -> ModelType | None:
         """Get entity by ID."""
         stmt = select(self.model).where(
             and_(
@@ -55,8 +55,8 @@ class BaseRepository(Generic[ModelType], ABC):
         self,
         skip: int = 0,
         limit: int = 100,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> List[ModelType]:
+        filters: dict[str, Any] | None = None
+    ) -> list[ModelType]:
         """Get all entities with optional filtering."""
         stmt = select(self.model).where(self.model.is_deleted.is_(False))
 
@@ -77,9 +77,9 @@ class BaseRepository(Generic[ModelType], ABC):
         self,
         skip: int = 0,
         limit: int = 100,
-        filters: Optional[Dict[str, Any]] = None,
-        eager_loads: Optional[List[str]] = None
-    ) -> List[ModelType]:
+        filters: dict[str, Any] | None = None,
+        eager_loads: list[str] | None = None
+    ) -> list[ModelType]:
         """Get all entities with optional filtering and eager loading."""
         stmt = select(self.model).where(self.model.is_deleted.is_(False))
 
@@ -102,7 +102,7 @@ class BaseRepository(Generic[ModelType], ABC):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def update(self, entity_id: UUID, **kwargs) -> Optional[ModelType]:
+    async def update(self, entity_id: UUID, **kwargs) -> ModelType | None:
         """Update entity by ID."""
         try:
             instance = await self.get_by_id(entity_id)
@@ -131,7 +131,7 @@ class BaseRepository(Generic[ModelType], ABC):
                     "Ignored protected fields during update", fields=ignored_fields, model=self.model.__name__
                 )
 
-            await self.session.commit()
+            await self.session.flush()  # Use flush instead of commit for better transaction control
             await self.session.refresh(instance)
             logger.info(f"Updated {self.model.__name__} with id {entity_id}")
             return instance
@@ -150,11 +150,11 @@ class BaseRepository(Generic[ModelType], ABC):
             if soft_delete:
                 instance.is_deleted = True
                 instance.deleted_at = datetime.utcnow()
-                await self.session.commit()
+                await self.session.flush()
                 logger.info(f"Soft deleted {self.model.__name__} with id {entity_id}")
             else:
                 await self.session.delete(instance)
-                await self.session.commit()
+                await self.session.flush()
                 logger.info(f"Hard deleted {self.model.__name__} with id {entity_id}")
 
             return True
@@ -163,7 +163,7 @@ class BaseRepository(Generic[ModelType], ABC):
             logger.error(f"Failed to delete {self.model.__name__} {entity_id}: {e}")
             raise e
 
-    async def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
+    async def count(self, filters: dict[str, Any] | None = None) -> int:
         """Count entities with optional filtering."""
         stmt = select(func.count(self.model.id)).where(self.model.is_deleted.is_(False))
 
@@ -194,7 +194,7 @@ class BaseRepository(Generic[ModelType], ABC):
 class TenantRepository(BaseRepository[ModelType]):
     """Repository with tenant isolation."""
 
-    def __init__(self, session: AsyncSession, model: Type[ModelType], tenant_id: UUID):
+    def __init__(self, session: AsyncSession, model: type[ModelType], tenant_id: UUID) -> None:
         super().__init__(session, model)
         self.tenant_id = tenant_id
 
@@ -203,7 +203,7 @@ class TenantRepository(BaseRepository[ModelType]):
         kwargs['tenant_id'] = self.tenant_id
         return await super().create(**kwargs)
 
-    async def get_by_id(self, entity_id: UUID) -> Optional[ModelType]:
+    async def get_by_id(self, entity_id: UUID) -> ModelType | None:
         """Get entity by ID within tenant."""
         stmt = select(self.model).where(
             and_(
@@ -219,8 +219,8 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         skip: int = 0,
         limit: int = 100,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> List[ModelType]:
+        filters: dict[str, Any] | None = None
+    ) -> list[ModelType]:
         """Get all entities within tenant."""
         stmt = select(self.model).where(
             and_(
@@ -246,9 +246,9 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         skip: int = 0,
         limit: int = 100,
-        filters: Optional[Dict[str, Any]] = None,
-        eager_loads: Optional[List[str]] = None
-    ) -> List[ModelType]:
+        filters: dict[str, Any] | None = None,
+        eager_loads: list[str] | None = None
+    ) -> list[ModelType]:
         """Get all entities within tenant with eager loading."""
         stmt = select(self.model).where(
             and_(
@@ -276,7 +276,7 @@ class TenantRepository(BaseRepository[ModelType]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
+    async def count(self, filters: dict[str, Any] | None = None) -> int:
         """Count entities within tenant."""
         stmt = select(func.count(self.model.id)).where(
             and_(
@@ -297,13 +297,26 @@ class TenantRepository(BaseRepository[ModelType]):
         result = await self.session.execute(stmt)
         return result.scalar()
 
-    async def get_by_field(self, field_name: str, field_value: Any) -> Optional[ModelType]:
-        """Get entity by field within tenant."""
+    async def get_by_field(self, field_name: str, field_value: Any) -> ModelType | None:
+        """Get entity by field within tenant with SQL injection protection."""
         if not hasattr(self.model, field_name):
+            logger.warning(f"Field {field_name} not found in model {self.model.__name__}")
             return None
 
+        # Validate field name to prevent SQL injection
+        if not field_name.isidentifier():
+            logger.error(f"Invalid field name: {field_name}")
+            raise ValueError(f"Invalid field name: {field_name}")
+
         column_attr = getattr(self.model, field_name)
-        comparison = column_attr.is_(field_value) if isinstance(field_value, bool) else column_attr == field_value
+
+        # Use parameterized queries to prevent SQL injection
+        if isinstance(field_value, bool):
+            comparison = column_attr.is_(field_value)
+        elif field_value is None:
+            comparison = column_attr.is_(None)
+        else:
+            comparison = column_attr == field_value
 
         stmt = select(self.model).where(
             and_(
@@ -312,10 +325,15 @@ class TenantRepository(BaseRepository[ModelType]):
                 self.model.is_deleted.is_(False)
             )
         )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
 
-    async def get_by_fields(self, **filters: Any) -> List[ModelType]:
+        try:
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_by_field: {e}")
+            raise e
+
+    async def get_by_fields(self, **filters: Any) -> list[ModelType]:
         """Get entities matching multiple fields within tenant."""
         conditions = [
             self.model.tenant_id == self.tenant_id,
@@ -337,14 +355,36 @@ class TenantRepository(BaseRepository[ModelType]):
 
     async def search(
         self,
-        search_fields: List[str],
+        search_fields: list[str],
         search_term: str,
         skip: int = 0,
         limit: int = 100
-    ) -> List[ModelType]:
-        """Search entities within tenant."""
+    ) -> list[ModelType]:
+        """Search entities within tenant with SQL injection protection."""
         if not search_fields or not search_term:
             return []
+
+        # Validate search fields to prevent SQL injection
+        validated_fields = []
+        for field in search_fields:
+            if not field.isidentifier():
+                logger.warning(f"Invalid search field name: {field}")
+                continue
+            if not hasattr(self.model, field):
+                logger.warning(f"Field {field} not found in model {self.model.__name__}")
+                continue
+            validated_fields.append(field)
+
+        if not validated_fields:
+            return []
+
+        # Sanitize search term to prevent SQL injection
+        if len(search_term.strip()) == 0:
+            return []
+
+        # Limit search term length to prevent DoS attacks
+        if len(search_term) > 200:
+            search_term = search_term[:200]
 
         stmt = select(self.model).where(
             and_(
@@ -353,24 +393,33 @@ class TenantRepository(BaseRepository[ModelType]):
             )
         )
 
-        # Add search conditions
+        # Add search conditions using parameterized queries
         search_conditions = []
-        for field in search_fields:
-            if hasattr(self.model, field):
-                field_attr = getattr(self.model, field)
-                search_conditions.append(field_attr.ilike(f"%{search_term}%"))
+        for field_name in validated_fields:
+            field_attr = getattr(self.model, field_name)
+            # Use parameter binding to prevent SQL injection
+            search_conditions.append(field_attr.ilike(f"%{search_term}%"))
 
         if search_conditions:
             stmt = stmt.where(or_(*search_conditions))
 
+        # Validate and apply pagination limits
+        skip = max(0, skip)
+        limit = max(1, min(limit, 1000))  # Cap at 1000 to prevent memory issues
+
         stmt = stmt.offset(skip).limit(limit)
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+
+        try:
+            result = await self.session.execute(stmt)
+            return list(result.scalars().all())
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in search: {e}")
+            raise e
 
     async def bulk_update(
         self,
-        filters: Dict[str, Any],
-        updates: Dict[str, Any]
+        filters: dict[str, Any],
+        updates: dict[str, Any]
     ) -> int:
         """Bulk update entities within tenant."""
         try:
@@ -396,7 +445,7 @@ class TenantRepository(BaseRepository[ModelType]):
             ).values(**updates)
 
             result = await self.session.execute(stmt.execution_options(synchronize_session=False))
-            await self.session.commit()
+            await self.session.flush()
 
             logger.info(f"Bulk updated {result.rowcount} {self.model.__name__} records")
             return result.rowcount

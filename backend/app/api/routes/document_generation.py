@@ -3,21 +3,21 @@ Document generation API routes.
 Handles the four-stage document generation workflow with SSE streaming.
 """
 
-import asyncio
-from typing import Dict, Any, Optional
-from uuid import UUID, uuid4
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from typing import Any
+from uuid import UUID
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.core.database import get_db, AsyncSession
-from app.services.document_generation import DocumentGenerationService
-from app.services.streaming import StreamingService
-from app.services.export import ExportService
-from app.middleware.tenant import get_current_tenant_id
 from app.core.auth import get_current_user_dependency
-from app.models.user import User
+from app.core.database import AsyncSession, get_db
 from app.core.logger import get_logger
+from app.middleware.tenant import get_current_tenant_id
+from app.models.user import User
+from app.services.document_generation import DocumentGenerationService
+from app.services.export import ExportService
+from app.services.streaming import StreamingService
 
 logger = get_logger()
 router = APIRouter(prefix="/projects", tags=["Document Generation"])
@@ -28,27 +28,27 @@ class BusinessAnalysisRequest(BaseModel):
     """Request for business analysis step."""
     idea_description: str = Field(..., min_length=10, max_length=10000, description="Project idea description")
     language: str = Field(default="en", description="Target language for documents")
-    target_audience: Optional[str] = Field(None, max_length=1000, description="Known target audience")
-    user_clarifications: Optional[Dict[str, Any]] = Field(None, description="User clarifications")
+    target_audience: str | None = Field(None, max_length=1000, description="Known target audience")
+    user_clarifications: dict[str, Any] | None = Field(None, description="User clarifications")
 
 
 class ArchitectureDesignRequest(BaseModel):
     """Request for architecture design step."""
     language: str = Field(default="en", description="Target language for documents")
-    user_tech_preferences: Optional[Dict[str, Any]] = Field(None, description="Technology preferences")
+    user_tech_preferences: dict[str, Any] | None = Field(None, description="Technology preferences")
 
 
 class ImplementationPlanningRequest(BaseModel):
     """Request for implementation planning step."""
     language: str = Field(default="en", description="Target language for documents")
-    team_size: Optional[int] = Field(None, ge=1, le=100, description="Team size")
+    team_size: int | None = Field(None, ge=1, le=100, description="Team size")
 
 
 class EngineeringStandardsRequest(BaseModel):
     """Request for engineering standards step."""
     technology_stack: list[str] = Field(..., min_items=1, description="Technology stack")
     language: str = Field(default="en", description="Target language for documents")
-    team_experience_level: Optional[str] = Field(None, description="Team experience level")
+    team_experience_level: str | None = Field(None, description="Team experience level")
 
 
 class ExportRequest(BaseModel):
@@ -61,12 +61,12 @@ class ExportRequest(BaseModel):
 class DocumentGenerationResponse(BaseModel):
     """Response for document generation steps."""
     status: str
-    document_id: Optional[str] = None
-    version: Optional[int] = None
+    document_id: str | None = None
+    version: int | None = None
     correlation_id: str
-    confidence_score: Optional[float] = None
-    execution_time_ms: Optional[int] = None
-    validation_result: Optional[Dict[str, Any]] = None
+    confidence_score: float | None = None
+    execution_time_ms: int | None = None
+    validation_result: dict[str, Any] | None = None
 
 
 class ProgressResponse(BaseModel):
@@ -76,8 +76,8 @@ class ProgressResponse(BaseModel):
     current_step: int
     progress_percentage: float
     steps_completed: int
-    documents: Dict[str, Any]
-    execution_stats: Dict[str, Any]
+    documents: dict[str, Any]
+    execution_stats: dict[str, Any]
     updated_at: str
 
 
@@ -86,7 +86,7 @@ class ExportResponse(BaseModel):
     export_id: str
     status: str
     expires_at: str
-    manifest: Dict[str, Any]
+    manifest: dict[str, Any]
 
 
 # Dependencies
@@ -510,7 +510,6 @@ async def download_export(
             )
 
         # Return file for download
-        import aiofiles
         from fastapi.responses import FileResponse
 
         return FileResponse(

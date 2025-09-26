@@ -4,23 +4,23 @@ Handles the structured export format according to specs.
 """
 
 import os
-import zipfile
 import tempfile
-import shutil
-import yaml
-from typing import Dict, Any, List, Optional
-from uuid import UUID
-from datetime import datetime, timezone
+import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+from uuid import UUID
 
-from app.models.document_version import DocumentVersion, DocumentType
+import yaml
+
+from app.core.config import settings
+from app.core.database import AsyncSession
+from app.core.logger import get_logger
+from app.models.document_version import DocumentType, DocumentVersion
 from app.models.export import Export, ExportStatus
 from app.repositories.document_version import DocumentVersionRepository
 from app.repositories.export import ExportRepository
 from app.repositories.project import ProjectRepository
-from app.core.config import settings
-from app.core.logger import get_logger
-from app.core.database import AsyncSession
 
 logger = get_logger()
 
@@ -28,7 +28,7 @@ logger = get_logger()
 class ExportService:
     """Service for generating and managing project exports."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, tenant_id: UUID) -> None:
         self.session = session
         self.tenant_id = tenant_id
         self.doc_repo = DocumentVersionRepository(session, tenant_id)
@@ -90,7 +90,7 @@ class ExportService:
 
             return file_path
 
-        except Exception as e:
+        except Exception:
             # Mark as failed with tenant-safe message; log full error
             logger.exception("export.generation_failed", export_id=str(export_id))
             await self.export_repo.fail_export(export_id, "Export failed. Please retry later.")
@@ -100,8 +100,8 @@ class ExportService:
     async def _create_manifest(
         self,
         project: Any,
-        documents: List[DocumentVersion]
-    ) -> Dict[str, Any]:
+        documents: list[DocumentVersion]
+    ) -> dict[str, Any]:
         """Create export manifest."""
         # Group documents by type
         doc_by_type = {}
@@ -137,7 +137,7 @@ class ExportService:
             },
             "documents": doc_by_type,
             "epics": epic_docs,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "format": "markdown",
             "version": "1.0"
         }
@@ -167,8 +167,8 @@ class ExportService:
             await self._create_readme(project_dir, manifest)
 
             # Get and save documents from manifest snapshot for determinism
-            ordered_doc_ids: List[str] = []
-            uuid_doc_ids: List[UUID] = []
+            ordered_doc_ids: list[str] = []
+            uuid_doc_ids: list[UUID] = []
 
             for doc_data in manifest.get("documents", {}).values():
                 doc_id = doc_data.get("id")
@@ -246,7 +246,7 @@ class ExportService:
 
             return str(zip_path)
 
-    async def _create_readme(self, project_dir: Path, manifest: Dict[str, Any]) -> None:
+    async def _create_readme(self, project_dir: Path, manifest: dict[str, Any]) -> None:
         """Create README.md file."""
         project_info = manifest["project"]
 
@@ -329,7 +329,7 @@ This is an AI-generated documentation package for {project_info["name"]}.
             f.write(header)
             f.write(doc.content)
 
-    async def get_export_file_path(self, export_id: UUID) -> Optional[str]:
+    async def get_export_file_path(self, export_id: UUID) -> str | None:
         """Get file path for a completed export."""
         export = await self.export_repo.get_by_id(export_id)
         if not export:
@@ -380,7 +380,7 @@ This is an AI-generated documentation package for {project_info["name"]}.
         user_id: UUID,
         limit: int = 20,
         offset: int = 0
-    ) -> List[Export]:
+    ) -> list[Export]:
         """Get exports for a user."""
         return await self.export_repo.get_user_exports(
             requested_by=user_id,
@@ -393,7 +393,7 @@ This is an AI-generated documentation package for {project_info["name"]}.
         project_id: UUID,
         limit: int = 20,
         offset: int = 0
-    ) -> List[Export]:
+    ) -> list[Export]:
         """Get exports for a project."""
         return await self.export_repo.get_project_exports(
             project_id=project_id,

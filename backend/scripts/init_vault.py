@@ -12,14 +12,14 @@ from pathlib import Path
 # Add parent directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.core.vault import vault_client, init_vault_secrets
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.core.vault import init_vault_secrets, vault_client
 
 logger = get_logger()
 
 
-async def check_vault_health():
+async def check_vault_health() -> bool | None:
     """Check if Vault is healthy and accessible."""
     logger.info("Checking Vault health...")
 
@@ -64,7 +64,7 @@ async def verify_secrets():
     return all_present
 
 
-async def list_all_secrets():
+async def list_all_secrets() -> None:
     """List all secrets in Vault for debugging."""
     logger.info("Listing all secrets...")
 
@@ -220,7 +220,7 @@ async def setup_enhanced_secrets():
     return all_success
 
 
-async def main():
+async def main() -> None:
     """Main initialization function."""
     logger.info("🚀 Starting Vault initialization for JEEX Plan...")
 

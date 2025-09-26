@@ -3,8 +3,9 @@ Tenant isolation middleware to ensure multi-tenant data separation.
 """
 
 import uuid
-from typing import Optional, Iterable
-from fastapi import Request, HTTPException, status
+from collections.abc import Iterable
+
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..core.auth import AuthService
@@ -14,7 +15,7 @@ from ..core.database import get_db
 class TenantIsolationMiddleware(BaseHTTPMiddleware):
     """Middleware to enforce tenant isolation for all API requests."""
 
-    def __init__(self, app, excluded_path_prefixes: Optional[Iterable[str]] = None):
+    def __init__(self, app, excluded_path_prefixes: Iterable[str] | None = None) -> None:
         super().__init__(app)
         default_prefixes = (
             "/docs",
@@ -62,7 +63,7 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
                 return True
         return False
 
-    async def _extract_tenant_from_request(self, request: Request) -> Optional[uuid.UUID]:
+    async def _extract_tenant_from_request(self, request: Request) -> uuid.UUID | None:
         """Extract tenant ID from JWT token in request."""
         try:
             # Get Authorization header
@@ -91,7 +92,7 @@ class TenantContextManager:
     """Helper class to manage tenant context in request processing."""
 
     @staticmethod
-    def get_tenant_id(request: Request) -> Optional[uuid.UUID]:
+    def get_tenant_id(request: Request) -> uuid.UUID | None:
         """Get tenant ID from request state."""
         state = getattr(request, 'state', None)
         if state is None:
@@ -115,7 +116,7 @@ class TenantContextManager:
         return tenant_id
 
     @staticmethod
-    def set_tenant_id(request: Request, tenant_id: uuid.UUID):
+    def set_tenant_id(request: Request, tenant_id: uuid.UUID) -> None:
         """Set tenant ID in request state."""
         request.state.tenant_id = tenant_id
 

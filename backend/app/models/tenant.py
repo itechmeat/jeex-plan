@@ -2,11 +2,13 @@
 Tenant model for multi-tenancy support.
 """
 
-from sqlalchemy import Column, String, Text, Boolean, Integer
-from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID
-from .base import Base, TimestampMixin
 import uuid
+
+from sqlalchemy import Boolean, Column, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
+from .base import Base, TimestampMixin
 
 
 class Tenant(Base, TimestampMixin):
