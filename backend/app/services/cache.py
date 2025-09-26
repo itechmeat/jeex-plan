@@ -34,7 +34,7 @@ def _cache_json_default(value: Any) -> Any:
             )
 
     # Handle collections deterministically
-    if isinstance(value, set | frozenset):
+    if isinstance(value, (set, frozenset)):
         # Convert to sorted list with recursive processing
         return sorted([_cache_json_default(item) for item in value])
 
@@ -42,7 +42,7 @@ def _cache_json_default(value: Any) -> Any:
         # Sort by keys and recursively process values
         return {k: _cache_json_default(v) for k, v in sorted(value.items())}
 
-    if isinstance(value, list | tuple):
+    if isinstance(value, (list, tuple)):
         # Process each element recursively, preserving order
         return [_cache_json_default(item) for item in value]
 

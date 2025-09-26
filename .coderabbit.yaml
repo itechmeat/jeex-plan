@@ -1,125 +1,307 @@
+# 🤖 JEEX Plan - Advanced CodeRabbit Configuration
+# Multi-tenant documentation generation system
+# Updated for CodeRabbit 2025 with all advanced features
+
 reviews:
-  # Linter integration
+  # Assertive profile for comprehensive analysis
+  profile: "assertive"
+
+  # Advanced auto-review settings
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches: ["master", "main", "develop"]
+
+  # Enhanced review features
+  request_changes: "auto"
+  high_level_summary: true
+  poem: true
+  review_status: true
+  collapse_ellipsis: false
+
+  # Comprehensive toolchain integration
   tools:
+    # 🐍 Python backend analysis
     ruff:
       enabled: true
       config_file: "backend/pyproject.toml"
+
+    # ⚡ Frontend code quality
     eslint:
       enabled: true
       config_file: "frontend/eslint.config.js"
 
-  # Review profile to reduce noise
-  profile: "chill"  # Focus on critical issues
+    # 🔐 Security scanning
+    gitleaks:
+      enabled: true
 
-  # Custom instructions for different paths
+    # 🐳 Docker best practices
+    hadolint:
+      enabled: true
+
+    # 🖥️ Shell script validation
+    shellcheck:
+      enabled: true
+
+    # 🔄 GitHub Actions linting
+    actionlint:
+      enabled: true
+
+    # 📦 Additional quality tools
+    oxlint:
+      enabled: true
+
+  # 🎯 AST-based security pattern detection
+  ast_patterns:
+    - id: "tenant-isolation-violation"
+      pattern: |
+        session.query($MODEL).filter($CONDITION)
+      message: "🚨 SECURITY: Missing tenant_id filter! Ensure multi-tenant isolation."
+      severity: "critical"
+      paths: ["backend/app/**/*.py"]
+
+    - id: "sql-injection-risk"
+      pattern: |
+        execute(f"$SQL")
+        cursor.execute(f"$SQL")
+      message: "🚨 SECURITY: Potential SQL injection via f-string. Use parameterized queries."
+      severity: "critical"
+
+    - id: "hardcoded-secrets"
+      pattern: |
+        password = "$VALUE"
+        api_key = "$VALUE"
+        secret = "$VALUE"
+        token = "$VALUE"
+      message: "🔑 SECURITY: Hardcoded secret detected. Use environment variables or Vault."
+      severity: "critical"
+
+    - id: "unsafe-eval"
+      pattern: |
+        eval($CODE)
+        exec($CODE)
+      message: "⚠️ SECURITY: Unsafe code execution. Consider safer alternatives."
+      severity: "high"
+
+    - id: "react-security-issues"
+      pattern: |
+        dangerouslySetInnerHTML={{__html: $CONTENT}}
+      message: "🔒 SECURITY: XSS risk with dangerouslySetInnerHTML. Sanitize content."
+      severity: "high"
+      paths: ["frontend/**/*.tsx"]
+
+  # 📁 Path-specific intelligent instructions
   path_instructions:
-    # Frontend instructions (integrated with ESLint)
-    - path: "frontend/**/*.tsx"
+    # 🔐 Critical security modules
+    - path: "backend/app/core/auth.py"
       instructions: |
-        For React components:
-        - Follow existing ESLint configuration in eslint.config.js
-        - Focus on component architecture, not style (ESLint handles style)
-        - Prioritize React 19+ patterns and modern hooks usage
-        - Respect established TypeScript patterns
-        - ESLint handles basic TypeScript issues - focus on logic/architecture
-        - Allow explicit types for clarity (no-inferrable-types is off)
-        - Avoid duplicate recommendations with ESLint
+        🔐 **CRITICAL AUTHENTICATION MODULE**
+        Security Focus Areas:
+        - JWT token validation completeness and security
+        - Timing attack prevention in token comparison
+        - Proper session management and cleanup
+        - Multi-factor authentication implementation
+        - Rate limiting for auth endpoints
+        - Secure password reset flows
+        - **MANDATORY**: Tenant isolation in all auth flows
 
-    - path: "frontend/**/*.ts"
+    - path: "backend/app/core/database.py"
       instructions: |
-        For TypeScript services:
-        - Follow existing ESLint configuration
-        - Focus on service architecture and API integration patterns
-        - Type safety is handled by ESLint - focus on business logic
-        - Prioritize proper error handling and async patterns
-        - Avoid style suggestions handled by ESLint
+        🗄️ **DATABASE CORE MODULE**
+        Critical Checks:
+        - Connection pooling security and limits
+        - Transaction isolation levels
+        - Prepared statement usage
+        - Database migration safety
+        - Tenant-scoped connection validation
+        - Backup and recovery considerations
 
-    - path: "frontend/**/*.scss"
+    # 🏗️ Data models and architecture
+    - path: "backend/app/models/**/*.py"
       instructions: |
-        For SCSS/CSS modules:
-        - Focus on responsive design and CSS architecture
-        - Ensure proper component encapsulation
-        - Check for accessibility considerations (ARIA, contrast)
-        - Avoid style suggestions that ESLint doesn't handle
+        🏗️ **DATABASE MODELS**
+        Architecture Review:
+        - **MANDATORY**: tenant_id in all tenant-scoped models
+        - Foreign key relationships respect tenant boundaries
+        - Proper indexing strategy for tenant queries
+        - Soft delete implementation consistency
+        - Data validation and constraints
+        - Migration compatibility
+        - Performance optimization for large datasets
 
-    - path: "frontend/**/*.test.{ts,tsx}"
+    - path: "backend/app/repositories/**/*.py"
       instructions: |
-        For test files:
-        - ESLint allows 'any' and console in tests - respect this
-        - Focus on test coverage and quality
-        - Check for proper mocking and async test patterns
+        📊 **DATA ACCESS LAYER**
+        Repository Pattern Review:
+        - Tenant isolation in all queries (CRITICAL)
+        - SQL injection prevention
+        - Query optimization and N+1 prevention
+        - Proper error handling and logging
+        - Transaction management
+        - Cache invalidation strategies
+
+    # 🌐 API endpoints and security
+    - path: "backend/app/api/**/*.py"
+      instructions: |
+        🌐 **API ENDPOINTS**
+        Security & Architecture:
+        - Input validation and sanitization (Pydantic models)
+        - Proper HTTP status codes and error responses
+        - Rate limiting implementation
+        - Authentication and authorization checks
+        - Request/response logging (no sensitive data)
+        - API versioning considerations
+        - OpenAPI documentation accuracy
+        - **CRITICAL**: Multi-tenant access control
+
+    # ⚛️ React components and frontend architecture
+    - path: "frontend/src/components/**/*.tsx"
+      instructions: |
+        ⚛️ **REACT COMPONENTS**
+        Modern React 19+ Best Practices:
+        - Component composition and reusability
+        - Proper TypeScript prop validation
+        - Performance optimization (memo, useMemo, useCallback)
+        - Accessibility compliance (ARIA, keyboard navigation)
+        - Error boundary integration
+        - Security: XSS prevention in dynamic content
+        - State management patterns
+        - Testing considerations
+
+    - path: "frontend/src/hooks/**/*.ts"
+      instructions: |
+        🪝 **CUSTOM HOOKS**
+        Hook Architecture Review:
+        - Proper dependency arrays (exhaustive-deps)
+        - Cleanup in useEffect for subscriptions/timers
+        - Error handling and loading states
+        - Hook composition patterns
+        - Performance considerations
+        - Reusability and abstraction levels
+
+    - path: "frontend/src/services/**/*.ts"
+      instructions: |
+        🔌 **FRONTEND SERVICES**
+        Service Layer Architecture:
+        - API error handling and retry logic
+        - Request cancellation (AbortController)
+        - Authentication token management
+        - Response data validation
+        - Caching strategies
+        - Offline handling considerations
+        - Security: No sensitive data in logs
+
+    # 🔧 Configuration and infrastructure
+    - path: "docker-compose.yml"
+      instructions: |
+        🐳 **DOCKER ORCHESTRATION**
+        DevOps Security Review:
+        - Non-root user configuration
+        - Secrets management (no hardcoded values)
+        - Service networking and isolation
+        - Health checks implementation
+        - Resource limits and quotas
+        - Volume security and permissions
+        - Multi-stage build optimization
+
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        🔄 **CI/CD PIPELINES**
+        Security & Automation:
+        - Secure secret handling (GitHub Secrets)
+        - Minimal permissions (GITHUB_TOKEN)
+        - Dependency vulnerability scanning
+        - Code quality gates
+        - Security policy enforcement
+        - Deployment strategies
+        - Monitoring and alerting
+
+    # 📦 Dependency management
+    - path: "backend/pyproject.toml"
+      instructions: |
+        🔧 **PYTHON DEPENDENCIES**
+        Dependency Security:
+        - Version pinning strategy
+        - Security vulnerability scanning
+        - License compatibility
+        - Dependency tree analysis
+        - Development vs production dependencies
+        - Tool configuration consistency
 
     - path: "frontend/package.json"
       instructions: |
-        For package.json:
-        - Check for security vulnerabilities in dependencies
-        - Ensure version compatibility (React 19+, TypeScript 5.9+)
-        - Verify peer dependency configurations for Radix UI
+        📦 **FRONTEND DEPENDENCIES**
+        Package Management:
+        - Security audit results (npm/yarn audit)
+        - Version compatibility matrix
+        - Peer dependency management
+        - Bundle size optimization
+        - Tree shaking considerations
+        - Runtime vs dev dependencies
 
-    # Backend instructions
-    - path: "backend/app/**/*.py"
-      instructions: |
-        For Python backend code:
-        - Follow existing Ruff configuration in pyproject.toml
-        - Focus on functional issues, not style (Ruff handles style)
-        - Prioritize multi-tenant isolation and security
-        - Respect FastAPI patterns (Depends() in defaults is acceptable)
-        - MD5 usage for cache keys is acceptable (not for security)
-        - Avoid duplicate recommendations with Ruff
-
-    - path: "backend/alembic/**/*.py"
-      instructions: |
-        For Alembic migrations:
-        - Ignore line length violations (E501) - migrations are auto-generated
-        - Focus on data integrity and migration safety
-        - Don't suggest style improvements for generated code
-
+    # 🧪 Testing strategies
     - path: "backend/tests/**/*.py"
       instructions: |
-        For test files:
-        - Allow assert statements (S101) - standard in pytest
-        - Focus on test coverage and correctness
-        - Ignore style issues handled by Ruff
+        🧪 **BACKEND TESTING**
+        Test Quality Review:
+        - Test coverage completeness
+        - Security test scenarios
+        - Integration test patterns
+        - Mocking strategies
+        - Test data management
+        - Performance test considerations
+        - Multi-tenant test isolation
 
-  # Global instructions
-  instructions: |
-    Project Context: JEEX Plan - Multi-tenant documentation generation system
+    - path: "frontend/src/**/*.test.{ts,tsx}"
+      instructions: |
+        🎯 **FRONTEND TESTING**
+        Component Testing:
+        - User interaction testing (Testing Library)
+        - Accessibility testing integration
+        - Error state testing
+        - Performance testing (React DevTools)
+        - Integration test coverage
+        - Mock service strategies
 
-    Key Principles:
-    - Multi-tenant isolation is CRITICAL - never suggest bypassing tenant_id checks
-    - Follow CLAUDE.md project guidelines
-    - Modern stack: React 19+, TypeScript 5.9+, Python 3.11+, FastAPI 0.116+
+# 💬 Chat integration for enhanced collaboration
+chat:
+  auto_reply: true
 
-    Linter Integration Guidelines:
-    Backend (Python):
-    - Respect existing Ruff configuration - avoid duplicate style suggestions
-    - Focus on functional/logical issues, not formatting
-    - Preserve FastAPI dependency injection patterns
-    - Ignore: B008 (Depends), S324 (MD5 cache), S101 (assert tests), ANN401 (Any utilities)
+# 🧠 Knowledge base integration for learning
+knowledge_base:
+  learnings: true
+  web_search: true
 
-    Frontend (TypeScript/React):
-    - Respect existing ESLint configuration - avoid duplicate style suggestions
-    - Focus on component architecture and business logic, not syntax
-    - Preserve React 19+ patterns and modern TypeScript usage
-    - Allow explicit types for clarity (no-inferrable-types disabled)
-    - Ignore: @typescript-eslint/no-explicit-any in tests, console.log in tests
+# 🤖 AI-powered code generation
+code_generation:
+  docstrings: true
+  unit_tests: true
 
-    Review Focus Areas:
-    - Architecture and design patterns
-    - Security (especially tenant isolation)
-    - Performance and accessibility
-    - Error handling and edge cases
-    - API design and integration patterns
-
-    Avoid Suggesting:
-    - Style/formatting changes handled by linters
-    - Basic TypeScript/Python syntax issues
-    - Import organization (handled by tools)
-    - Code style preferences (use project conventions)
-
-# Additional settings
+# 🌍 Global configuration
 language: "en"
-early_access: false
-auto_review:
-  enabled: true
-  drafts: false
+early_access: true
+
+# 🎨 Custom AI personality and focus
+tone_instructions: |
+  You are an expert code reviewer for JEEX Plan, a sophisticated multi-tenant documentation generation system.
+
+  **PRIMARY FOCUS AREAS:**
+  1. 🔐 **Security First**: Multi-tenant isolation is CRITICAL - never suggest bypassing tenant_id checks
+  2. 🏗️ **Architecture**: Design patterns, SOLID principles, and scalability
+  3. ⚡ **Performance**: Database queries, React rendering, caching strategies
+  4. 🛡️ **Reliability**: Error handling, edge cases, and fault tolerance
+
+  **REVIEW STYLE:**
+  - Be thorough but constructive
+  - Provide specific, actionable suggestions with code examples
+  - Prioritize critical security and architectural issues
+  - Acknowledge good practices when you see them
+  - Consider the full-stack context (React 19+, TypeScript 5.9+, Python 3.11+, FastAPI 0.116+)
+
+  **AVOID:**
+  - Style suggestions handled by Ruff/ESLint
+  - Nitpicking on formatting (tools handle this)
+  - Suggesting breaking changes without clear benefits
+  - Generic advice without project context
+
+  Remember: You're helping build a production-ready, secure, multi-tenant system. Every suggestion should move us toward that goal! 🚀

@@ -9,8 +9,10 @@ try:
     from . import document_generation
 
     __all__ = ["agents", "auth", "document_generation", "health", "projects"]
+except ModuleNotFoundError:
+    __all__ = ["agents", "auth", "health", "projects"]
 except ImportError as e:
-    # Only catch ImportError for the specific module, not nested dependency issues
+    # Allow missing top-level document_generation module but surface other errors
     if isinstance(e, ImportError) and getattr(e, "name", None) in [
         "document_generation",
         __name__ + ".document_generation"
