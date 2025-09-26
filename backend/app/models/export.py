@@ -3,26 +3,27 @@ Export tracking model with multi-tenant support.
 Handles ZIP archive generation and download management.
 """
 
+from datetime import UTC, datetime, timedelta
+from enum import Enum
+
 from sqlalchemy import (
+    JSON,
     Column,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
     String,
     Text,
-    DateTime,
-    ForeignKey,
-    Index,
-    JSON,
-    ForeignKeyConstraint,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
-from datetime import datetime, timezone, timedelta
+from sqlalchemy.orm import relationship
+
 from .base import BaseModel
-from .project import Project
 
 
 class ExportStatus(str, Enum):
     """Export status enumeration."""
+
     PENDING = "pending"
     GENERATING = "generating"
     COMPLETED = "completed"
@@ -36,7 +37,9 @@ class Export(BaseModel):
     __tablename__ = "exports"
 
     # Export info
-    status = Column(String(50), default=ExportStatus.PENDING.value, nullable=False, index=True)
+    status = Column(
+        String(50), default=ExportStatus.PENDING.value, nullable=False, index=True
+    )
     file_path = Column(Text, nullable=True)
 
     # Export manifest (list of included documents)
@@ -48,9 +51,9 @@ class Export(BaseModel):
     # Expiration (default 24 hours)
     expires_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc) + timedelta(hours=24),
+        default=lambda: datetime.now(UTC) + timedelta(hours=24),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Project relationship
@@ -59,7 +62,7 @@ class Export(BaseModel):
         "Project",
         back_populates="exports",
         primaryjoin="and_(Export.project_id==Project.id, Export.tenant_id==Project.tenant_id)",
-        foreign_keys=[project_id]
+        foreign_keys=[project_id],
     )
 
     # User who requested the export
@@ -68,7 +71,7 @@ class Export(BaseModel):
     @property
     def is_expired(self) -> bool:
         """Check if export has expired."""
-        return datetime.now(timezone.utc) > self.expires_at
+        return datetime.now(UTC) > self.expires_at
 
     @property
     def is_downloadable(self) -> bool:

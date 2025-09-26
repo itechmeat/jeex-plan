@@ -1,177 +1,196 @@
 """
 Core authentication module with JWT and OAuth2 support.
+Refactored to follow Single Responsibility Principle.
 """
 
 import uuid
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Any
 from uuid import UUID
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from structlog.stdlib import BoundLogger
 
 from ..core.config import get_settings
 from ..core.database import get_db
+from ..core.logger import get_logger
+from ..core.password_service import PasswordService
+from ..core.token_service import TokenService
 from ..models.user import User
-from ..models.tenant import Tenant
-from ..repositories.user import UserRepository
 from ..repositories.tenant import TenantRepository
+from ..repositories.user import UserRepository
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
 class AuthService:
-    """Service for handling authentication and authorization."""
+    """Service for handling authentication and authorization - now focused only on auth logic."""
 
-    def __init__(self, db: AsyncSession, tenant_id: Optional[UUID] = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        tenant_id: UUID | None = None,
+        *,
+        logger: BoundLogger | None = None,
+    ) -> None:
         self.db = db
         self.tenant_id = tenant_id
         self.user_repo = UserRepository(db, tenant_id) if tenant_id else None
         self.tenant_repo = TenantRepository(db)
 
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify a plaintext password against its hash."""
-        return pwd_context.verify(plain_password, hashed_password)
+        # Use separate services for specific responsibilities
+        self.password_service = PasswordService()
+        self.token_service = TokenService()
+        self.logger = logger or get_logger("auth_service")
 
-    def get_password_hash(self, password: str) -> str:
-        """Generate password hash."""
-        return pwd_context.hash(password)
-
-    def create_access_token(
-        self,
-        data: Dict[str, Any],
-        expires_delta: Optional[timedelta] = None
-    ) -> str:
-        """Create JWT access token."""
-        to_encode = data.copy()
-
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(
-                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-            )
-
-        to_encode.update({"exp": expire, "type": "access"})
-        encoded_jwt = jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
-        )
-        return encoded_jwt
-
-    def create_refresh_token(
-        self,
-        data: Dict[str, Any],
-        expires_delta: Optional[timedelta] = None
-    ) -> str:
-        """Create JWT refresh token."""
-        to_encode = data.copy()
-
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(
-                days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-            )
-
-        to_encode.update({"exp": expire, "type": "refresh"})
-        encoded_jwt = jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
-        )
-        return encoded_jwt
-
-    def verify_token(self, token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
-        """Verify and decode JWT token."""
-        try:
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=[settings.ALGORITHM]
-            )
-
-            if payload.get("type") != token_type:
-                return None
-
-            return payload
-        except JWTError:
-            return None
-
-    async def get_user_by_token(self, token: str) -> Optional[User]:
+    async def get_user_by_token(self, token: str) -> User | None:
         """Get user from JWT token."""
-        payload = self.verify_token(token)
+        payload = self.token_service.verify_token(token)
         if not payload:
+            self.logger.warning(
+                "auth.invalid_token", extra={"reason": "payload_missing"}
+            )
             return None
 
         user_id = payload.get("sub")
+        token_tenant_id = payload.get("tenant_id")
         if not user_id:
+            self.logger.warning(
+                "auth.invalid_token",
+                extra={"reason": "missing_subject"},
+            )
+            return None
+
+        try:
+            user_uuid = uuid.UUID(user_id)
+        except (ValueError, TypeError):
+            self.logger.warning(
+                "auth.invalid_token",
+                extra={"reason": "malformed_subject"},
+            )
             return None
 
         # For token validation, we need to search across all tenants
-        from ..models.user import User
         from sqlalchemy import select
 
-        stmt = select(User).where(User.id == uuid.UUID(user_id), User.is_active == True)
-        result = await self.db.execute(stmt)
-        user = result.scalar_one_or_none()
+        from ..models.user import User
 
-        return user
+        stmt = select(User).where(
+            User.id == user_uuid,
+            User.is_active.is_(True),
+            User.is_deleted.is_(False),
+        )
+
+        if token_tenant_id:
+            try:
+                tenant_uuid = uuid.UUID(token_tenant_id)
+            except (ValueError, TypeError):
+                self.logger.warning(
+                    "auth.invalid_tenant_claim",
+                    extra={"token_tenant_id": token_tenant_id},
+                )
+                return None
+
+            stmt = stmt.where(User.tenant_id == tenant_uuid)
+
+        try:
+            result = await self.db.execute(stmt)
+            user = result.scalar_one_or_none()
+            if user is None:
+                self.logger.warning(
+                    "auth.user_not_found_for_token",
+                    extra={"user_id": str(user_uuid), "tenant_id": token_tenant_id},
+                )
+            return user
+        except (SQLAlchemyError, AttributeError) as exc:
+            self.logger.exception(
+                "auth.user_lookup_failed",
+                extra={"user_id": str(user_uuid), "error": str(exc)},
+            )
+            return None
 
     async def authenticate_user(
-        self,
-        email: str,
-        password: str,
-        tenant_id: Optional[uuid.UUID] = None
-    ) -> Optional[User]:
+        self, email: str, password: str, tenant_id: uuid.UUID | None = None
+    ) -> User | None:
         """Authenticate user with email and password."""
+        if not email or not password:
+            return None
+
         # For authentication, we need to search across all tenants
-        from ..models.user import User
         from sqlalchemy import select
 
-        stmt = select(User).where(User.email == email, User.is_active == True)
-        if tenant_id:
-            stmt = stmt.where(User.tenant_id == tenant_id)
+        from ..models.user import User
 
-        result = await self.db.execute(stmt)
-        user = result.scalar_one_or_none()
+        stmt = select(User).where(
+            User.email == email, User.is_active.is_(True), User.is_deleted.is_(False)
+        )
 
-        if not user or not user.hashed_password:
+        scoped_tenant = tenant_id or self.tenant_id
+        if scoped_tenant:
+            stmt = stmt.where(User.tenant_id == scoped_tenant)
+        else:
+            self.logger.warning(
+                "auth.tenant_scope_missing_for_login",
+                extra={"email": email},
+            )
+
+        try:
+            result = await self.db.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user or not user.hashed_password:
+                self.logger.warning(
+                    "auth.login_failed_user_not_found_or_no_password",
+                    extra={"email": email},
+                )
+                return None
+
+            if not self.password_service.verify_password(
+                password, user.hashed_password
+            ):
+                self.logger.warning(
+                    "auth.login_failed_bad_password",
+                    extra={
+                        "user_id": str(user.id) if user else None,
+                        "tenant_id": str(user.tenant_id) if user else None,
+                    },
+                )
+                return None
+
+            # Check if password hash needs updating
+            new_hash = self.password_service.update_hash_if_needed(
+                password, user.hashed_password
+            )
+            if new_hash:
+                user.hashed_password = new_hash
+                await self.db.commit()
+
+            return user
+        except (SQLAlchemyError, AttributeError) as exc:
+            self.logger.exception(
+                "auth.login_error",
+                extra={"email": email, "error": str(exc)},
+            )
             return None
 
-        if not self.verify_password(password, user.hashed_password):
-            return None
-
-        return user
-
-    async def create_tokens_for_user(self, user: User) -> Dict[str, Any]:
+    async def create_tokens_for_user(self, user: User) -> dict[str, Any]:
         """Create access and refresh tokens for user."""
-        token_data = {
-            "sub": str(user.id),
+        user_data = {
+            "id": user.id,
             "email": user.email,
-            "tenant_id": str(user.tenant_id),
+            "tenant_id": user.tenant_id,
             "username": user.username,
             "full_name": user.full_name or "",
         }
 
-        access_token = self.create_access_token(token_data)
-        refresh_token = self.create_refresh_token(token_data)
+        return self.token_service.create_tokens_for_user_data(user_data)
 
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        }
-
-    async def refresh_access_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
+    async def refresh_access_token(self, refresh_token: str) -> dict[str, Any] | None:
         """Create new access token from refresh token."""
-        payload = self.verify_token(refresh_token, "refresh")
+        payload = self.token_service.verify_token(refresh_token, "refresh")
         if not payload:
             return None
 
@@ -187,7 +206,10 @@ class AuthService:
         except (ValueError, TypeError):
             return None
 
-        if self.user_repo is None or getattr(self.user_repo, "tenant_id", None) != tenant_uuid:
+        if (
+            self.user_repo is None
+            or getattr(self.user_repo, "tenant_id", None) != tenant_uuid
+        ):
             self.user_repo = UserRepository(self.db, tenant_uuid)
 
         user = await self.user_repo.get_by_id(user_uuid)
@@ -198,8 +220,7 @@ class AuthService:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials,
-    db: AsyncSession
+    credentials: HTTPAuthorizationCredentials, db: AsyncSession
 ) -> User:
     """Dependency to get current authenticated user."""
     auth_service = AuthService(db)
@@ -219,8 +240,7 @@ async def get_current_user(
 
         if not user.is_active:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Inactive user"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
             )
 
         return user
@@ -229,16 +249,14 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-    credentials: HTTPAuthorizationCredentials,
-    db: AsyncSession
+    credentials: HTTPAuthorizationCredentials, db: AsyncSession
 ) -> User:
     """Dependency to get current active user."""
     user = await get_current_user(credentials, db)
 
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
         )
 
     return user
@@ -247,7 +265,7 @@ async def get_current_active_user(
 # FastAPI dependency wrappers
 async def get_current_user_dependency(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """FastAPI dependency to get current user."""
     return await get_current_user(credentials, db)
@@ -255,7 +273,7 @@ async def get_current_user_dependency(
 
 async def get_current_active_user_dependency(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """FastAPI dependency to get current active user."""
     return await get_current_active_user(credentials, db)

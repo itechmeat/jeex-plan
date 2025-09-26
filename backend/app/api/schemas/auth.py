@@ -3,7 +3,7 @@ Authentication API schemas.
 """
 
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -43,7 +43,7 @@ class UserResponse(UserBase):
     tenant_id: str = Field(..., description="Tenant identifier")
     is_active: bool = Field(default=True, description="Whether the user is active")
     created_at: datetime = Field(..., description="User creation timestamp")
-    last_login_at: Optional[datetime] = Field(None, description="Last login timestamp")
+    last_login_at: datetime | None = Field(None, description="Last login timestamp")
 
     model_config = {
         "json_schema_extra": {

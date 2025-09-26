@@ -5,14 +5,16 @@ Provides intelligent caching for search results, embeddings, and frequently
 accessed data with automatic tenant isolation and cache management.
 """
 
-import json
-import hashlib
-from typing import Any, Optional, List, Dict
 import asyncio
+import hashlib
+import json
+from typing import Any
 
-from app.core.logger import get_logger, LoggerMixin
+from redis.exceptions import RedisError
+
 from app.adapters.redis import RedisAdapter
 from app.core.config import settings
+from app.core.logger import LoggerMixin, get_logger
 
 logger = get_logger(__name__)
 
@@ -25,8 +27,8 @@ class CacheKey:
         tenant_id: str,
         project_id: str,
         query_hash: str,
-        filters: Dict[str, Any],
-        limit: int
+        filters: dict[str, Any],
+        limit: int,
     ) -> str:
         """Generate cache key for search results"""
         key_data = {
@@ -34,7 +36,7 @@ class CacheKey:
             "project_id": project_id,
             "query_hash": query_hash,
             "filters": sorted(filters.items()),
-            "limit": limit
+            "limit": limit,
         }
         return f"search:{hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()}"
 
@@ -44,7 +46,7 @@ class CacheKey:
         key_data = {
             "text_hash": hashlib.md5(text.encode()).hexdigest(),
             "model": model,
-            "normalization": normalization
+            "normalization": normalization,
         }
         return f"embedding:{hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()}"
 
@@ -69,7 +71,7 @@ class VectorCache(LoggerMixin):
     High-performance caching service for vector operations.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.redis = RedisAdapter()
         self.default_ttl = settings.CACHE_DEFAULT_TTL
@@ -85,9 +87,9 @@ class VectorCache(LoggerMixin):
         tenant_id: str,
         project_id: str,
         query_hash: str,
-        filters: Dict[str, Any],
-        limit: int
-    ) -> Optional[List[Dict[str, Any]]]:
+        filters: dict[str, Any],
+        limit: int,
+    ) -> list[dict[str, Any]] | None:
         """
         Get cached search results if available.
 
@@ -115,7 +117,7 @@ class VectorCache(LoggerMixin):
                     "Search cache hit",
                     tenant_id=tenant_id,
                     project_id=project_id,
-                    cache_key=cache_key[:16] + "..."
+                    cache_key=cache_key[:16] + "...",
                 )
 
                 return results
@@ -123,8 +125,8 @@ class VectorCache(LoggerMixin):
             self.cache_misses += 1
             return None
 
-        except Exception as e:
-            logger.warning("Search cache retrieval failed", error=str(e))
+        except (RedisError, json.JSONDecodeError) as exc:
+            logger.warning("Search cache retrieval failed", error=str(exc))
             self.cache_misses += 1
             return None
 
@@ -133,9 +135,9 @@ class VectorCache(LoggerMixin):
         tenant_id: str,
         project_id: str,
         query_hash: str,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int,
-        results: List[Dict[str, Any]]
+        results: list[dict[str, Any]],
     ) -> bool:
         """
         Cache search results with automatic TTL.
@@ -158,9 +160,7 @@ class VectorCache(LoggerMixin):
 
             # Store with tenant-specific prefix for easy invalidation
             success = await self.redis.set(
-                cache_key,
-                json.dumps(results),
-                ex=self.search_ttl
+                cache_key, json.dumps(results), ex=self.search_ttl
             )
 
             if success:
@@ -173,21 +173,18 @@ class VectorCache(LoggerMixin):
                     tenant_id=tenant_id,
                     project_id=project_id,
                     results_count=len(results),
-                    ttl=self.search_ttl
+                    ttl=self.search_ttl,
                 )
 
             return success
 
-        except Exception as e:
-            logger.warning("Search cache storage failed", error=str(e))
+        except (RedisError, TypeError) as exc:
+            logger.warning("Search cache storage failed", error=str(exc))
             return False
 
     async def get_embedding(
-        self,
-        text: str,
-        model: str,
-        normalization: str
-    ) -> Optional[List[float]]:
+        self, text: str, model: str, normalization: str
+    ) -> list[float] | None:
         """
         Get cached embedding if available.
 
@@ -211,7 +208,7 @@ class VectorCache(LoggerMixin):
                     "Embedding cache hit",
                     model=model,
                     normalization=normalization,
-                    text_length=len(text)
+                    text_length=len(text),
                 )
 
                 return embedding
@@ -219,17 +216,13 @@ class VectorCache(LoggerMixin):
             self.cache_misses += 1
             return None
 
-        except Exception as e:
-            logger.warning("Embedding cache retrieval failed", error=str(e))
+        except (RedisError, json.JSONDecodeError) as exc:
+            logger.warning("Embedding cache retrieval failed", error=str(exc))
             self.cache_misses += 1
             return None
 
     async def set_embedding(
-        self,
-        text: str,
-        model: str,
-        normalization: str,
-        embedding: List[float]
+        self, text: str, model: str, normalization: str, embedding: list[float]
     ) -> bool:
         """
         Cache embedding with automatic TTL.
@@ -247,9 +240,7 @@ class VectorCache(LoggerMixin):
             cache_key = CacheKey.generate_embedding_key(text, model, normalization)
 
             success = await self.redis.set(
-                cache_key,
-                json.dumps(embedding),
-                ex=self.embedding_ttl
+                cache_key, json.dumps(embedding), ex=self.embedding_ttl
             )
 
             if success:
@@ -258,20 +249,18 @@ class VectorCache(LoggerMixin):
                     model=model,
                     normalization=normalization,
                     text_length=len(text),
-                    vector_dim=len(embedding)
+                    vector_dim=len(embedding),
                 )
 
             return success
 
-        except Exception as e:
-            logger.warning("Embedding cache storage failed", error=str(e))
+        except (RedisError, TypeError) as exc:
+            logger.warning("Embedding cache storage failed", error=str(exc))
             return False
 
     async def get_collection_stats(
-        self,
-        tenant_id: str,
-        project_id: str
-    ) -> Optional[Dict[str, Any]]:
+        self, tenant_id: str, project_id: str
+    ) -> dict[str, Any] | None:
         """
         Get cached collection statistics.
 
@@ -291,9 +280,7 @@ class VectorCache(LoggerMixin):
                 self.cache_hits += 1
 
                 logger.debug(
-                    "Stats cache hit",
-                    tenant_id=tenant_id,
-                    project_id=project_id
+                    "Stats cache hit", tenant_id=tenant_id, project_id=project_id
                 )
 
                 return stats
@@ -301,16 +288,13 @@ class VectorCache(LoggerMixin):
             self.cache_misses += 1
             return None
 
-        except Exception as e:
-            logger.warning("Stats cache retrieval failed", error=str(e))
+        except (RedisError, json.JSONDecodeError) as exc:
+            logger.warning("Stats cache retrieval failed", error=str(exc))
             self.cache_misses += 1
             return None
 
     async def set_collection_stats(
-        self,
-        tenant_id: str,
-        project_id: str,
-        stats: Dict[str, Any]
+        self, tenant_id: str, project_id: str, stats: dict[str, Any]
     ) -> bool:
         """
         Cache collection statistics.
@@ -327,22 +311,20 @@ class VectorCache(LoggerMixin):
             cache_key = CacheKey.generate_stats_key(tenant_id, project_id)
 
             # Shorter TTL for stats as they change more frequently
-            success = await self.redis.set(cache_key, json.dumps(stats), ex=300)  # 5 minutes
+            success = await self.redis.set(
+                cache_key, json.dumps(stats), ex=300
+            )  # 5 minutes
 
             if success:
                 # Add to project index for invalidation
                 await self._add_to_project_index(tenant_id, project_id, cache_key)
 
-                logger.debug(
-                    "Stats cached",
-                    tenant_id=tenant_id,
-                    project_id=project_id
-                )
+                logger.debug("Stats cached", tenant_id=tenant_id, project_id=project_id)
 
             return success
 
-        except Exception as e:
-            logger.warning("Stats cache storage failed", error=str(e))
+        except (RedisError, TypeError) as exc:
+            logger.warning("Stats cache storage failed", error=str(exc))
             return False
 
     async def invalidate_tenant_cache(self, tenant_id: str) -> int:
@@ -374,20 +356,16 @@ class VectorCache(LoggerMixin):
             logger.info(
                 "Tenant cache invalidated",
                 tenant_id=tenant_id,
-                keys_deleted=deleted_count
+                keys_deleted=deleted_count,
             )
 
             return deleted_count
 
-        except Exception as e:
-            logger.error("Tenant cache invalidation failed", error=str(e))
+        except RedisError as exc:
+            logger.error("Tenant cache invalidation failed", error=str(exc))
             return 0
 
-    async def invalidate_project_cache(
-        self,
-        tenant_id: str,
-        project_id: str
-    ) -> int:
+    async def invalidate_project_cache(self, tenant_id: str, project_id: str) -> int:
         """
         Invalidate cache entries for a specific project.
 
@@ -422,8 +400,10 @@ class VectorCache(LoggerMixin):
 
             return deleted_count
 
-        except Exception as e:
-            self.logger.exception("Project cache invalidation failed", error=str(e))
+        except RedisError as exc:
+            self.logger.exception(
+                "Project cache invalidation failed", error=str(exc)
+            )
             return 0
 
     async def _add_to_tenant_index(self, tenant_id: str, cache_key: str) -> bool:
@@ -431,20 +411,22 @@ class VectorCache(LoggerMixin):
         try:
             index_key = CacheKey.generate_tenant_key(tenant_id, "index")
             return await self.redis.sadd(index_key, cache_key)
-        except Exception as e:
-            logger.warning("Failed to add to tenant index", error=str(e))
+        except RedisError as exc:
+            logger.warning("Failed to add to tenant index", error=str(exc))
             return False
 
-    async def _add_to_project_index(self, tenant_id: str, project_id: str, cache_key: str) -> bool:
+    async def _add_to_project_index(
+        self, tenant_id: str, project_id: str, cache_key: str
+    ) -> bool:
         """Add cache key to project index for invalidation"""
         try:
             index_key = CacheKey.generate_project_index_key(tenant_id, project_id)
             return await self.redis.sadd(index_key, cache_key)
-        except Exception as e:
-            logger.warning("Failed to add to project index", error=str(e))
+        except RedisError as exc:
+            logger.warning("Failed to add to project index", error=str(exc))
             return False
 
-    async def get_cache_stats(self) -> Dict[str, Any]:
+    async def get_cache_stats(self) -> dict[str, Any]:
         """Get cache performance statistics"""
         total_requests = self.cache_hits + self.cache_misses
         hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0
@@ -456,15 +438,12 @@ class VectorCache(LoggerMixin):
             "hit_rate_percent": round(hit_rate, 2),
             "default_ttl": self.default_ttl,
             "search_ttl": self.search_ttl,
-            "embedding_ttl": self.embedding_ttl
+            "embedding_ttl": self.embedding_ttl,
         }
 
     async def warm_up_cache(
-        self,
-        tenant_id: str,
-        project_id: str,
-        common_queries: List[str]
-    ) -> Dict[str, Any]:
+        self, tenant_id: str, project_id: str, common_queries: list[str]
+    ) -> dict[str, Any]:
         """
         Pre-warm cache with common queries for a project.
 
@@ -483,29 +462,38 @@ class VectorCache(LoggerMixin):
             failed_count = 0
             embedding_service = get_embedding_service()
 
+            warmup_exceptions = (
+                RuntimeError,
+                ValueError,
+                KeyError,
+                TypeError,
+                RedisError,
+            )
+
             for query in common_queries:
                 try:
-                    # Generate embedding for query
                     embedding_result = await embedding_service.process_document(
                         text=query,
-                        metadata={"purpose": "cache_warmup"}
+                        metadata={"purpose": "cache_warmup"},
                     )
 
                     if embedding_result.embeddings:
-                        # Cache the embedding
                         await self.set_embedding(
                             text=query,
                             model=embedding_result.model_used,
                             normalization="standard",
-                            embedding=embedding_result.embeddings[0]
+                            embedding=embedding_result.embeddings[0],
                         )
                         warmed_count += 1
 
-                    # Small delay to avoid overwhelming the embedding service
                     await asyncio.sleep(0.1)
 
-                except Exception as e:
-                    logger.warning("Cache warm-up failed for query", query=query[:50], error=str(e))
+                except warmup_exceptions as exc:
+                    logger.warning(
+                        "Cache warm-up failed for query",
+                        query=query[:50],
+                        error=str(exc),
+                    )
                     failed_count += 1
 
             logger.info(
@@ -513,18 +501,22 @@ class VectorCache(LoggerMixin):
                 tenant_id=tenant_id,
                 project_id=project_id,
                 warmed_count=warmed_count,
-                failed_count=failed_count
+                failed_count=failed_count,
             )
 
             return {
                 "warmed_count": warmed_count,
                 "failed_count": failed_count,
-                "total_queries": len(common_queries)
+                "total_queries": len(common_queries),
             }
 
-        except Exception as e:
-            logger.error("Cache warm-up failed", error=str(e))
-            return {"warmed_count": 0, "failed_count": len(common_queries), "error": str(e)}
+        except (RedisError, RuntimeError, ValueError, TypeError) as exc:
+            logger.error("Cache warm-up failed", error=str(exc))
+            return {
+                "warmed_count": 0,
+                "failed_count": len(common_queries),
+                "error": str(exc),
+            }
 
 
 # Singleton instance for application-wide use

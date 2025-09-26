@@ -3,23 +3,24 @@ Base agent class with common functionality.
 Provides template for all specialized agents.
 """
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type
-from datetime import datetime
-import time
 import asyncio
+import time
+from abc import ABC, abstractmethod
+from datetime import UTC, datetime
+from typing import Any
 
-from crewai import Agent, Task, Crew
+from crewai import Agent, Crew, Task
+
+from app.core.logger import get_logger
 
 from ..contracts.base import (
-    ProjectContext,
+    AgentError,
     AgentInput,
     AgentOutput,
-    ValidationResult,
     ProgressUpdate,
-    AgentError,
+    ProjectContext,
+    ValidationResult,
 )
-from app.core.logger import get_logger
 
 logger = get_logger()
 
@@ -33,8 +34,8 @@ class AgentBase(ABC):
         role: str,
         goal: str,
         backstory: str,
-        tools: Optional[List[Any]] = None,
-        llm_config: Optional[Dict[str, Any]] = None,
+        tools: list[Any] | None = None,
+        llm_config: dict[str, Any] | None = None,
     ) -> None:
         """Initialize base agent."""
         self.name = name
@@ -46,34 +47,28 @@ class AgentBase(ABC):
         self.logger = get_logger(f"agent.{name.lower().replace(' ', '_')}")
 
     @abstractmethod
-    def get_input_model(self) -> Type[AgentInput]:
+    def get_input_model(self) -> type[AgentInput]:
         """Return the Pydantic model for agent input."""
-        pass
 
     @abstractmethod
-    def get_output_model(self) -> Type[AgentOutput]:
+    def get_output_model(self) -> type[AgentOutput]:
         """Return the Pydantic model for agent output."""
-        pass
 
     @abstractmethod
     async def validate_input(self, input_data: AgentInput) -> None:
         """Validate input data before processing."""
-        pass
 
     @abstractmethod
     async def validate_output(self, output_data: AgentOutput) -> ValidationResult:
         """Validate output data after processing."""
-        pass
 
     @abstractmethod
     def get_system_prompt(self, context: ProjectContext) -> str:
         """Generate system prompt based on context."""
-        pass
 
     @abstractmethod
-    async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
+    async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         """Retrieve relevant context from vector store."""
-        pass
 
     def create_crew_agent(self, context: ProjectContext) -> Agent:
         """Create CrewAI agent instance."""
@@ -90,7 +85,7 @@ class AgentBase(ABC):
         )
 
     def create_crew_task(
-        self, agent: Agent, input_data: AgentInput, context_data: Dict[str, Any]
+        self, agent: Agent, input_data: AgentInput, context_data: dict[str, Any]
     ) -> Task:
         """Create CrewAI task for agent execution."""
         task_description = self._build_task_description(input_data, context_data)
@@ -103,19 +98,17 @@ class AgentBase(ABC):
 
     @abstractmethod
     def _build_task_description(
-        self, input_data: AgentInput, context_data: Dict[str, Any]
+        self, input_data: AgentInput, context_data: dict[str, Any]
     ) -> str:
         """Build task description for CrewAI."""
-        pass
 
     @abstractmethod
     def _get_expected_output_format(self) -> str:
         """Get expected output format for CrewAI task."""
-        pass
 
     async def process(self, input_data: AgentInput) -> AgentOutput:
         """Main processing method - executes the agent."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         correlation_id = input_data.context.correlation_id
 
         try:
@@ -172,7 +165,7 @@ class AgentBase(ABC):
             raise
         except Exception as e:
             execution_time = int(
-                (datetime.utcnow() - start_time).total_seconds() * 1000
+                (datetime.now(UTC) - start_time).total_seconds() * 1000
             )
             self.logger.exception(
                 "Agent execution failed",
@@ -189,10 +182,9 @@ class AgentBase(ABC):
 
     @abstractmethod
     async def _parse_crew_result(
-        self, result: Any, execution_time_ms: int
+        self, result: object, execution_time_ms: int
     ) -> AgentOutput:
         """Parse CrewAI execution result into typed output."""
-        pass
 
     def emit_progress(
         self, context: ProjectContext, step: str, progress: float, message: str

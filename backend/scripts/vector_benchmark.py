@@ -4,25 +4,25 @@ Vector database performance benchmarking script.
 Measures search latency, throughput, and scalability under various load conditions.
 """
 
-import asyncio
-import time
-import statistics
 import argparse
-from typing import List, Dict, Any
+import asyncio
 import json
+import statistics
+import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
 from app.adapters.qdrant import QdrantAdapter
-from app.services.embedding import EmbeddingService
+from app.core.hnsw_config import HNSWConfigurator, WorkloadType
 from app.services.cache import VectorCache
-from app.core.hnsw_config import HNSWConfigurator, WorkloadType, DatasetSize
+from app.services.embedding import EmbeddingService
 
 
 class VectorBenchmark:
     """Comprehensive benchmarking suite for vector database operations"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.qdrant = QdrantAdapter()
         self.embedding = EmbeddingService()
         self.cache = VectorCache()
@@ -82,8 +82,11 @@ class VectorBenchmark:
                             }
                             doc_payloads.append(payload)
 
-                    except Exception as e:
+                    except (ValueError, RuntimeError) as e:
                         print(f"⚠️  Failed to process document: {e}")
+                    except Exception as e:
+                        print(f"⚠️  Unexpected error processing document: {e}")
+                        raise
 
                 # Store vectors
                 if doc_embeddings and doc_payloads:
@@ -118,7 +121,7 @@ class VectorBenchmark:
             start_time = time.time()
 
             try:
-                results = await self.qdrant.search(
+                await self.qdrant.search(
                     tenant_id=tenant_id,
                     project_id=project_id,
                     query_vector=query_vector,
@@ -130,8 +133,11 @@ class VectorBenchmark:
                 if (i + 1) % 20 == 0:
                     print(f"   Progress: {i + 1}/{iterations} requests")
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, RuntimeError) as e:
                 print(f"❌ Search failed on iteration {i + 1}: {e}")
+            except Exception as e:
+                print(f"❌ Unexpected search error on iteration {i + 1}: {e}")
+                raise
 
         if not latencies:
             return {"error": "All search requests failed"}
@@ -147,7 +153,7 @@ class VectorBenchmark:
             "std_deviation_ms": statistics.stdev(latencies) if len(latencies) > 1 else 0
         }
 
-        print(f"📈 Search latency stats:")
+        print("📈 Search latency stats:")
         print(f"   Average: {stats['avg_latency_ms']:.2f}ms")
         print(f"   P95: {stats['p95_latency_ms']:.2f}ms")
         print(f"   P99: {stats['p99_latency_ms']:.2f}ms")
@@ -155,7 +161,7 @@ class VectorBenchmark:
 
         return stats
 
-    async def benchmark_concurrent_searches(self, tenant_ids: List[str], project_ids: List[str], concurrent_users: int = 50):
+    async def benchmark_concurrent_searches(self, tenant_ids: list[str], project_ids: list[str], concurrent_users: int = 50):
         """Benchmark concurrent search performance"""
         print(f"🔄 Benchmarking concurrent searches with {concurrent_users} users")
 
@@ -180,7 +186,7 @@ class VectorBenchmark:
                 latency_ms = (time.time() - start_time) * 1000
                 return {"success": True, "latency_ms": latency_ms, "results_count": len(results)}
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, RuntimeError) as e:
                 return {"success": False, "error": str(e), "latency_ms": (time.time() - start_time) * 1000}
 
         # Execute concurrent searches
@@ -213,7 +219,7 @@ class VectorBenchmark:
             "error_rate": errors / concurrent_users if concurrent_users > 0 else 0
         }
 
-        print(f"📊 Concurrent search stats:")
+        print("📊 Concurrent search stats:")
         print(f"   Throughput: {stats['throughput_rps']:.2f} requests/second")
         print(f"   Success rate: {(1 - stats['error_rate']) * 100:.1f}%")
         print(f"   Average latency: {stats['avg_latency_ms']:.2f}ms")
@@ -223,7 +229,7 @@ class VectorBenchmark:
 
     async def benchmark_hnsw_configurations(self):
         """Benchmark different HNSW configurations"""
-        print(f"⚙️  Benchmarking HNSW configurations")
+        print("⚙️  Benchmarking HNSW configurations")
 
         configs_to_test = [
             ("balanced", WorkloadType.BALANCED),
@@ -269,7 +275,7 @@ class VectorBenchmark:
 
     async def benchmark_cache_performance(self):
         """Benchmark caching performance"""
-        print(f"💾 Benchmarking cache performance")
+        print("💾 Benchmarking cache performance")
 
         tenant_id = f"cache_benchmark_tenant_{uuid.uuid4().hex[:8]}"
         project_id = f"cache_benchmark_project_{uuid.uuid4().hex[:8]}"
@@ -293,7 +299,7 @@ class VectorBenchmark:
         cache_times = []
         cache_hits = 0
 
-        for i, query in enumerate(test_queries * 20):  # Repeat queries to test cache hits
+        for _i, _query in enumerate(test_queries * 20):  # Repeat queries to test cache hits
             start_time = time.time()
 
             # Try to get from cache first
@@ -322,7 +328,7 @@ class VectorBenchmark:
             "max_cache_time_ms": max(cache_times)
         }
 
-        print(f"📊 Cache performance stats:")
+        print("📊 Cache performance stats:")
         print(f"   Hit rate: {stats['cache_hit_rate'] * 100:.1f}%")
         print(f"   Average operation time: {stats['avg_cache_time_ms']:.2f}ms")
         print(f"   Min time: {stats['min_cache_time_ms']:.2f}ms")
@@ -330,14 +336,14 @@ class VectorBenchmark:
 
         return stats
 
-    async def run_comprehensive_benchmark(self, config: Dict[str, Any]):
+    async def run_comprehensive_benchmark(self, config: dict[str, Any]):
         """Run comprehensive benchmark suite"""
         print("🚀 Starting comprehensive vector database benchmark")
         print("=" * 60)
 
         results = {
             "benchmark_config": config,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "results": {}
         }
 
@@ -391,7 +397,7 @@ class VectorBenchmark:
         print("=" * 60)
 
         # Save results
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         results_file = f"vector_benchmark_results_{timestamp}.json"
         with open(results_file, "w") as f:
             json.dump(results, f, indent=2)
@@ -414,7 +420,7 @@ def parse_args():
     return parser.parse_args()
 
 
-async def main():
+async def main() -> None:
     """Main benchmark execution"""
     args = parse_args()
 

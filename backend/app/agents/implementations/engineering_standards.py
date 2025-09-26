@@ -4,22 +4,24 @@ Handles code quality standards, review processes, and technical guidelines.
 """
 
 import re
-from typing import Type, Dict, Any, List
+from typing import Any
 
 from ..base.agent_base import AgentBase
-from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
+from ..base.vector_context import vector_context
 from ..contracts.base import (
-    ProjectContext,
     AgentInput,
     AgentOutput,
+    ProjectContext,
     ValidationResult,
+)
+from ..contracts.base import (
     ValidationError as AgentValidationError,
 )
 from ..contracts.engineering_standards import (
+    CodeStandard,
     EngineeringStandardsInput,
     EngineeringStandardsOutput,
-    CodeStandard,
 )
 
 
@@ -40,10 +42,10 @@ class EngineeringStandardsAgent(AgentBase):
             without hindering productivity.""",
         )
 
-    def get_input_model(self) -> Type[AgentInput]:
+    def get_input_model(self) -> type[AgentInput]:
         return EngineeringStandardsInput
 
-    def get_output_model(self) -> Type[AgentOutput]:
+    def get_output_model(self) -> type[AgentOutput]:
         return EngineeringStandardsOutput
 
     async def validate_input(self, input_data: EngineeringStandardsInput) -> None:
@@ -58,7 +60,7 @@ class EngineeringStandardsAgent(AgentBase):
                 details={
                     "has_project_description": bool(input_data.project_description),
                     "has_technology_stack": bool(input_data.technology_stack),
-                }
+                },
             )
 
     async def validate_output(
@@ -119,13 +121,13 @@ for a technical project.
 
 Create practical, enforceable standards that improve quality without hindering productivity."""
 
-    async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
+    async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         return await vector_context.get_previous_steps_context(
             context, context.current_step
         )
 
     def _build_task_description(
-        self, input_data: EngineeringStandardsInput, context_data: Dict[str, Any]
+        self, input_data: EngineeringStandardsInput, context_data: dict[str, Any]
     ) -> str:
         # NOTE: Task description uses basic template
         # Could be enhanced with technology-specific prompts
@@ -146,7 +148,7 @@ Focus on standards that can be automated and enforced through tooling."""
             "testing strategy, and quality processes."
         )
 
-    def _parse_markdown_section(self, content: str, section_name: str) -> List[str]:
+    def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
         pattern = rf"#{1,2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1,2}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
@@ -161,18 +163,17 @@ Focus on standards that can be automated and enforced through tooling."""
 
         return [bullet.strip() for bullet in bullets if bullet.strip()]
 
-    def _parse_code_standards(self, content: str) -> List[CodeStandard]:
+    def _parse_code_standards(self, content: str) -> list[CodeStandard]:
         """Parse code quality standards section into CodeStandard objects."""
-        standards_bullets = self._parse_markdown_section(content, "Code Quality Standards")
+        standards_bullets = self._parse_markdown_section(
+            content, "Code Quality Standards"
+        )
         code_standards = []
 
         for bullet in standards_bullets:
             # Create basic CodeStandard from bullet text
             standard = CodeStandard(
-                category="General",
-                rules=[bullet],
-                examples=None,
-                tools=[]
+                category="General", rules=[bullet], examples=None, tools=[]
             )
             code_standards.append(standard)
 
@@ -188,12 +189,14 @@ Focus on standards that can be automated and enforced through tooling."""
 
         section_content = match.group(1).strip()
         # Remove bullet points and keep paragraph text
-        lines = [line.strip() for line in section_content.split('\n')]
-        paragraphs = [line for line in lines if line and not line.startswith(('-', '*', '+'))]
+        lines = [line.strip() for line in section_content.split("\n")]
+        paragraphs = [
+            line for line in lines if line and not line.startswith(("-", "*", "+"))
+        ]
 
-        return ' '.join(paragraphs) if paragraphs else ""
+        return " ".join(paragraphs) if paragraphs else ""
 
-    def _parse_toolchain_recommendations(self, content: str) -> Dict[str, List[str]]:
+    def _parse_toolchain_recommendations(self, content: str) -> dict[str, list[str]]:
         """Parse toolchain recommendations into categorized dictionary."""
         tools_bullets = self._parse_markdown_section(content, "Recommended Toolchain")
         toolchain = {}
@@ -201,7 +204,7 @@ Focus on standards that can be automated and enforced through tooling."""
         current_category = "General"
         for bullet in tools_bullets:
             # Check if bullet contains a category (ends with colon)
-            if bullet.endswith(':'):
+            if bullet.endswith(":"):
                 current_category = bullet[:-1].strip()
                 toolchain[current_category] = []
             else:
@@ -212,7 +215,7 @@ Focus on standards that can be automated and enforced through tooling."""
         return toolchain
 
     async def _parse_crew_result(
-        self, result: Any, execution_time_ms: int
+        self, result: object, execution_time_ms: int
     ) -> EngineeringStandardsOutput:
         content = str(result)
 
@@ -221,24 +224,30 @@ Focus on standards that can be automated and enforced through tooling."""
         review_process = self._extract_text_section(content, "Code Review Process")
         definition_of_done = self._parse_markdown_section(content, "Definition of Done")
         testing_strategy = self._extract_text_section(content, "Testing Strategy")
-        security_guidelines = self._parse_markdown_section(content, "Security Guidelines")
-        performance_standards = self._parse_markdown_section(content, "Performance Standards")
+        security_guidelines = self._parse_markdown_section(
+            content, "Security Guidelines"
+        )
+        performance_standards = self._parse_markdown_section(
+            content, "Performance Standards"
+        )
         documentation_requirements = self._parse_markdown_section(
             content, "Documentation Requirements"
         )
         toolchain_recommendations = self._parse_toolchain_recommendations(content)
 
         # Calculate confidence score based on populated sections
-        populated_sections = sum([
-            1 if coding_standards else 0,
-            1 if review_process else 0,
-            1 if definition_of_done else 0,
-            1 if testing_strategy else 0,
-            1 if security_guidelines else 0,
-            1 if performance_standards else 0,
-            1 if documentation_requirements else 0,
-            1 if toolchain_recommendations else 0,
-        ])
+        populated_sections = sum(
+            [
+                1 if coding_standards else 0,
+                1 if review_process else 0,
+                1 if definition_of_done else 0,
+                1 if testing_strategy else 0,
+                1 if security_guidelines else 0,
+                1 if performance_standards else 0,
+                1 if documentation_requirements else 0,
+                1 if toolchain_recommendations else 0,
+            ]
+        )
 
         total_sections = 8
         confidence_score = min(0.95, populated_sections / total_sections)
@@ -279,10 +288,10 @@ Focus on standards that can be automated and enforced through tooling."""
                         "performance_standards": len(performance_standards),
                         "documentation_requirements": len(documentation_requirements),
                         "toolchain_recommendations": len(toolchain_recommendations),
-                    }
+                    },
                 },
                 missing_sections=missing_sections,
-                suggestions=suggestions
+                suggestions=suggestions,
             ),
             metadata={
                 "execution_time_ms": execution_time_ms,

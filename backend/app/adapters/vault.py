@@ -2,13 +2,15 @@
 HashiCorp Vault adapter for secrets management.
 """
 
-import json
-from typing import Any, Dict, Optional, List
+import os
+from typing import Any
+
 import hvac
-from hvac.exceptions import VaultError, InvalidRequest
+from hvac.exceptions import VaultError
+from requests import exceptions as requests_exceptions
 
 from app.core.config import settings
-from app.core.logger import get_logger, LoggerMixin
+from app.core.logger import LoggerMixin, get_logger
 
 logger = get_logger(__name__)
 
@@ -16,39 +18,37 @@ logger = get_logger(__name__)
 class VaultAdapter(LoggerMixin):
     """HashiCorp Vault adapter for secrets management"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.client = None
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize Vault client connection"""
         try:
             self.client = hvac.Client(
                 url=settings.VAULT_ADDR,
                 token=settings.VAULT_TOKEN,
-                verify=False  # For development - use proper SSL in production
+                verify=False,  # For development - use proper SSL in production
             )
 
-            # Test connection
             if self.client.is_authenticated():
                 logger.info("Vault client initialized", url=settings.VAULT_ADDR)
             else:
-                raise Exception("Vault authentication failed")
+                raise VaultError("Vault authentication failed")
 
-        except Exception as e:
-            logger.error("Failed to initialize Vault client", error=str(e))
-            # Don't raise exception - continue without Vault for development
+        except (VaultError, requests_exceptions.RequestException) as exc:
+            logger.error("Failed to initialize Vault client", error=str(exc))
             self.client = None
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Vault service health"""
         try:
             if not self.client:
                 return {
                     "status": "unhealthy",
                     "message": "Vault client not initialized",
-                    "details": {}
+                    "details": {},
                 }
 
             health = self.client.sys.health()
@@ -59,19 +59,19 @@ class VaultAdapter(LoggerMixin):
                     "initialized": health.get("initialized", False),
                     "sealed": health.get("sealed", True),
                     "version": health.get("version", "unknown"),
-                    "cluster_name": health.get("cluster_name", "unknown")
-                }
+                    "cluster_name": health.get("cluster_name", "unknown"),
+                },
             }
 
-        except Exception as e:
-            logger.error("Vault health check failed", error=str(e))
+        except (VaultError, requests_exceptions.RequestException) as exc:
+            logger.error("Vault health check failed", error=str(exc))
             return {
                 "status": "unhealthy",
-                "message": f"Vault connection failed: {str(e)}",
-                "details": {"error": str(e)}
+                "message": f"Vault connection failed: {exc!s}",
+                "details": {"error": str(exc)},
             }
 
-    async def read_secret(self, path: str) -> Optional[Dict[str, Any]]:
+    async def read_secret(self, path: str) -> dict[str, Any] | None:
         """
         Read secret from Vault.
 
@@ -95,7 +95,7 @@ class VaultAdapter(LoggerMixin):
             logger.error("Failed to read secret from Vault", path=path, error=str(e))
             return None
 
-    async def write_secret(self, path: str, data: Dict[str, Any]) -> bool:
+    async def write_secret(self, path: str, data: dict[str, Any]) -> bool:
         """
         Write secret to Vault.
 
@@ -111,10 +111,7 @@ class VaultAdapter(LoggerMixin):
                 logger.warning("Vault client not available, cannot write secret")
                 return False
 
-            self.client.secrets.kv.v2.create_or_update_secret(
-                path=path,
-                secret=data
-            )
+            self.client.secrets.kv.v2.create_or_update_secret(path=path, secret=data)
             logger.info("Secret written to Vault", path=path)
             return True
 
@@ -145,7 +142,7 @@ class VaultAdapter(LoggerMixin):
             logger.error("Failed to delete secret from Vault", path=path, error=str(e))
             return False
 
-    async def list_secrets(self, path: str = "") -> Optional[List[str]]:
+    async def list_secrets(self, path: str = "") -> list[str] | None:
         """
         List secrets at given path.
 
@@ -170,7 +167,7 @@ class VaultAdapter(LoggerMixin):
             return None
 
     # Environment-specific secret management
-    async def get_environment_secrets(self, environment: str) -> Dict[str, Any]:
+    async def get_environment_secrets(self, environment: str) -> dict[str, Any]:
         """
         Get all secrets for a specific environment.
 
@@ -183,7 +180,9 @@ class VaultAdapter(LoggerMixin):
         path = f"secret/data/jeex_plan/{environment}"
         return await self.read_secret(path) or {}
 
-    async def set_environment_secrets(self, environment: str, secrets: Dict[str, Any]) -> bool:
+    async def set_environment_secrets(
+        self, environment: str, secrets: dict[str, Any]
+    ) -> bool:
         """
         Set secrets for a specific environment.
 
@@ -198,7 +197,7 @@ class VaultAdapter(LoggerMixin):
         return await self.write_secret(path, secrets)
 
     # Tenant-specific secrets
-    async def get_tenant_secrets(self, tenant_id: str) -> Dict[str, Any]:
+    async def get_tenant_secrets(self, tenant_id: str) -> dict[str, Any]:
         """
         Get secrets for a specific tenant.
 
@@ -211,7 +210,7 @@ class VaultAdapter(LoggerMixin):
         path = f"secret/data/tenants/{tenant_id}"
         return await self.read_secret(path) or {}
 
-    async def set_tenant_secrets(self, tenant_id: str, secrets: Dict[str, Any]) -> bool:
+    async def set_tenant_secrets(self, tenant_id: str, secrets: dict[str, Any]) -> bool:
         """
         Set secrets for a specific tenant.
 
@@ -226,7 +225,7 @@ class VaultAdapter(LoggerMixin):
         return await self.write_secret(path, secrets)
 
     # API key management
-    async def get_api_key(self, provider: str) -> Optional[str]:
+    async def get_api_key(self, provider: str) -> str | None:
         """
         Get API key for a specific provider.
 
@@ -255,17 +254,17 @@ class VaultAdapter(LoggerMixin):
         return await self.set_environment_secrets(settings.ENVIRONMENT, secrets)
 
     # Database credentials management
-    async def get_database_credentials(self) -> Dict[str, Any]:
+    async def get_database_credentials(self) -> dict[str, Any]:
         """
         Get database credentials from Vault.
 
         Returns:
             Dictionary with database connection parameters
         """
-        path = f"secret/data/jeex_plan/database"
+        path = "secret/data/jeex_plan/database"
         return await self.read_secret(path) or {}
 
-    async def set_database_credentials(self, credentials: Dict[str, Any]) -> bool:
+    async def set_database_credentials(self, credentials: dict[str, Any]) -> bool:
         """
         Set database credentials in Vault.
 
@@ -275,21 +274,21 @@ class VaultAdapter(LoggerMixin):
         Returns:
             True if successful, False otherwise
         """
-        path = f"secret/data/jeex_plan/database"
+        path = "secret/data/jeex_plan/database"
         return await self.write_secret(path, credentials)
 
     # Configuration management
-    async def get_app_config(self) -> Dict[str, Any]:
+    async def get_app_config(self) -> dict[str, Any]:
         """
         Get application configuration from Vault.
 
         Returns:
             Dictionary with application configuration
         """
-        path = f"secret/data/jeex_plan/config"
+        path = "secret/data/jeex_plan/config"
         return await self.read_secret(path) or {}
 
-    async def set_app_config(self, config: Dict[str, Any]) -> bool:
+    async def set_app_config(self, config: dict[str, Any]) -> bool:
         """
         Set application configuration in Vault.
 
@@ -299,16 +298,13 @@ class VaultAdapter(LoggerMixin):
         Returns:
             True if successful, False otherwise
         """
-        path = f"secret/data/jeex_plan/config"
+        path = "secret/data/jeex_plan/config"
         return await self.write_secret(path, config)
 
     # Fallback to environment variables when Vault is not available
     async def get_secret_with_fallback(
-        self,
-        vault_path: str,
-        env_var: str,
-        default: Any = None
-    ) -> Any:
+        self, vault_path: str, env_var: str, default: str | None = None
+    ) -> str | None:
         """
         Get secret from Vault with fallback to environment variable.
 
@@ -320,17 +316,14 @@ class VaultAdapter(LoggerMixin):
         Returns:
             Secret value or default
         """
-        try:
-            # Try to get from Vault first
-            if self.client:
-                secret_data = await self.read_secret(vault_path)
-                if secret_data and "value" in secret_data:
-                    return secret_data["value"]
-        except Exception as e:
-            logger.warning("Failed to get secret from Vault, falling back to environment", error=str(e))
+        if self.client:
+            secret_data = await self.read_secret(vault_path)
+            if secret_data and "value" in secret_data:
+                value = secret_data["value"]
+                if value is None:
+                    return default
+                return str(value)
 
-        # Fall back to environment variable
-        import os
         return os.getenv(env_var, default)
 
     async def initialize_vault_secrets(self) -> bool:
@@ -349,17 +342,14 @@ class VaultAdapter(LoggerMixin):
                 "development": {
                     "openai_api_key": settings.OPENAI_API_KEY,
                     "anthropic_api_key": settings.ANTHROPIC_API_KEY,
-                    "debug": True
+                    "debug": True,
                 },
-                "production": {
-                    "debug": False
-                    # Production secrets should be set manually
-                },
+                "production": {"debug": False},
                 "config": {
                     "app_name": settings.APP_NAME,
                     "version": "1.0.0",
-                    "environment": settings.ENVIRONMENT
-                }
+                    "environment": settings.ENVIRONMENT,
+                },
             }
 
             for path, data in initial_secrets.items():
@@ -368,6 +358,6 @@ class VaultAdapter(LoggerMixin):
             logger.info("Vault secrets initialized successfully")
             return True
 
-        except Exception as e:
-            logger.error("Failed to initialize Vault secrets", error=str(e))
+        except (VaultError, requests_exceptions.RequestException) as exc:
+            logger.error("Failed to initialize Vault secrets", error=str(exc))
             return False

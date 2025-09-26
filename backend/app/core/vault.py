@@ -2,10 +2,10 @@
 HashiCorp Vault client integration for JEEX Plan.
 """
 
-import os
 import logging
-from typing import Optional, Dict, Any
+import os
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -22,9 +22,9 @@ class VaultClient:
     def __init__(
         self,
         vault_url: str = "http://vault:8200",
-        vault_token: Optional[str] = None,
+        vault_token: str | None = None,
         timeout: int = 10,
-    ):
+    ) -> None:
         self.vault_url = vault_url.rstrip("/")
 
         resolved_token = vault_token or os.getenv("VAULT_TOKEN")
@@ -54,7 +54,7 @@ class VaultClient:
 
         self.vault_token = resolved_token
         self.timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     @asynccontextmanager
     async def client(self):
@@ -66,12 +66,12 @@ class VaultClient:
             )
         try:
             yield self._client
-        except Exception as e:
-            logger.error(f"Vault client error: {e}")
+        except Exception as exc:
+            logger.error("Vault client error", error=str(exc))
             raise
         # Don't close the client here - reuse it
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         if self._client:
             await self._client.aclose()
@@ -86,9 +86,9 @@ class VaultClient:
         try:
             async with self.client() as client:
                 response = await client.get(f"{self.vault_url}/v1/sys/health")
-                return response.status_code in [200, 429, 472, 473]  # All valid states
-        except Exception as e:
-            logger.warning(f"Vault health check failed: {e}")
+                return response.status_code in [200, 429, 472, 473]
+        except Exception as exc:
+            logger.warning("Vault health check failed", error=str(exc))
             return False
 
     @retry(
@@ -96,7 +96,7 @@ class VaultClient:
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
     async def put_secret(
-        self, path: str, secrets: Dict[str, Any], mount_point: str = "secret"
+        self, path: str, secrets: dict[str, Any], mount_point: str = "secret"
     ) -> bool:
         """Store secrets in Vault KV store."""
         try:
@@ -106,13 +106,22 @@ class VaultClient:
                 response = await client.post(url, json=payload)
 
                 if response.status_code in [200, 204]:
-                    logger.info(f"Successfully stored secret at {path}")
+                    logger.info("Successfully stored secret", path=path)
                     return True
                 else:
-                    logger.error(f"Failed to store secret: {response.status_code} - {response.text}")
+                    logger.error(
+                        "Failed to store secret",
+                        path=path,
+                        status_code=response.status_code,
+                        response_text=response.text,
+                    )
                     return False
-        except Exception as e:
-            logger.error(f"Error storing secret at {path}: {e}")
+        except Exception as exc:
+            logger.error(
+                "Error storing secret",
+                path=path,
+                error=str(exc),
+            )
             return False
 
     @retry(
@@ -121,7 +130,7 @@ class VaultClient:
     )
     async def get_secret(
         self, path: str, mount_point: str = "secret"
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Retrieve secrets from Vault KV store."""
         try:
             async with self.client() as client:
@@ -132,13 +141,22 @@ class VaultClient:
                     data = response.json()
                     return data.get("data", {}).get("data", {})
                 elif response.status_code == 404:
-                    logger.info(f"Secret not found at {path}")
+                    logger.info("Secret not found", path=path)
                     return None
                 else:
-                    logger.error(f"Failed to retrieve secret: {response.status_code} - {response.text}")
+                    logger.error(
+                        "Failed to retrieve secret",
+                        path=path,
+                        status_code=response.status_code,
+                        response_text=response.text,
+                    )
                     return None
-        except Exception as e:
-            logger.error(f"Error retrieving secret at {path}: {e}")
+        except Exception as exc:
+            logger.error(
+                "Error retrieving secret",
+                path=path,
+                error=str(exc),
+            )
             return None
 
     async def delete_secret(self, path: str, mount_point: str = "secret") -> bool:
@@ -149,16 +167,27 @@ class VaultClient:
                 response = await client.delete(url)
 
                 if response.status_code in [200, 204]:
-                    logger.info(f"Successfully deleted secret at {path}")
+                    logger.info("Successfully deleted secret", path=path)
                     return True
                 else:
-                    logger.error(f"Failed to delete secret: {response.status_code} - {response.text}")
+                    logger.error(
+                        "Failed to delete secret",
+                        path=path,
+                        status_code=response.status_code,
+                        response_text=response.text,
+                    )
                     return False
-        except Exception as e:
-            logger.error(f"Error deleting secret at {path}: {e}")
+        except Exception as exc:
+            logger.error(
+                "Error deleting secret",
+                path=path,
+                error=str(exc),
+            )
             return False
 
-    async def list_secrets(self, path: str = "", mount_point: str = "secret") -> Optional[list]:
+    async def list_secrets(
+        self, path: str = "", mount_point: str = "secret"
+    ) -> list | None:
         """List secrets in Vault KV store."""
         try:
             async with self.client() as client:
@@ -169,13 +198,22 @@ class VaultClient:
                     data = response.json()
                     return data.get("data", {}).get("keys", [])
                 elif response.status_code == 404:
-                    logger.info(f"Path not found: {path}")
+                    logger.info("Vault path not found", path=path)
                     return []
                 else:
-                    logger.error(f"Failed to list secrets: {response.status_code} - {response.text}")
+                    logger.error(
+                        "Failed to list secrets",
+                        path=path,
+                        status_code=response.status_code,
+                        response_text=response.text,
+                    )
                     return None
-        except Exception as e:
-            logger.error(f"Error listing secrets at {path}: {e}")
+        except Exception as exc:
+            logger.error(
+                "Error listing secrets",
+                path=path,
+                error=str(exc),
+            )
             return None
 
 
@@ -188,7 +226,7 @@ async def get_vault_client() -> VaultClient:
     return vault_client
 
 
-async def init_vault_secrets():
+async def init_vault_secrets() -> None:
     """Initialize default secrets in Vault for development."""
     logger.info("Initializing Vault secrets...")
 
@@ -228,7 +266,7 @@ async def init_vault_secrets():
     logger.info("Vault secrets initialized successfully")
 
 
-async def get_jwt_secret() -> Optional[str]:
+async def get_jwt_secret() -> str | None:
     """Get JWT secret from Vault."""
     secrets = await vault_client.get_secret("auth/jwt")
     if secrets:
@@ -236,7 +274,7 @@ async def get_jwt_secret() -> Optional[str]:
     return None
 
 
-async def get_oauth_secrets(provider: str) -> Optional[Dict[str, str]]:
+async def get_oauth_secrets(provider: str) -> dict[str, str] | None:
     """Get OAuth secrets for a specific provider from Vault."""
     secrets = await vault_client.get_secret(f"oauth/{provider}")
     return secrets
@@ -255,7 +293,7 @@ async def store_oauth_config(
     provider: str,
     client_id: str,
     client_secret: str,
-    additional_config: Optional[Dict[str, Any]] = None
+    additional_config: dict[str, Any] | None = None,
 ) -> bool:
     """Store OAuth provider configuration in Vault."""
     config = {
@@ -269,6 +307,6 @@ async def store_oauth_config(
     return await vault_client.put_secret(f"oauth/{provider}", config)
 
 
-async def cleanup_vault():
+async def cleanup_vault() -> None:
     """Cleanup Vault client on shutdown."""
     await vault_client.close()

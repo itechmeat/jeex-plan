@@ -2,23 +2,19 @@
 Test repositories for Epic 01 - Multi-tenant foundation.
 """
 
-import pytest
 import uuid
-from datetime import datetime
 
-from app.models.tenant import Tenant
-from app.models.user import User
-from app.models.project import Project, ProjectStatus
+import pytest
+
 from app.repositories.tenant import TenantRepository
 from app.repositories.user import UserRepository
-from app.repositories.project import ProjectRepository
 
 
 class TestTenantRepository:
     """Test TenantRepository functionality."""
 
     @pytest.mark.asyncio
-    async def test_create_tenant(self, test_session):
+    async def test_create_tenant(self, test_session) -> None:
         """Test creating a tenant through repository."""
         repo = TenantRepository(test_session)
 
@@ -34,7 +30,7 @@ class TestTenantRepository:
         assert tenant.is_active is True
 
     @pytest.mark.asyncio
-    async def test_get_by_slug(self, test_session):
+    async def test_get_by_slug(self, test_session) -> None:
         """Test getting tenant by slug."""
         repo = TenantRepository(test_session)
 
@@ -52,7 +48,7 @@ class TestTenantRepository:
         assert found_tenant.slug == "slug-test"
 
     @pytest.mark.asyncio
-    async def test_get_by_slug_inactive(self, test_session):
+    async def test_get_by_slug_inactive(self, test_session) -> None:
         """Test that inactive tenants are not returned by slug lookup."""
         repo = TenantRepository(test_session)
 
@@ -65,7 +61,7 @@ class TestTenantRepository:
         assert found_tenant is None
 
     @pytest.mark.asyncio
-    async def test_get_active_tenants(self, test_session):
+    async def test_get_active_tenants(self, test_session) -> None:
         """Test getting only active tenants."""
         repo = TenantRepository(test_session)
 
@@ -85,7 +81,7 @@ class TestTenantRepository:
         assert inactive_tenant.id not in tenant_ids
 
     @pytest.mark.asyncio
-    async def test_check_slug_availability(self, test_session):
+    async def test_check_slug_availability(self, test_session) -> None:
         """Test checking slug availability."""
         repo = TenantRepository(test_session)
 
@@ -98,7 +94,7 @@ class TestTenantRepository:
         assert await repo.check_slug_availability("taken-slug", exclude_tenant_id=tenant.id) is True
 
     @pytest.mark.asyncio
-    async def test_update_limits(self, test_session):
+    async def test_update_limits(self, test_session) -> None:
         """Test updating tenant limits."""
         repo = TenantRepository(test_session)
 
@@ -125,7 +121,7 @@ class TestUserRepository:
         return await tenant_repo.create_tenant(name="Test Tenant", slug="test-tenant")
 
     @pytest.mark.asyncio
-    async def test_create_user(self, test_session, sample_tenant):
+    async def test_create_user(self, test_session, sample_tenant) -> None:
         """Test creating a user through repository."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -144,7 +140,7 @@ class TestUserRepository:
         assert user.is_superuser is False
 
     @pytest.mark.asyncio
-    async def test_get_by_email(self, test_session, sample_tenant):
+    async def test_get_by_email(self, test_session, sample_tenant) -> None:
         """Test getting user by email."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -162,7 +158,7 @@ class TestUserRepository:
         assert found_user.email == "email@example.com"
 
     @pytest.mark.asyncio
-    async def test_get_by_username(self, test_session, sample_tenant):
+    async def test_get_by_username(self, test_session, sample_tenant) -> None:
         """Test getting user by username."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -180,7 +176,7 @@ class TestUserRepository:
         assert found_user.username == "uniqueuser"
 
     @pytest.mark.asyncio
-    async def test_get_by_oauth(self, test_session, sample_tenant):
+    async def test_get_by_oauth(self, test_session, sample_tenant) -> None:
         """Test getting user by OAuth credentials."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -202,7 +198,7 @@ class TestUserRepository:
         assert found_user.oauth_id == "google_123456"
 
     @pytest.mark.asyncio
-    async def test_tenant_isolation(self, test_session):
+    async def test_tenant_isolation(self, test_session) -> None:
         """Test that users are isolated by tenant."""
         tenant1_repo = TenantRepository(test_session)
         tenant2_repo = TenantRepository(test_session)
@@ -235,7 +231,7 @@ class TestUserRepository:
         assert found_user2.id == user2.id
 
     @pytest.mark.asyncio
-    async def test_check_email_availability(self, test_session, sample_tenant):
+    async def test_check_email_availability(self, test_session, sample_tenant) -> None:
         """Test checking email availability."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -248,7 +244,7 @@ class TestUserRepository:
         assert await repo.check_email_availability("taken@example.com", exclude_user_id=user.id) is True
 
     @pytest.mark.asyncio
-    async def test_check_username_availability(self, test_session, sample_tenant):
+    async def test_check_username_availability(self, test_session, sample_tenant) -> None:
         """Test checking username availability."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -261,7 +257,7 @@ class TestUserRepository:
         assert await repo.check_username_availability("takenuser", exclude_user_id=user.id) is True
 
     @pytest.mark.asyncio
-    async def test_check_oauth_availability(self, test_session, sample_tenant):
+    async def test_check_oauth_availability(self, test_session, sample_tenant) -> None:
         """Test checking OAuth availability."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -281,7 +277,7 @@ class TestUserRepository:
         assert await repo.check_oauth_availability("google", "google_123456", exclude_user_id=oauth_user.id) is True
 
     @pytest.mark.asyncio
-    async def test_link_unlink_oauth(self, test_session, sample_tenant):
+    async def test_link_unlink_oauth(self, test_session, sample_tenant) -> None:
         """Test linking and unlinking OAuth accounts."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -301,7 +297,7 @@ class TestUserRepository:
         assert unlinked_user.oauth_id is None
 
     @pytest.mark.asyncio
-    async def test_find_user_for_login(self, test_session, sample_tenant):
+    async def test_find_user_for_login(self, test_session, sample_tenant) -> None:
         """Test finding user for login by email or username."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -326,7 +322,7 @@ class TestUserRepository:
         assert not_found is None
 
     @pytest.mark.asyncio
-    async def test_get_active_users(self, test_session, sample_tenant):
+    async def test_get_active_users(self, test_session, sample_tenant) -> None:
         """Test getting only active users."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -345,7 +341,7 @@ class TestUserRepository:
         assert inactive_user.id not in user_ids
 
     @pytest.mark.asyncio
-    async def test_get_superusers(self, test_session, sample_tenant):
+    async def test_get_superusers(self, test_session, sample_tenant) -> None:
         """Test getting superusers."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -367,7 +363,7 @@ class TestUserRepository:
         assert regular_user.id not in user_ids
 
     @pytest.mark.asyncio
-    async def test_search_users(self, test_session, sample_tenant):
+    async def test_search_users(self, test_session, sample_tenant) -> None:
         """Test searching users."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -391,7 +387,7 @@ class TestUserRepository:
         assert any(u.username == "janesmith" for u in jane_results)
 
     @pytest.mark.asyncio
-    async def test_get_user_count_by_status(self, test_session, sample_tenant):
+    async def test_get_user_count_by_status(self, test_session, sample_tenant) -> None:
         """Test getting user count statistics."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -423,7 +419,7 @@ class TestRepositorySoftDelete:
         return await tenant_repo.create_tenant(name="Test Tenant", slug="test-tenant")
 
     @pytest.mark.asyncio
-    async def test_soft_delete_user(self, test_session, sample_tenant):
+    async def test_soft_delete_user(self, test_session, sample_tenant) -> None:
         """Test soft deleting a user."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -442,7 +438,7 @@ class TestRepositorySoftDelete:
         assert found_by_email is None
 
     @pytest.mark.asyncio
-    async def test_hard_delete_user(self, test_session, sample_tenant):
+    async def test_hard_delete_user(self, test_session, sample_tenant) -> None:
         """Test hard deleting a user."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -469,7 +465,7 @@ class TestRepositoryErrorHandling:
         return await tenant_repo.create_tenant(name="Test Tenant", slug="test-tenant")
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_user(self, test_session, sample_tenant):
+    async def test_get_nonexistent_user(self, test_session, sample_tenant) -> None:
         """Test getting a nonexistent user."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -479,7 +475,7 @@ class TestRepositoryErrorHandling:
         assert user is None
 
     @pytest.mark.asyncio
-    async def test_update_nonexistent_user(self, test_session, sample_tenant):
+    async def test_update_nonexistent_user(self, test_session, sample_tenant) -> None:
         """Test updating a nonexistent user."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -489,7 +485,7 @@ class TestRepositoryErrorHandling:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_user(self, test_session, sample_tenant):
+    async def test_delete_nonexistent_user(self, test_session, sample_tenant) -> None:
         """Test deleting a nonexistent user."""
         repo = UserRepository(test_session, sample_tenant.id)
 

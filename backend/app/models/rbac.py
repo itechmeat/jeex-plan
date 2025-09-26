@@ -2,28 +2,31 @@
 Role-Based Access Control (RBAC) models for project-level permissions.
 """
 
+from enum import Enum
+
 from sqlalchemy import (
-    Column,
-    String,
     Boolean,
+    Column,
+    DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
+    String,
+    Table,
     Text,
     UniqueConstraint,
-    Table,
-    DateTime,
-    ForeignKeyConstraint,
     and_,
 )
-from sqlalchemy.orm import relationship, foreign
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
-from .base import BaseModel, Base
+from sqlalchemy.orm import foreign, relationship
+
+from .base import Base, BaseModel
 from .project import Project
 from .user import User
 
 
 class ProjectRole(str, Enum):
     """Project role enumeration."""
+
     OWNER = "OWNER"
     EDITOR = "EDITOR"
     VIEWER = "VIEWER"
@@ -31,6 +34,7 @@ class ProjectRole(str, Enum):
 
 class Permission(str, Enum):
     """Permission enumeration."""
+
     # Project permissions
     PROJECT_READ = "PROJECT_READ"
     PROJECT_WRITE = "PROJECT_WRITE"
@@ -57,20 +61,24 @@ class Permission(str, Enum):
 
 # Association table for many-to-many relationship between roles and permissions
 role_permissions = Table(
-    'role_permissions',
+    "role_permissions",
     Base.metadata,
-    Column('tenant_id', UUID(as_uuid=True), ForeignKey('tenants.id', ondelete='CASCADE'), primary_key=True, nullable=False),
-    Column('role_id', UUID(as_uuid=True), nullable=False, primary_key=True),
-    Column('permission_id', UUID(as_uuid=True), nullable=False, primary_key=True),
+    Column(
+        "tenant_id",
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    ),
+    Column("role_id", UUID(as_uuid=True), nullable=False, primary_key=True),
+    Column("permission_id", UUID(as_uuid=True), nullable=False, primary_key=True),
     ForeignKeyConstraint(
-        ['tenant_id', 'role_id'],
-        ['roles.tenant_id', 'roles.id'],
-        ondelete='CASCADE'
+        ["tenant_id", "role_id"], ["roles.tenant_id", "roles.id"], ondelete="CASCADE"
     ),
     ForeignKeyConstraint(
-        ['tenant_id', 'permission_id'],
-        ['permissions.tenant_id', 'permissions.id'],
-        ondelete='CASCADE'
+        ["tenant_id", "permission_id"],
+        ["permissions.tenant_id", "permissions.id"],
+        ondelete="CASCADE",
     ),
 )
 
@@ -83,7 +91,9 @@ class Role(BaseModel):
     name = Column(String(100), nullable=False)
     display_name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    is_system = Column(Boolean, default=False, nullable=False)  # System roles cannot be deleted
+    is_system = Column(
+        Boolean, default=False, nullable=False
+    )  # System roles cannot be deleted
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Relationships
@@ -130,7 +140,9 @@ class PermissionModel(BaseModel):
     description = Column(Text, nullable=True)
     resource_type = Column(String(50), nullable=False)  # project, document, agent, etc.
     action = Column(String(50), nullable=False)  # read, write, delete, admin, execute
-    is_system = Column(Boolean, default=False, nullable=False)  # System permissions cannot be deleted
+    is_system = Column(
+        Boolean, default=False, nullable=False
+    )  # System permissions cannot be deleted
 
     # Relationships
     roles = relationship(
@@ -209,23 +221,28 @@ class ProjectMember(BaseModel):
 
     __table_args__ = (
         ForeignKeyConstraint(
-            ['tenant_id', 'project_id'],
-            ['projects.tenant_id', 'projects.id'],
-            ondelete='CASCADE'
+            ["tenant_id", "project_id"],
+            ["projects.tenant_id", "projects.id"],
+            ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ['tenant_id', 'user_id'],
-            ['users.tenant_id', 'users.id'],
-            ondelete='CASCADE'
+            ["tenant_id", "user_id"],
+            ["users.tenant_id", "users.id"],
+            ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ['tenant_id', 'role_id'],
-            ['roles.tenant_id', 'roles.id'],
-            ondelete='CASCADE'
+            ["tenant_id", "role_id"],
+            ["roles.tenant_id", "roles.id"],
+            ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ['tenant_id', 'invited_by_id'],
-            ['users.tenant_id', 'users.id'],
+            ["tenant_id", "invited_by_id"],
+            ["users.tenant_id", "users.id"],
         ),
-        UniqueConstraint("tenant_id", "project_id", "user_id", name="uq_project_member_tenant_project_user"),
+        UniqueConstraint(
+            "tenant_id",
+            "project_id",
+            "user_id",
+            name="uq_project_member_tenant_project_user",
+        ),
     )

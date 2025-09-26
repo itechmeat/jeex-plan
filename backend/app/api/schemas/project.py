@@ -3,7 +3,7 @@ Project management API schemas.
 """
 
 from datetime import datetime
-from typing import List, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -11,13 +11,13 @@ class ProjectBase(BaseModel):
     """Base project schema with common fields"""
 
     name: str = Field(..., min_length=2, max_length=100, description="Project name")
-    language: Optional[str] = Field(
+    language: str | None = Field(
         default="en", description="Project language code (ISO 639-1)"
     )
 
     @field_validator("language")
     @classmethod
-    def validate_language(cls, v: Optional[str]) -> str:
+    def validate_language(cls, v: str | None) -> str:
         """Validate language code format"""
         if v and len(v) != 2:
             raise ValueError("Language code must be 2 characters (ISO 639-1)")
@@ -37,16 +37,14 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(BaseModel):
     """Project update schema"""
 
-    name: Optional[str] = Field(
+    name: str | None = Field(
         None, min_length=2, max_length=100, description="Project name"
     )
-    language: Optional[str] = Field(
-        None, description="Project language code (ISO 639-1)"
-    )
+    language: str | None = Field(None, description="Project language code (ISO 639-1)")
 
     @field_validator("language")
     @classmethod
-    def validate_language(cls, v: Optional[str]) -> Optional[str]:
+    def validate_language(cls, v: str | None) -> str | None:
         """Validate language code format"""
         if v and len(v) != 2:
             raise ValueError("Language code must be 2 characters (ISO 639-1)")
@@ -78,8 +76,8 @@ class StepProgress(BaseModel):
         ..., description="Step status (pending, processing, completed, failed)"
     )
     progress: int = Field(..., ge=0, le=100, description="Progress percentage")
-    document_id: Optional[str] = Field(None, description="Associated document ID")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    document_id: str | None = Field(None, description="Associated document ID")
+    error_message: str | None = Field(None, description="Error message if failed")
 
     model_config = {
         "json_schema_extra": {
@@ -103,8 +101,8 @@ class ProjectResponse(ProjectBase):
     current_step: int = Field(..., ge=1, le=4, description="Current step number")
     created_at: datetime = Field(..., description="Project creation timestamp")
     updated_at: datetime = Field(..., description="Project last update timestamp")
-    documents: List[DocumentInfo] = Field(default=[], description="Project documents")
-    steps_completed: List[int] = Field(default=[], description="Completed step numbers")
+    documents: list[DocumentInfo] = Field(default=[], description="Project documents")
+    steps_completed: list[int] = Field(default=[], description="Completed step numbers")
 
     model_config = {
         "json_schema_extra": {
@@ -213,8 +211,8 @@ class ExportResponse(BaseModel):
     export_id: str = Field(..., description="Export identifier")
     project_id: str = Field(..., description="Project identifier")
     status: str = Field(..., description="Export status")
-    download_url: Optional[str] = Field(None, description="Download URL when ready")
-    expires_at: Optional[datetime] = Field(None, description="Export expiration time")
+    download_url: str | None = Field(None, description="Download URL when ready")
+    expires_at: datetime | None = Field(None, description="Export expiration time")
     created_at: datetime = Field(..., description="Export creation timestamp")
 
     model_config = {
@@ -236,13 +234,11 @@ class ExportResponse(BaseModel):
 class StepInput(BaseModel):
     """Step input data schema"""
 
-    idea_description: Optional[str] = Field(
-        None, description="Initial idea description"
-    )
-    user_clarifications: Optional[dict] = Field(None, description="User clarifications")
-    target_audience: Optional[str] = Field(None, description="Target audience")
-    requirements: Optional[dict] = Field(None, description="Project requirements")
-    constraints: Optional[dict] = Field(None, description="Project constraints")
+    idea_description: str | None = Field(None, description="Initial idea description")
+    user_clarifications: dict | None = Field(None, description="User clarifications")
+    target_audience: str | None = Field(None, description="Target audience")
+    requirements: dict | None = Field(None, description="Project requirements")
+    constraints: dict | None = Field(None, description="Project constraints")
 
     model_config = {
         "json_schema_extra": {

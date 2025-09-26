@@ -3,8 +3,10 @@ Solution Architect agent contracts.
 Handles technical architecture, technology stack, and system design.
 """
 
-from typing import Dict, List, Optional, Any, ClassVar
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, ClassVar
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from .base import AgentInput, AgentOutput
 
 
@@ -14,18 +16,18 @@ class SolutionArchitectInput(AgentInput):
     project_description: str = Field(
         ..., description="Complete project description from Business Analyst"
     )
-    engineering_standards: Optional[str] = Field(
+    engineering_standards: str | None = Field(
         None, description="Engineering standards and specifications from previous step"
     )
-    user_tech_preferences: Optional[Dict[str, Any]] = Field(
+    user_tech_preferences: dict[str, Any] | None = Field(
         None, description="User's technology preferences or constraints"
     )
-    scalability_requirements: Optional[str] = Field(
+    scalability_requirements: str | None = Field(
         None, description="Scalability requirements"
     )
-    team_size: Optional[int] = Field(None, description="Development team size")
-    timeline: Optional[str] = Field(None, description="Project timeline constraints")
-    budget_constraints: Optional[str] = Field(None, description="Budget limitations")
+    team_size: int | None = Field(None, description="Development team size")
+    timeline: str | None = Field(None, description="Project timeline constraints")
+    budget_constraints: str | None = Field(None, description="Budget limitations")
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
@@ -38,10 +40,10 @@ class TechnologyChoice(BaseModel):
         ..., description="Technology category (frontend, backend, database, etc.)"
     )
     rationale: str = Field(..., description="Why this technology was chosen")
-    alternatives: List[str] = Field(
+    alternatives: list[str] = Field(
         default_factory=list, description="Alternative options considered"
     )
-    trade_offs: Dict[str, str] = Field(
+    trade_offs: dict[str, str] = Field(
         default_factory=dict, description="Trade-offs and considerations"
     )
 
@@ -49,7 +51,7 @@ class TechnologyChoice(BaseModel):
 class SolutionArchitectOutput(AgentOutput):
     """Output from Solution Architect agent."""
 
-    technology_stack: List[TechnologyChoice] = Field(
+    technology_stack: list[TechnologyChoice] = Field(
         ..., description="Recommended technology stack"
     )
     architecture_pattern: str = Field(..., description="Chosen architecture pattern")
@@ -62,13 +64,13 @@ class SolutionArchitectOutput(AgentOutput):
     scalability_plan: str = Field(
         ..., description="Scalability and performance considerations"
     )
-    security_considerations: List[str] = Field(
+    security_considerations: list[str] = Field(
         ..., description="Security requirements and measures"
     )
     deployment_strategy: str = Field(
         ..., description="Deployment and infrastructure strategy"
     )
-    technical_risks: List[str] = Field(
+    technical_risks: list[str] = Field(
         ..., description="Technical risks and mitigation strategies"
     )
 

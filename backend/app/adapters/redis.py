@@ -3,25 +3,30 @@ Redis adapter for caching, rate limiting, and queue management.
 """
 
 import json
-from typing import Any, Optional, List, Dict
+from typing import Any, TypeAlias
+
 import redis.asyncio as redis
 from redis.exceptions import RedisError
 
 from app.core.config import settings
-from app.core.logger import get_logger, LoggerMixin
+from app.core.logger import LoggerMixin, get_logger
 
 logger = get_logger(__name__)
+
+
+JSONScalar: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONScalar | dict[str, "JSONValue"] | list["JSONValue"]
 
 
 class RedisAdapter(LoggerMixin):
     """Redis adapter with async support for caching and queuing"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.client = None
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize Redis client connection"""
         try:
             redis_settings = settings.get_redis_settings()
@@ -32,14 +37,14 @@ class RedisAdapter(LoggerMixin):
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
-                retry_on_timeout=True
+                retry_on_timeout=True,
             )
             logger.info("Redis client initialized", host=redis_settings["host"])
-        except Exception as e:
-            logger.error("Failed to initialize Redis client", error=str(e))
+        except (RedisError, OSError) as exc:
+            logger.error("Failed to initialize Redis client", error=str(exc))
             raise
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Redis service health"""
         try:
             # Test basic connectivity
@@ -54,25 +59,25 @@ class RedisAdapter(LoggerMixin):
                         "redis_version": info.get("redis_version", "unknown"),
                         "connected_clients": info.get("connected_clients", 0),
                         "used_memory": info.get("used_memory_human", "N/A"),
-                        "uptime": info.get("uptime_in_seconds", 0)
-                    }
+                        "uptime": info.get("uptime_in_seconds", 0),
+                    },
                 }
             else:
                 return {
                     "status": "unhealthy",
                     "message": "Redis ping failed",
-                    "details": {}
+                    "details": {},
                 }
 
-        except Exception as e:
-            logger.error("Redis health check failed", error=str(e))
+        except (RedisError, OSError) as exc:
+            logger.error("Redis health check failed", error=str(exc))
             return {
                 "status": "unhealthy",
-                "message": f"Redis connection failed: {str(e)}",
-                "details": {"error": str(e)}
+                "message": f"Redis connection failed: {exc!s}",
+                "details": {"error": str(exc)},
             }
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """Get value from Redis"""
         try:
             return await self.client.get(key)
@@ -81,11 +86,7 @@ class RedisAdapter(LoggerMixin):
             return None
 
     async def set(
-        self,
-        key: str,
-        value: str,
-        ex: Optional[int] = None,
-        px: Optional[int] = None
+        self, key: str, value: str, ex: int | None = None, px: int | None = None
     ) -> bool:
         """Set value in Redis with optional expiration"""
         try:
@@ -127,7 +128,7 @@ class RedisAdapter(LoggerMixin):
             logger.error("Redis EXPIRE failed", key=key, error=str(e))
             return False
 
-    async def incr(self, key: str) -> Optional[int]:
+    async def incr(self, key: str) -> int | None:
         """Increment value"""
         try:
             return await self.client.incr(key)
@@ -135,7 +136,7 @@ class RedisAdapter(LoggerMixin):
             logger.error("Redis INCR failed", key=key, error=str(e))
             return None
 
-    async def decr(self, key: str) -> Optional[int]:
+    async def decr(self, key: str) -> int | None:
         """Decrement value"""
         try:
             return await self.client.decr(key)
@@ -144,7 +145,7 @@ class RedisAdapter(LoggerMixin):
             return None
 
     # Set operations
-    async def smembers(self, key: str) -> List[str]:
+    async def smembers(self, key: str) -> list[str]:
         """Get all members of a set"""
         try:
             result = await self.client.smembers(key)
@@ -170,7 +171,7 @@ class RedisAdapter(LoggerMixin):
             return 0
 
     # JSON operations
-    async def get_json(self, key: str) -> Optional[Dict[str, Any]]:
+    async def get_json(self, key: str) -> JSONValue | None:
         """Get JSON value from Redis"""
         try:
             value = await self.client.get(key)
@@ -179,12 +180,7 @@ class RedisAdapter(LoggerMixin):
             logger.error("Redis GET JSON failed", key=key, error=str(e))
             return None
 
-    async def set_json(
-        self,
-        key: str,
-        value: Dict[str, Any],
-        ex: Optional[int] = None
-    ) -> bool:
+    async def set_json(self, key: str, value: JSONValue, ex: int | None = None) -> bool:
         """Set JSON value in Redis"""
         try:
             json_value = json.dumps(value)
@@ -195,11 +191,8 @@ class RedisAdapter(LoggerMixin):
 
     # Rate limiting operations
     async def check_rate_limit(
-        self,
-        key: str,
-        limit: int,
-        window: int
-    ) -> Dict[str, Any]:
+        self, key: str, limit: int, window: int
+    ) -> dict[str, Any]:
         """
         Check and update rate limit using sliding window algorithm.
 
@@ -232,7 +225,7 @@ class RedisAdapter(LoggerMixin):
                     "current": current_count,
                     "limit": limit,
                     "reset_time": reset_time,
-                    "remaining": 0
+                    "remaining": 0,
                 }
 
             # Add current request
@@ -244,7 +237,7 @@ class RedisAdapter(LoggerMixin):
                 "current": current_count + 1,
                 "limit": limit,
                 "reset_time": current_time + window,
-                "remaining": limit - (current_count + 1)
+                "remaining": limit - (current_count + 1),
             }
 
         except RedisError as e:
@@ -256,20 +249,22 @@ class RedisAdapter(LoggerMixin):
                 "limit": limit,
                 "reset_time": 0,
                 "remaining": limit,
-                "error": "Rate limiting service unavailable"
+                "error": "Rate limiting service unavailable",
             }
 
     # Queue operations
-    async def enqueue(self, queue_name: str, value: Any) -> bool:
+    async def enqueue(self, queue_name: str, value: JSONValue) -> bool:
         """Add item to queue"""
         try:
-            serialized_value = json.dumps(value) if not isinstance(value, str) else value
+            serialized_value = (
+                json.dumps(value) if not isinstance(value, str) else value
+            )
             return await self.client.lpush(queue_name, serialized_value)
         except RedisError as e:
             logger.error("Queue ENQUEUE failed", queue=queue_name, error=str(e))
             return False
 
-    async def dequeue(self, queue_name: str, timeout: int = 30) -> Optional[Any]:
+    async def dequeue(self, queue_name: str, timeout: int = 30) -> JSONValue | None:
         """Get item from queue with timeout"""
         try:
             result = await self.client.brpop(queue_name, timeout=timeout)
@@ -294,22 +289,15 @@ class RedisAdapter(LoggerMixin):
 
     # Cache operations with tenant isolation
     async def cache_get(
-        self,
-        tenant_id: str,
-        cache_key: str,
-        default: Any = None
-    ) -> Any:
+        self, tenant_id: str, cache_key: str, default: JSONValue | None = None
+    ) -> JSONValue | None:
         """Get cached value with tenant isolation"""
         isolated_key = f"tenant:{tenant_id}:{cache_key}"
         value = await self.get_json(isolated_key)
         return value if value is not None else default
 
     async def cache_set(
-        self,
-        tenant_id: str,
-        cache_key: str,
-        value: Any,
-        ex: Optional[int] = None
+        self, tenant_id: str, cache_key: str, value: JSONValue, ex: int | None = None
     ) -> bool:
         """Set cached value with tenant isolation"""
         isolated_key = f"tenant:{tenant_id}:{cache_key}"
@@ -322,38 +310,27 @@ class RedisAdapter(LoggerMixin):
 
     # Progress tracking
     async def set_progress(
-        self,
-        tenant_id: str,
-        project_id: str,
-        step: int,
-        progress_data: Dict[str, Any]
+        self, tenant_id: str, project_id: str, step: int, progress_data: dict[str, Any]
     ) -> bool:
         """Set progress data for project step"""
         key = f"progress:{tenant_id}:{project_id}:{step}"
         return await self.set_json(key, progress_data, ex=3600)  # 1 hour expiry
 
     async def get_progress(
-        self,
-        tenant_id: str,
-        project_id: str,
-        step: int
-    ) -> Optional[Dict[str, Any]]:
+        self, tenant_id: str, project_id: str, step: int
+    ) -> dict[str, Any] | None:
         """Get progress data for project step"""
         key = f"progress:{tenant_id}:{project_id}:{step}"
         return await self.get_json(key)
 
     # Tenant management
-    async def get_tenant_stats(self, tenant_id: str) -> Dict[str, Any]:
+    async def get_tenant_stats(self, tenant_id: str) -> dict[str, Any]:
         """Get tenant usage statistics"""
         try:
             pattern = f"tenant:{tenant_id}:*"
             keys = await self.client.keys(pattern)
 
-            stats = {
-                "cache_keys": len(keys),
-                "memory_usage": 0,
-                "active_projects": 0
-            }
+            stats = {"cache_keys": len(keys), "memory_usage": 0, "active_projects": 0}
 
             # Count active projects
             progress_pattern = f"progress:{tenant_id}:*"
@@ -368,15 +345,18 @@ class RedisAdapter(LoggerMixin):
             return stats
 
         except RedisError as e:
-            logger.error("Failed to get tenant stats", tenant_id=tenant_id, error=str(e))
+            logger.error(
+                "Failed to get tenant stats", tenant_id=tenant_id, error=str(e)
+            )
             return {"cache_keys": 0, "memory_usage": 0, "active_projects": 0}
 
     def _get_current_timestamp(self) -> float:
         """Get current timestamp"""
         import time
+
         return time.time()
 
-    async def close(self):
+    async def close(self) -> None:
         """Close Redis connection"""
         if self.client:
             await self.client.close()

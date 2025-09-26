@@ -8,15 +8,15 @@ import asyncio
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 # Add parent directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.core.database import DatabaseManager
-from app.core.vault import vault_client
 from app.core.config import get_settings
+from app.core.database import DatabaseManager
 from app.core.logger import get_logger
+from app.core.vault import vault_client
 
 logger = get_logger()
 
@@ -24,11 +24,11 @@ logger = get_logger()
 class HealthChecker:
     """Comprehensive health checker for all application components."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = get_settings()
         self.results = {}
 
-    async def check_database(self) -> Dict[str, Any]:
+    async def check_database(self) -> dict[str, Any]:
         """Check database connectivity and health."""
         logger.info("🔍 Checking database health...")
 
@@ -45,7 +45,10 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
             else:
-                logger.error(f"❌ Database is unhealthy: {health_result.get('message', 'Unknown error')}")
+                logger.error(
+                    "❌ Database is unhealthy",
+                    error=health_result.get("message", "Unknown error"),
+                )
                 return {
                     "status": "unhealthy",
                     "component": "database",
@@ -53,16 +56,16 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
 
-        except Exception as e:
-            logger.error(f"❌ Database health check failed: {e}")
+        except Exception as exc:
+            logger.error("❌ Database health check failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "database",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
-    async def check_vault(self) -> Dict[str, Any]:
+    async def check_vault(self) -> dict[str, Any]:
         """Check Vault connectivity and access to secrets."""
         logger.info("🔍 Checking Vault health...")
 
@@ -98,7 +101,7 @@ class HealthChecker:
                         secret_status[secret_path] = "missing"
                         all_secrets_ok = False
                 except Exception as e:
-                    secret_status[secret_path] = f"error: {str(e)}"
+                    secret_status[secret_path] = f"error: {e!s}"
                     all_secrets_ok = False
 
             if all_secrets_ok:
@@ -124,16 +127,16 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
 
-        except Exception as e:
-            logger.error(f"❌ Vault health check failed: {e}")
+        except Exception as exc:
+            logger.error("❌ Vault health check failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "vault",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
-    async def check_redis(self) -> Dict[str, Any]:
+    async def check_redis(self) -> dict[str, Any]:
         """Check Redis connectivity."""
         logger.info("🔍 Checking Redis health...")
 
@@ -181,23 +184,24 @@ class HealthChecker:
                 "timestamp": time.time()
             }
 
-        except Exception as e:
-            logger.error(f"❌ Redis health check failed: {e}")
+        except Exception as exc:
+            logger.error("❌ Redis health check failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "redis",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
-    async def check_multi_tenant_operations(self) -> Dict[str, Any]:
+    async def check_multi_tenant_operations(self) -> dict[str, Any]:
         """Test multi-tenant database operations."""
         logger.info("🔍 Testing multi-tenant operations...")
 
         try:
+            import uuid
+
             from app.core.database import get_db_session
             from app.repositories.tenant import TenantRepository as TenantsRepository
-            import uuid
 
             async with get_db_session() as session:
                 test_tenant_id = uuid.uuid4()
@@ -224,16 +228,18 @@ class HealthChecker:
                     "timestamp": time.time()
                 }
 
-        except Exception as e:
-            logger.error(f"❌ Multi-tenant operations test failed: {e}")
+        except Exception as exc:
+            logger.error(
+                "❌ Multi-tenant operations test failed", error=str(exc)
+            )
             return {
                 "status": "error",
                 "component": "multi_tenant",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
-    async def check_application_config(self) -> Dict[str, Any]:
+    async def check_application_config(self) -> dict[str, Any]:
         """Check application configuration."""
         logger.info("🔍 Checking application configuration...")
 
@@ -262,7 +268,9 @@ class HealthChecker:
             if status == "healthy":
                 logger.info("✅ Application configuration is healthy")
             else:
-                logger.warning(f"⚠️  Application configuration has issues: {issues}")
+                logger.warning(
+                    "⚠️  Application configuration has issues", issues=issues
+                )
 
             return {
                 "status": status,
@@ -272,16 +280,18 @@ class HealthChecker:
                 "timestamp": time.time()
             }
 
-        except Exception as e:
-            logger.error(f"❌ Application configuration check failed: {e}")
+        except Exception as exc:
+            logger.error(
+                "❌ Application configuration check failed", error=str(exc)
+            )
             return {
                 "status": "error",
                 "component": "application_config",
-                "error": str(e),
+                "error": str(exc),
                 "timestamp": time.time()
             }
 
-    async def run_all_checks(self) -> Dict[str, Any]:
+    async def run_all_checks(self) -> dict[str, Any]:
         """Run all health checks."""
         logger.info("🏥 Starting comprehensive health check...")
 
@@ -340,15 +350,15 @@ class HealthChecker:
             "checks": results
         }
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Cleanup resources."""
         try:
             await vault_client.close()
-        except Exception as e:
-            logger.warning(f"Cleanup warning: {e}")
+        except Exception as exc:
+            logger.warning("Cleanup warning", error=str(exc))
 
 
-async def main():
+async def main() -> None:
     """Main health check function."""
     logger.info("🚀 JEEX Plan Health Check Starting...")
 
@@ -360,7 +370,7 @@ async def main():
         # Print summary
         summary = results["summary"]
         print(f"\n{'='*60}")
-        print(f"🏥 JEEX PLAN HEALTH CHECK SUMMARY")
+        print("🏥 JEEX PLAN HEALTH CHECK SUMMARY")
         print(f"{'='*60}")
         print(f"Overall Status: {summary['overall_status'].upper()}")
         print(f"Healthy Checks: {summary['healthy_checks']}/{summary['total_checks']}")
@@ -385,20 +395,20 @@ async def main():
 
         # Exit with appropriate code
         if summary["overall_status"] == "healthy":
-            print(f"\n🎉 All systems healthy!")
+            print("\n🎉 All systems healthy!")
             exit_code = 0
         elif summary["overall_status"] == "degraded":
-            print(f"\n⚠️  System degraded but functional")
+            print("\n⚠️  System degraded but functional")
             exit_code = 1
         else:
-            print(f"\n❌ System unhealthy!")
+            print("\n❌ System unhealthy!")
             exit_code = 2
 
         await checker.cleanup()
         sys.exit(exit_code)
 
-    except Exception as e:
-        logger.error(f"❌ Health check failed: {e}")
+    except Exception as exc:
+        logger.error("❌ Health check failed", error=str(exc))
         await checker.cleanup()
         sys.exit(3)
 

@@ -1,10 +1,7 @@
 reviews:
-  path_filters:
-    - "frontend/**"
-    - "!backend/**"
   path_instructions:
     - path: "frontend/**/*.tsx"
-      instructions: "Focus on React component structure, hooks usage, and TypeScript types. Pay attention to accessibility and performance."
+      instructions: "Focus on React component structure, hooks usage, and TypeScript types. Pay attention to codestyle and performance."
     - path: "frontend/**/*.ts"
       instructions: "Review TypeScript code for proper typing, interfaces, and service implementations."
     - path: "frontend/**/*.scss"

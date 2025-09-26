@@ -2,20 +2,22 @@
 Test Vault integration for Epic 01 - Secrets management.
 """
 
-import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
 import scripts.init_vault as init_vault_script
 from app.core.config import Settings, VaultSettings
 from app.core.vault import (
-    VaultClient,
     DEV_PLACEHOLDER_TOKEN,
-    get_vault_client,
+    VaultClient,
     get_jwt_secret,
     get_oauth_secrets,
+    get_vault_client,
+    init_vault_secrets,
     rotate_jwt_secret,
     store_oauth_config,
-    init_vault_secrets
 )
 
 
@@ -28,14 +30,14 @@ class TestVaultClient:
         return VaultClient(vault_url="http://test-vault:8200", vault_token="test-token")
 
     @pytest.mark.asyncio
-    async def test_vault_client_initialization(self, vault_client):
+    async def test_vault_client_initialization(self, vault_client) -> None:
         """Test VaultClient initialization."""
         assert vault_client.vault_url == "http://test-vault:8200"
         assert vault_client.vault_token == "test-token"
         assert vault_client.timeout == 10
 
     @pytest.mark.asyncio
-    async def test_vault_client_placeholder_token_in_development(self, monkeypatch):
+    async def test_vault_client_placeholder_token_in_development(self, monkeypatch) -> None:
         """VaultClient uses placeholder token when missing in development."""
         monkeypatch.setenv("ENVIRONMENT", "development")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
@@ -45,7 +47,7 @@ class TestVaultClient:
         assert client.vault_token == DEV_PLACEHOLDER_TOKEN
 
     @pytest.mark.asyncio
-    async def test_vault_client_requires_token_outside_development(self, monkeypatch):
+    async def test_vault_client_requires_token_outside_development(self, monkeypatch) -> None:
         """VaultClient raises when VAULT_TOKEN is absent in non-dev env."""
         monkeypatch.setenv("ENVIRONMENT", "production")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
@@ -55,7 +57,7 @@ class TestVaultClient:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_health_check_success(self, mock_client, vault_client):
+    async def test_health_check_success(self, mock_client, vault_client) -> None:
         """Test successful health check."""
         # Mock the response
         mock_response = AsyncMock()
@@ -72,7 +74,7 @@ class TestVaultClient:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_health_check_failure(self, mock_client, vault_client):
+    async def test_health_check_failure(self, mock_client, vault_client) -> None:
         """Test failed health check."""
         # Mock the response
         mock_response = AsyncMock()
@@ -89,7 +91,7 @@ class TestVaultClient:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_put_secret_success(self, mock_client, vault_client):
+    async def test_put_secret_success(self, mock_client, vault_client) -> None:
         """Test successfully storing a secret."""
         # Mock the response
         mock_response = AsyncMock()
@@ -109,7 +111,7 @@ class TestVaultClient:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_get_secret_success(self, mock_client, vault_client):
+    async def test_get_secret_success(self, mock_client, vault_client) -> None:
         """Test successfully retrieving a secret."""
         # Mock the response
         mock_response = AsyncMock()
@@ -137,7 +139,7 @@ class TestVaultClient:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_get_secret_not_found(self, mock_client, vault_client):
+    async def test_get_secret_not_found(self, mock_client, vault_client) -> None:
         """Test retrieving a nonexistent secret."""
         # Mock the response
         mock_response = AsyncMock()
@@ -154,7 +156,7 @@ class TestVaultClient:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_delete_secret_success(self, mock_client, vault_client):
+    async def test_delete_secret_success(self, mock_client, vault_client) -> None:
         """Test successfully deleting a secret."""
         # Mock the response
         mock_response = AsyncMock()
@@ -171,7 +173,7 @@ class TestVaultClient:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_list_secrets_success(self, mock_client, vault_client):
+    async def test_list_secrets_success(self, mock_client, vault_client) -> None:
         """Test successfully listing secrets."""
         # Mock the response
         mock_response = AsyncMock()
@@ -202,7 +204,7 @@ class TestVaultHelperFunctions:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.get_secret')
-    async def test_get_jwt_secret_success(self, mock_get_secret):
+    async def test_get_jwt_secret_success(self, mock_get_secret) -> None:
         """Test successfully getting JWT secret."""
         mock_get_secret.return_value = {
             "secret_key": "test-jwt-secret",
@@ -215,7 +217,7 @@ class TestVaultHelperFunctions:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.get_secret')
-    async def test_get_jwt_secret_not_found(self, mock_get_secret):
+    async def test_get_jwt_secret_not_found(self, mock_get_secret) -> None:
         """Test getting JWT secret when not found."""
         mock_get_secret.return_value = None
 
@@ -224,7 +226,7 @@ class TestVaultHelperFunctions:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.get_secret')
-    async def test_get_oauth_secrets_success(self, mock_get_secret):
+    async def test_get_oauth_secrets_success(self, mock_get_secret) -> None:
         """Test successfully getting OAuth secrets."""
         mock_get_secret.return_value = {
             "client_id": "test-client-id",
@@ -239,7 +241,7 @@ class TestVaultHelperFunctions:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.get_secret')
-    async def test_get_oauth_secrets_not_found(self, mock_get_secret):
+    async def test_get_oauth_secrets_not_found(self, mock_get_secret) -> None:
         """Test getting OAuth secrets when not found."""
         mock_get_secret.return_value = None
 
@@ -249,7 +251,7 @@ class TestVaultHelperFunctions:
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.get_secret')
     @patch('app.core.vault.vault_client.put_secret')
-    async def test_rotate_jwt_secret_success(self, mock_put_secret, mock_get_secret):
+    async def test_rotate_jwt_secret_success(self, mock_put_secret, mock_get_secret) -> None:
         """Test successfully rotating JWT secret."""
         mock_get_secret.return_value = {
             "secret_key": "old-secret",
@@ -273,7 +275,7 @@ class TestVaultHelperFunctions:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.get_secret')
-    async def test_rotate_jwt_secret_no_existing(self, mock_get_secret):
+    async def test_rotate_jwt_secret_no_existing(self, mock_get_secret) -> None:
         """Test rotating JWT secret when no existing secret."""
         mock_get_secret.return_value = None
 
@@ -282,7 +284,7 @@ class TestVaultHelperFunctions:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.put_secret')
-    async def test_store_oauth_config_success(self, mock_put_secret):
+    async def test_store_oauth_config_success(self, mock_put_secret) -> None:
         """Test successfully storing OAuth configuration."""
         mock_put_secret.return_value = True
 
@@ -305,7 +307,7 @@ class TestVaultHelperFunctions:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.put_secret')
-    async def test_store_oauth_config_minimal(self, mock_put_secret):
+    async def test_store_oauth_config_minimal(self, mock_put_secret) -> None:
         """Test storing OAuth configuration with minimal data."""
         mock_put_secret.return_value = True
 
@@ -330,19 +332,13 @@ class TestVaultInitialization:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.vault_client.put_secret')
-    async def test_init_vault_secrets(self, mock_put_secret):
+    async def test_init_vault_secrets(self, mock_put_secret) -> None:
         """Test initializing Vault secrets."""
         mock_put_secret.return_value = True
 
         await init_vault_secrets()
 
         # Verify all expected secrets were stored
-        expected_calls = [
-            (("database/postgres",), {}),
-            (("cache/redis",), {}),
-            (("auth/jwt",), {}),
-            (("ai/openai",), {}),
-        ]
 
         assert mock_put_secret.call_count == 4
 
@@ -367,7 +363,7 @@ class TestDatabaseSecretSetup:
     @pytest.mark.asyncio
     @patch('scripts.init_vault.vault_client.put_secret', new_callable=AsyncMock)
     @patch('scripts.init_vault.get_settings')
-    async def test_setup_database_secrets_normalizes_asyncpg(self, mock_get_settings, mock_put_secret):
+    async def test_setup_database_secrets_normalizes_asyncpg(self, mock_get_settings, mock_put_secret) -> None:
         """Ensure asyncpg URLs are parsed and stored correctly."""
         mock_get_settings.return_value = SimpleNamespace(
             DATABASE_URL="postgresql+asyncpg://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
@@ -393,7 +389,7 @@ class TestDatabaseSecretSetup:
     @pytest.mark.asyncio
     @patch('scripts.init_vault.vault_client.put_secret', new_callable=AsyncMock)
     @patch('scripts.init_vault.get_settings')
-    async def test_setup_database_secrets_defaults_when_missing(self, mock_get_settings, mock_put_secret):
+    async def test_setup_database_secrets_defaults_when_missing(self, mock_get_settings, mock_put_secret) -> None:
         """Fallback to defaults when URL is missing or invalid."""
         mock_get_settings.return_value = SimpleNamespace(DATABASE_URL="")
         mock_put_secret.return_value = True
@@ -412,11 +408,11 @@ class TestVaultSettingsDatabaseUrl:
     """Ensure Vault settings prefer async URLs when available."""
 
     @pytest.mark.asyncio
-    async def test_get_database_url_prefers_async(self, monkeypatch):
+    async def test_get_database_url_prefers_async(self, monkeypatch) -> None:
         """Return async URL when both async and canonical URLs are stored."""
         vault_settings = VaultSettings(Settings(USE_VAULT=True))
 
-        async def fake_get_secret(self, path: str, use_cache: bool = True):
+        async def fake_get_secret(self, path: str, *, use_cache: bool = True):
             return {
                 "async_url": "postgresql+asyncpg://agent:p%40ss@db:5432/jeex",
                 "url": "postgresql://agent:p%40ss@db:5432/jeex",
@@ -429,11 +425,11 @@ class TestVaultSettingsDatabaseUrl:
         assert result == "postgresql+asyncpg://agent:p%40ss@db:5432/jeex"
 
     @pytest.mark.asyncio
-    async def test_get_database_url_falls_back_to_url(self, monkeypatch):
+    async def test_get_database_url_falls_back_to_url(self, monkeypatch) -> None:
         """Return canonical URL when async URL is absent."""
         vault_settings = VaultSettings(Settings(USE_VAULT=True))
 
-        async def fake_get_secret(self, path: str, use_cache: bool = True):
+        async def fake_get_secret(self, path: str, *, use_cache: bool = True):
             return {
                 "url": "postgresql://agent:p%40ss@db:5432/jeex",
                 "username": "agent",
@@ -454,7 +450,7 @@ class TestVaultDependencyInjection:
     """Test Vault dependency injection."""
 
     @pytest.mark.asyncio
-    async def test_get_vault_client(self):
+    async def test_get_vault_client(self) -> None:
         """Test getting Vault client through dependency injection."""
         client = await get_vault_client()
         assert client is not None
@@ -471,7 +467,7 @@ class TestVaultErrorHandling:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_put_secret_error(self, mock_client, vault_client):
+    async def test_put_secret_error(self, mock_client, vault_client) -> None:
         """Test error handling when storing a secret fails."""
         # Mock an exception
         mock_client_instance = AsyncMock()
@@ -485,7 +481,7 @@ class TestVaultErrorHandling:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_get_secret_error(self, mock_client, vault_client):
+    async def test_get_secret_error(self, mock_client, vault_client) -> None:
         """Test error handling when retrieving a secret fails."""
         # Mock an exception
         mock_client_instance = AsyncMock()
@@ -499,7 +495,7 @@ class TestVaultErrorHandling:
 
     @pytest.mark.asyncio
     @patch('app.core.vault.httpx.AsyncClient')
-    async def test_health_check_exception(self, mock_client, vault_client):
+    async def test_health_check_exception(self, mock_client, vault_client) -> None:
         """Test health check when an exception occurs."""
         # Mock an exception
         mock_client_instance = AsyncMock()
@@ -516,7 +512,7 @@ class TestVaultClientLifecycle:
     """Test Vault client lifecycle management."""
 
     @pytest.mark.asyncio
-    async def test_client_close(self, monkeypatch):
+    async def test_client_close(self, monkeypatch) -> None:
         """Test closing Vault client."""
         monkeypatch.setenv("ENVIRONMENT", "development")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
@@ -538,7 +534,7 @@ class TestVaultClientLifecycle:
             mock_client_instance.aclose.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_client_reuse(self, monkeypatch):
+    async def test_client_reuse(self, monkeypatch) -> None:
         """Test that client instances are reused."""
         monkeypatch.setenv("ENVIRONMENT", "development")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
@@ -550,10 +546,10 @@ class TestVaultClientLifecycle:
 
             # Use the client multiple times
             async with client.client() as c1:
-                pass
+                assert c1 is not None  # Verify client is usable
 
             async with client.client() as c2:
-                pass
+                assert c2 is not None  # Verify client reuse works
 
             # Client should only be created once
             assert mock_client_class.call_count == 1

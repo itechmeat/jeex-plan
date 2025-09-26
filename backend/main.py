@@ -3,14 +3,13 @@ JEEX Plan - Simple Main API Service
 Simplified implementation for Docker container
 """
 
+import time
+from typing import Any
+
+import aiohttp
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import asyncio
-import aiohttp
-import time
-from typing import Dict, Any
-from datetime import datetime
 
 # Import agent routes
 from app.api.routes.agents import router as agents_router
@@ -40,12 +39,15 @@ app.include_router(agents_router, prefix="/api/v1")
 try:
     from app.api.routes.document_generation import router as document_generation_router
     app.include_router(document_generation_router, prefix="/api/v1")
-except ImportError as e:
-    logger.warning(f"Could not import document generation routes: {e}")
+except ImportError as exc:
+    logger.warning(
+        "Could not import document generation routes",
+        extra={'error': str(exc)}
+    )
 
 
 @app.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> dict[str, str]:
     """Root endpoint"""
     return {
         "service": "JEEX Plan API",
@@ -56,7 +58,7 @@ async def root() -> Dict[str, str]:
 
 
 @app.get("/health")
-async def health_check() -> Dict[str, Any]:
+async def health_check() -> dict[str, Any]:
     """Service health check"""
     return {
         "status": "healthy",
@@ -69,7 +71,7 @@ async def health_check() -> Dict[str, Any]:
 
 
 @app.get("/ready")
-async def readiness_check() -> Dict[str, Any]:
+async def readiness_check() -> dict[str, Any]:
     """Service readiness check"""
     return {
         "status": "ready",
@@ -79,7 +81,7 @@ async def readiness_check() -> Dict[str, Any]:
     }
 
 
-async def check_service_health(url: str, timeout: float = 5.0) -> Dict[str, Any]:
+async def check_service_health(url: str, timeout: float = 5.0) -> dict[str, Any]:
     """External service health check"""
     start_time = time.time()
     try:
@@ -98,13 +100,13 @@ async def check_service_health(url: str, timeout: float = 5.0) -> Dict[str, Any]
                         "response_time": response_time,
                         "details": f"HTTP {response.status}"
                     }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {
             "status": "fail",
             "response_time": round((time.time() - start_time) * 1000),
             "details": "Timeout"
         }
-    except Exception as e:
+    except (aiohttp.ClientError, OSError) as e:
         return {
             "status": "fail",
             "response_time": round((time.time() - start_time) * 1000),
@@ -113,7 +115,7 @@ async def check_service_health(url: str, timeout: float = 5.0) -> Dict[str, Any]
 
 
 @app.get("/system/status")
-async def system_status() -> Dict[str, Any]:
+async def system_status() -> dict[str, Any]:
     """System services status check"""
     services = [
         {"name": "API Backend", "endpoint": "http://localhost:8000/health", "url": "http://localhost:8000/health"},
@@ -144,7 +146,7 @@ async def system_status() -> Dict[str, Any]:
 
 
 @app.get("/api/v1/info")
-async def api_info() -> Dict[str, Any]:
+async def api_info() -> dict[str, Any]:
     """API information"""
     return {
         "name": "JEEX Plan API",

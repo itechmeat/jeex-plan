@@ -4,19 +4,21 @@ Handles implementation planning, task breakdown, and project roadmap.
 """
 
 import re
-from typing import Type, Dict, Any, List
+from typing import Any
 
 from ..base.agent_base import AgentBase
-from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
+from ..base.vector_context import vector_context
 from ..contracts.base import (
-    ProjectContext,
     AgentInput,
     AgentOutput,
+    ProjectContext,
     ValidationResult,
+)
+from ..contracts.base import (
     ValidationError as AgentValidationError,
 )
-from ..contracts.project_planner import ProjectPlannerInput, ProjectPlannerOutput, Epic
+from ..contracts.project_planner import Epic, ProjectPlannerInput, ProjectPlannerOutput
 
 
 class ProjectPlannerAgent(AgentBase):
@@ -36,10 +38,10 @@ class ProjectPlannerAgent(AgentBase):
             while considering team capabilities and technical dependencies.""",
         )
 
-    def get_input_model(self) -> Type[AgentInput]:
+    def get_input_model(self) -> type[AgentInput]:
         return ProjectPlannerInput
 
-    def get_output_model(self) -> Type[AgentOutput]:
+    def get_output_model(self) -> type[AgentOutput]:
         return ProjectPlannerOutput
 
     async def validate_input(self, input_data: ProjectPlannerInput) -> None:
@@ -55,10 +57,11 @@ class ProjectPlannerAgent(AgentBase):
                     "has_project_description": bool(input_data.project_description),
                     "description_length": (
                         len(input_data.project_description.strip())
-                        if input_data.project_description else 0
+                        if input_data.project_description
+                        else 0
                     ),
                     "minimum_required_length": 50,
-                }
+                },
             )
 
     async def validate_output(
@@ -116,13 +119,13 @@ for technical projects.
 
 Create practical, actionable plans that teams can execute successfully."""
 
-    async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
+    async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         return await vector_context.get_previous_steps_context(
             context, context.current_step
         )
 
     def _build_task_description(
-        self, input_data: ProjectPlannerInput, context_data: Dict[str, Any]
+        self, input_data: ProjectPlannerInput, context_data: dict[str, Any]
     ) -> str:
         # NOTE: Task description uses basic template
         # Could be enhanced with context-aware prompts
@@ -130,7 +133,7 @@ Create practical, actionable plans that teams can execute successfully."""
         architecture_text = (
             input_data.architecture_overview[:300]
             if input_data.architecture_overview
-            else 'Architecture pending'
+            else "Architecture pending"
         )
 
         return f"""Create a detailed implementation plan for this project:
@@ -147,7 +150,7 @@ Include realistic timelines, dependencies, and risk assessment."""
             "timeline estimates, and risk analysis."
         )
 
-    def _parse_markdown_section(self, content: str, section_name: str) -> List[str]:
+    def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
         pattern = rf"#{1,2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1,2}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
@@ -172,12 +175,14 @@ Include realistic timelines, dependencies, and risk assessment."""
 
         section_content = match.group(1).strip()
         # Remove bullet points and keep paragraph text
-        lines = [line.strip() for line in section_content.split('\n')]
-        paragraphs = [line for line in lines if line and not line.startswith(('-', '*', '+'))]
+        lines = [line.strip() for line in section_content.split("\n")]
+        paragraphs = [
+            line for line in lines if line and not line.startswith(("-", "*", "+"))
+        ]
 
-        return ' '.join(paragraphs) if paragraphs else ""
+        return " ".join(paragraphs) if paragraphs else ""
 
-    def _parse_epics_section(self, content: str) -> List[Epic]:
+    def _parse_epics_section(self, content: str) -> list[Epic]:
         """Parse epics from markdown content."""
         epics = []
 
@@ -188,37 +193,47 @@ Include realistic timelines, dependencies, and risk assessment."""
         for title, epic_content in epic_matches:
             # Extract epic ID from title (e.g., "Epic 01" -> "01")
             epic_id_match = re.search(r"Epic\s+(\d+)", title, re.IGNORECASE)
-            epic_id = epic_id_match.group(1) if epic_id_match else f"epic_{len(epics) + 1}"
+            epic_id = (
+                epic_id_match.group(1) if epic_id_match else f"epic_{len(epics) + 1}"
+            )
 
             # Parse tasks from the epic content
             tasks = self._parse_markdown_section(epic_content, "Tasks")
             if not tasks:
                 # Try alternative patterns for tasks
-                task_bullets = re.findall(r"^[\s]*[-\*\+]\s+(.+)$", epic_content, re.MULTILINE)
+                task_bullets = re.findall(
+                    r"^[\s]*[-\*\+]\s+(.+)$", epic_content, re.MULTILINE
+                )
                 tasks = [task.strip() for task in task_bullets if task.strip()]
 
             # Parse acceptance criteria
-            acceptance_criteria = self._parse_markdown_section(epic_content, "Acceptance Criteria")
+            acceptance_criteria = self._parse_markdown_section(
+                epic_content, "Acceptance Criteria"
+            )
 
             # Extract estimated effort
-            effort_match = re.search(r"Effort[:\s]*([^\n]+)", epic_content, re.IGNORECASE)
+            effort_match = re.search(
+                r"Effort[:\s]*([^\n]+)", epic_content, re.IGNORECASE
+            )
             estimated_effort = effort_match.group(1).strip() if effort_match else "TBD"
 
             epic = Epic(
                 id=f"{epic_id.zfill(2)}-{title.lower().replace(' ', '-')}",
                 title=title,
-                description=epic_content[:200] + "..." if len(epic_content) > 200 else epic_content,
+                description=epic_content[:200] + "..."
+                if len(epic_content) > 200
+                else epic_content,
                 tasks=tasks[:10],  # Limit to first 10 tasks
                 acceptance_criteria=acceptance_criteria,
                 dependencies=[],
                 estimated_effort=estimated_effort,
-                risks=[]
+                risks=[],
             )
             epics.append(epic)
 
         return epics
 
-    def _parse_milestones(self, content: str) -> Dict[str, str]:
+    def _parse_milestones(self, content: str) -> dict[str, str]:
         """Parse milestones into a dictionary."""
         milestones = {}
         milestone_bullets = self._parse_markdown_section(content, "Milestones")
@@ -236,54 +251,52 @@ Include realistic timelines, dependencies, and risk assessment."""
         return milestones
 
     async def _parse_crew_result(
-        self, result: Any, execution_time_ms: int
+        self, result: object, execution_time_ms: int
     ) -> ProjectPlannerOutput:
         content = str(result)
 
         # Parse structured fields from markdown content
         overview_strategy = (
-            self._extract_text_section(content, "Overview") or
-            self._extract_text_section(content, "Strategy") or
-            self._extract_text_section(content, "Implementation Strategy")
+            self._extract_text_section(content, "Overview")
+            or self._extract_text_section(content, "Strategy")
+            or self._extract_text_section(content, "Implementation Strategy")
         )
 
         epics = self._parse_epics_section(content)
 
-        timeline_estimate = (
-            self._extract_text_section(content, "Timeline") or
-            self._extract_text_section(content, "Timeline Estimate")
-        )
+        timeline_estimate = self._extract_text_section(
+            content, "Timeline"
+        ) or self._extract_text_section(content, "Timeline Estimate")
 
         critical_path = self._parse_markdown_section(content, "Critical Path")
 
         milestone_schedule = self._parse_milestones(content)
 
-        resource_requirements = (
-            self._parse_markdown_section(content, "Resource Requirements") or
-            self._parse_markdown_section(content, "Resources")
-        )
+        resource_requirements = self._parse_markdown_section(
+            content, "Resource Requirements"
+        ) or self._parse_markdown_section(content, "Resources")
 
-        quality_gates = (
-            self._parse_markdown_section(content, "Quality Gates") or
-            self._parse_markdown_section(content, "Quality Checkpoints")
-        )
+        quality_gates = self._parse_markdown_section(
+            content, "Quality Gates"
+        ) or self._parse_markdown_section(content, "Quality Checkpoints")
 
-        project_risks = (
-            self._parse_markdown_section(content, "Risks") or
-            self._parse_markdown_section(content, "Project Risks")
-        )
+        project_risks = self._parse_markdown_section(
+            content, "Risks"
+        ) or self._parse_markdown_section(content, "Project Risks")
 
         # Calculate confidence score based on populated sections
-        populated_sections = sum([
-            1 if overview_strategy else 0,
-            1 if epics else 0,
-            1 if timeline_estimate else 0,
-            1 if critical_path else 0,
-            1 if milestone_schedule else 0,
-            1 if resource_requirements else 0,
-            1 if quality_gates else 0,
-            1 if project_risks else 0,
-        ])
+        populated_sections = sum(
+            [
+                1 if overview_strategy else 0,
+                1 if epics else 0,
+                1 if timeline_estimate else 0,
+                1 if critical_path else 0,
+                1 if milestone_schedule else 0,
+                1 if resource_requirements else 0,
+                1 if quality_gates else 0,
+                1 if project_risks else 0,
+            ]
+        )
 
         total_sections = 8
         confidence_score = min(0.95, populated_sections / total_sections)
@@ -324,10 +337,10 @@ Include realistic timelines, dependencies, and risk assessment."""
                         "resource_requirements": len(resource_requirements),
                         "quality_gates": len(quality_gates),
                         "project_risks": len(project_risks),
-                    }
+                    },
                 },
                 missing_sections=missing_sections,
-                suggestions=suggestions
+                suggestions=suggestions,
             ),
             metadata={
                 "execution_time_ms": execution_time_ms,

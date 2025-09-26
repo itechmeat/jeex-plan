@@ -2,16 +2,16 @@
 Workflow Engine for managing agent execution flows.
 """
 
-from typing import Dict, Any, Optional
-from enum import Enum
+from typing import Any
+
+from app.core.logger import get_logger
 
 from ..contracts.base import ProjectContext
 from ..contracts.business_analyst import BusinessAnalystInput
-from ..contracts.solution_architect import SolutionArchitectInput
-from ..contracts.project_planner import ProjectPlannerInput
 from ..contracts.engineering_standards import EngineeringStandardsInput
+from ..contracts.project_planner import ProjectPlannerInput
+from ..contracts.solution_architect import SolutionArchitectInput
 from .orchestrator import WorkflowStep, orchestrator
-from app.core.logger import get_logger
 
 logger = get_logger()
 
@@ -19,16 +19,16 @@ logger = get_logger()
 class WorkflowEngine:
     """Manages workflow execution and step coordination."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = get_logger("workflow_engine")
 
     async def execute_business_analysis(
         self,
         context: ProjectContext,
         idea_description: str,
-        user_clarifications: Optional[Dict[str, Any]] = None,
-        target_audience: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        user_clarifications: dict[str, Any] | None = None,
+        target_audience: str | None = None,
+    ) -> dict[str, Any]:
         """Execute business analysis step."""
         input_data = BusinessAnalystInput(
             context=context,
@@ -61,8 +61,8 @@ class WorkflowEngine:
         context: ProjectContext,
         project_description: str,
         engineering_standards: str,
-        user_tech_preferences: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        user_tech_preferences: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute architecture design step with engineering standards context."""
         input_data = SolutionArchitectInput(
             context=context,
@@ -96,8 +96,8 @@ class WorkflowEngine:
         project_description: str,
         engineering_standards: str,
         architecture_overview: str,
-        team_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        team_size: int | None = None,
+    ) -> dict[str, Any]:
         """Execute implementation planning step with all previous context."""
         input_data = ProjectPlannerInput(
             context=context,
@@ -131,8 +131,8 @@ class WorkflowEngine:
         context: ProjectContext,
         project_description: str,
         technology_stack: list[str],
-        team_experience_level: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        team_experience_level: str | None = None,
+    ) -> dict[str, Any]:
         """Execute engineering standards step."""
         input_data = EngineeringStandardsInput(
             context=context,

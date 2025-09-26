@@ -5,16 +5,23 @@ This service handles the complete pipeline from raw text to optimized embeddings
 including intelligent chunking, deduplication, and batch processing.
 """
 
-import re
+import asyncio
 import hashlib
-from typing import List, Dict, Any, Optional, Tuple, AsyncGenerator
+import re
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
-import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from typing import Any
 
-from app.core.logger import get_logger, LoggerMixin
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 from app.core.config import settings
+from app.core.logger import LoggerMixin, get_logger
 from app.schemas.vector import DocumentType
 
 logger = get_logger(__name__)
@@ -22,27 +29,30 @@ logger = get_logger(__name__)
 
 class ChunkingStrategy(str, Enum):
     """Strategies for text chunking"""
-    PARAGRAPH = "paragraph"      # Split by paragraphs
-    SENTENCE = "sentence"        # Split by sentences
-    FIXED_SIZE = "fixed_size"    # Fixed size chunks with overlap
-    SEMANTIC = "semantic"        # Semantic boundary detection (future)
+
+    PARAGRAPH = "paragraph"  # Split by paragraphs
+    SENTENCE = "sentence"  # Split by sentences
+    FIXED_SIZE = "fixed_size"  # Fixed size chunks with overlap
+    SEMANTIC = "semantic"  # Semantic boundary detection (future)
 
 
 class TextNormalization(str, Enum):
     """Text normalization levels"""
-    MINIMAL = "minimal"          # Basic cleaning only
-    STANDARD = "standard"        # Standard normalization
-    AGGRESSIVE = "aggressive"    # Aggressive normalization for embeddings
+
+    MINIMAL = "minimal"  # Basic cleaning only
+    STANDARD = "standard"  # Standard normalization
+    AGGRESSIVE = "aggressive"  # Aggressive normalization for embeddings
 
 
 @dataclass
 class TextChunk:
     """A chunk of text with metadata"""
+
     text: str
     chunk_index: int
     start_char: int
     end_char: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     hash: str
     confidence_score: float = 1.0
 
@@ -50,12 +60,13 @@ class TextChunk:
 @dataclass
 class EmbeddingResult:
     """Result of embedding computation"""
-    chunks: List[TextChunk]
-    embeddings: List[List[float]]
+
+    chunks: list[TextChunk]
+    embeddings: list[list[float]]
     model_used: str
     processing_time_ms: float
     total_tokens: int
-    deduplication_stats: Dict[str, int]
+    deduplication_stats: dict[str, int]
 
 
 class EmbeddingService(LoggerMixin):
@@ -63,7 +74,7 @@ class EmbeddingService(LoggerMixin):
     Service for computing document embeddings with preprocessing pipeline.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.embedding_model = settings.EMBEDDING_MODEL
         self.max_chunk_size = settings.EMBEDDING_MAX_CHUNK_SIZE
@@ -74,15 +85,14 @@ class EmbeddingService(LoggerMixin):
         self._embedding_client = None
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize the embedding API client"""
         try:
             # Import here to avoid circular dependencies
             from openai import AsyncOpenAI
 
             self._embedding_client = AsyncOpenAI(
-                api_key=settings.OPENAI_API_KEY,
-                base_url=settings.OPENAI_BASE_URL
+                api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL
             )
 
             logger.info("Embedding client initialized", model=self.embedding_model)
@@ -97,7 +107,7 @@ class EmbeddingService(LoggerMixin):
         doc_type: DocumentType = DocumentType.KNOWLEDGE,
         chunking_strategy: ChunkingStrategy = ChunkingStrategy.PARAGRAPH,
         normalization: TextNormalization = TextNormalization.STANDARD,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None,
     ) -> EmbeddingResult:
         """
         Process a complete document through the embedding pipeline.
@@ -120,7 +130,9 @@ class EmbeddingService(LoggerMixin):
             correlation_id=_log_meta.get("correlation_id"),
             tenant_id=_log_meta.get("tenant_id"),
             project_id=_log_meta.get("project_id"),
-            doc_type=str(doc_type.value) if hasattr(doc_type, "value") else str(doc_type),
+            doc_type=str(doc_type.value)
+            if hasattr(doc_type, "value")
+            else str(doc_type),
         )
 
         try:
@@ -129,9 +141,7 @@ class EmbeddingService(LoggerMixin):
 
             # Step 2: Chunk text
             chunks = self._chunk_text(
-                normalized_text,
-                chunking_strategy,
-                metadata or {}
+                normalized_text, chunking_strategy, metadata or {}
             )
 
             # Step 3: Deduplicate chunks
@@ -152,7 +162,7 @@ class EmbeddingService(LoggerMixin):
                 model_used=self.embedding_model,
                 processing_time_ms=processing_time,
                 total_tokens=total_tokens,
-                deduplication_stats=dedup_stats
+                deduplication_stats=dedup_stats,
             )
 
             log.info(
@@ -160,7 +170,7 @@ class EmbeddingService(LoggerMixin):
                 doc_type=doc_type,
                 chunks_count=len(unique_chunks),
                 processing_time_ms=processing_time,
-                total_tokens=total_tokens
+                total_tokens=total_tokens,
             )
 
             return result
@@ -192,11 +202,11 @@ class EmbeddingService(LoggerMixin):
     def _minimal_normalization(self, text: str) -> str:
         """Basic text cleaning"""
         # Normalize line endings first
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         # Collapse spaces/tabs but preserve newlines
-        text = re.sub(r'[^\S\n]+', ' ', text)
+        text = re.sub(r"[^\S\n]+", " ", text)
         # Normalize multiple blank lines to a single blank line
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
         # Trim outer whitespace
         text = text.strip()
         return text
@@ -208,17 +218,19 @@ class EmbeddingService(LoggerMixin):
 
         # Normalize quotes
         text = text.replace('"', '"').replace('"', '"')
-        text = text.replace(''', "'").replace(''', "'")
+        text = text.replace(""", "'").replace(""", "'")
 
         # Normalize common Unicode characters
-        text = text.replace('–', '-').replace('—', '--')
-        text = text.replace('…', '...')
+        text = text.replace("–", "-").replace("—", "--")
+        text = text.replace("…", "...")
 
         # Remove special characters that might interfere with embeddings
-        text = re.sub(r'[^\w\s\.\,\!\?\:\;\-\(\)\[\]\{\}\"\'\/\@\#\$\%\^\&\*\+\=\~\`]', ' ', text)
+        text = re.sub(
+            r"[^\w\s\.\,\!\?\:\;\-\(\)\[\]\{\}\"\'\/\@\#\$\%\^\&\*\+\=\~\`]", " ", text
+        )
 
         # Clean up again after character replacement
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
 
         return text
 
@@ -231,26 +243,29 @@ class EmbeddingService(LoggerMixin):
         # text = text.lower()
 
         # Normalize numbers (replace with special token)
-        text = re.sub(r'\b\d+\b', '<NUM>', text)
+        text = re.sub(r"\b\d+\b", "<NUM>", text)
 
         # Normalize email addresses and URLs
-        text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '<EMAIL>', text)
-        text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '<URL>', text)
+        text = re.sub(
+            r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "<EMAIL>", text
+        )
+        text = re.sub(
+            r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+            "<URL>",
+            text,
+        )
 
         # Remove remaining special characters except basic punctuation
-        text = re.sub(r'[^\w\s\.\,\!\?]', ' ', text)
+        text = re.sub(r"[^\w\s\.\,\!\?]", " ", text)
 
         # Final cleanup
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
 
         return text
 
     def _chunk_text(
-        self,
-        text: str,
-        strategy: ChunkingStrategy,
-        metadata: Dict[str, Any]
-    ) -> List[TextChunk]:
+        self, text: str, strategy: ChunkingStrategy, metadata: dict[str, Any]
+    ) -> list[TextChunk]:
         """
         Chunk text according to specified strategy.
 
@@ -272,10 +287,12 @@ class EmbeddingService(LoggerMixin):
             # Default to paragraph chunking
             return self._chunk_by_paragraphs(text, metadata)
 
-    def _chunk_by_paragraphs(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
+    def _chunk_by_paragraphs(
+        self, text: str, metadata: dict[str, Any]
+    ) -> list[TextChunk]:
         """Chunk text by paragraphs"""
         # Split by double newlines (paragraph breaks)
-        paragraphs = re.split(r'\n\s*\n', text)
+        paragraphs = re.split(r"\n\s*\n", text)
 
         chunks = []
         current_pos = 0
@@ -296,7 +313,7 @@ class EmbeddingService(LoggerMixin):
             chunk_metadata = {
                 **metadata,
                 "chunk_type": "paragraph",
-                "paragraph_index": i
+                "paragraph_index": i,
             }
 
             chunk = TextChunk(
@@ -305,7 +322,7 @@ class EmbeddingService(LoggerMixin):
                 start_char=start_pos,
                 end_char=end_pos,
                 metadata=chunk_metadata,
-                hash=self._compute_hash(paragraph)
+                hash=self._compute_hash(paragraph),
             )
 
             chunks.append(chunk)
@@ -313,10 +330,12 @@ class EmbeddingService(LoggerMixin):
 
         return chunks
 
-    def _chunk_by_sentences(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
+    def _chunk_by_sentences(
+        self, text: str, metadata: dict[str, Any]
+    ) -> list[TextChunk]:
         """Chunk text by sentences"""
         # Simple sentence splitting (in production, use NLP library)
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
 
         chunks = []
         current_pos = 0
@@ -333,7 +352,7 @@ class EmbeddingService(LoggerMixin):
             chunk_metadata = {
                 **metadata,
                 "chunk_type": "sentence",
-                "sentence_index": sentence_index
+                "sentence_index": sentence_index,
             }
 
             chunk = TextChunk(
@@ -342,7 +361,7 @@ class EmbeddingService(LoggerMixin):
                 start_char=start_pos,
                 end_char=end_pos,
                 metadata=chunk_metadata,
-                hash=self._compute_hash(sentence)
+                hash=self._compute_hash(sentence),
             )
 
             chunks.append(chunk)
@@ -351,7 +370,9 @@ class EmbeddingService(LoggerMixin):
 
         return chunks
 
-    def _chunk_by_fixed_size(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
+    def _chunk_by_fixed_size(
+        self, text: str, metadata: dict[str, Any]
+    ) -> list[TextChunk]:
         """Chunk text by fixed size with overlap"""
         chunks = []
         text_length = len(text)
@@ -375,7 +396,7 @@ class EmbeddingService(LoggerMixin):
 
             # Try to end at word boundary
             if end_pos < text_length:
-                last_space = text.rfind(' ', start_pos, end_pos)
+                last_space = text.rfind(" ", start_pos, end_pos)
                 if last_space > start_pos + chunk_size // 2:
                     end_pos = last_space
 
@@ -385,7 +406,7 @@ class EmbeddingService(LoggerMixin):
                 chunk_metadata = {
                     **metadata,
                     "chunk_type": "fixed_size",
-                    "chunk_size": len(chunk_text)
+                    "chunk_size": len(chunk_text),
                 }
 
                 chunk = TextChunk(
@@ -394,7 +415,7 @@ class EmbeddingService(LoggerMixin):
                     start_char=start_pos,
                     end_char=end_pos,
                     metadata=chunk_metadata,
-                    hash=self._compute_hash(chunk_text)
+                    hash=self._compute_hash(chunk_text),
                 )
 
                 chunks.append(chunk)
@@ -402,14 +423,18 @@ class EmbeddingService(LoggerMixin):
 
             # Advance start based on actual chunk length to guarantee progress
             produced_len = max(1, end_pos - start_pos)
-            next_start = (end_pos - overlap) if overlap < produced_len else (start_pos + 1)
+            next_start = (
+                (end_pos - overlap) if overlap < produced_len else (start_pos + 1)
+            )
             if next_start <= start_pos:
                 next_start = min(end_pos, text_length)
             start_pos = next_start
 
         return chunks
 
-    def _deduplicate_chunks(self, chunks: List[TextChunk]) -> Tuple[List[TextChunk], Dict[str, int]]:
+    def _deduplicate_chunks(
+        self, chunks: list[TextChunk]
+    ) -> tuple[list[TextChunk], dict[str, int]]:
         """
         Remove duplicate chunks based on content hash.
 
@@ -447,12 +472,14 @@ class EmbeddingService(LoggerMixin):
             "original_chunks": len(chunks),
             "unique_chunks": len(unique_chunks),
             "exact_duplicates": duplicates_count,
-            "near_duplicates": near_duplicates
+            "near_duplicates": near_duplicates,
         }
 
         return unique_chunks, stats
 
-    def _are_hashes_similar(self, hash1: str, hash2: str, threshold: float = 0.9) -> bool:
+    def _are_hashes_similar(
+        self, hash1: str, hash2: str, threshold: float = 0.9
+    ) -> bool:
         """
         Check if two hashes are similar (for near-duplicate detection).
 
@@ -470,14 +497,14 @@ class EmbeddingService(LoggerMixin):
 
     def _compute_hash(self, text: str) -> str:
         """Compute SHA256 hash of text"""
-        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((Exception,))
+        retry=retry_if_exception_type((Exception,)),
     )
-    async def _compute_embeddings(self, chunks: List[TextChunk]) -> List[List[float]]:
+    async def _compute_embeddings(self, chunks: list[TextChunk]) -> list[list[float]]:
         """
         Compute embeddings for text chunks with batching and retry logic.
 
@@ -494,7 +521,7 @@ class EmbeddingService(LoggerMixin):
 
         # Process in batches
         for i in range(0, len(chunks), self.batch_size):
-            batch_chunks = chunks[i:i + self.batch_size]
+            batch_chunks = chunks[i : i + self.batch_size]
             batch_texts = [chunk.text for chunk in batch_chunks]
 
             try:
@@ -515,11 +542,13 @@ class EmbeddingService(LoggerMixin):
                     "Batch embeddings computed",
                     batch_index=i // self.batch_size,
                     batch_size=len(batch_chunks),
-                    embedding_dim=len(batch_embeddings[0]) if batch_embeddings else 0
+                    embedding_dim=len(batch_embeddings[0]) if batch_embeddings else 0,
                 )
 
             except Exception as e:
-                self.logger.exception("Batch embedding computation failed", error=str(e))
+                self.logger.exception(
+                    "Batch embedding computation failed", error=str(e)
+                )
                 raise
 
         # Sanity check: provider must return one vector per input
@@ -536,7 +565,7 @@ class EmbeddingService(LoggerMixin):
         self,
         text_stream: AsyncGenerator[str, None],
         doc_type: DocumentType = DocumentType.KNOWLEDGE,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None,
     ) -> AsyncGenerator[EmbeddingResult, None]:
         """
         Process text as a streaming input.
@@ -556,9 +585,7 @@ class EmbeddingService(LoggerMixin):
             # Process when we have enough content or end of stream
             if len(buffer) >= self.max_chunk_size * 2:
                 result = await self.process_document(
-                    buffer,
-                    doc_type=doc_type,
-                    metadata=metadata
+                    buffer, doc_type=doc_type, metadata=metadata
                 )
                 yield result
                 buffer = ""
@@ -566,14 +593,11 @@ class EmbeddingService(LoggerMixin):
         # Process remaining content
         if buffer.strip():
             result = await self.process_document(
-                buffer,
-                doc_type=doc_type,
-                metadata=metadata
+                buffer, doc_type=doc_type, metadata=metadata
             )
             yield result
 
-
-    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """
         Simple interface to embed a list of texts.
 
@@ -595,7 +619,7 @@ class EmbeddingService(LoggerMixin):
                 start_char=0,
                 end_char=len(text),
                 metadata={},
-                hash=self._compute_hash(text)
+                hash=self._compute_hash(text),
             )
             chunks.append(chunk)
 
@@ -604,6 +628,7 @@ class EmbeddingService(LoggerMixin):
 
 # Lazy-loaded singleton instance for application-wide use
 _embedding_service_instance = None
+
 
 def get_embedding_service():
     """Get or create the embedding service instance."""

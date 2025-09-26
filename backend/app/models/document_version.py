@@ -3,26 +3,29 @@ Document versioning model with multi-tenant support.
 Handles document versions for the four-stage generation workflow.
 """
 
+from enum import Enum
+
 from sqlalchemy import (
+    JSON,
     Column,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
     String,
     Text,
-    Integer,
     and_,
-    Index,
-    JSON,
-    ForeignKeyConstraint,
     text,
 )
-from sqlalchemy.orm import relationship, foreign, remote
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
+from sqlalchemy.orm import foreign, relationship, remote
+
 from .base import BaseModel
 from .project import Project
 
 
 class DocumentType(str, Enum):
     """Document type enumeration for the four-stage workflow."""
+
     ABOUT = "about"  # Step 1: Business Analysis
     SPECS = "specs"  # Step 2: Engineering Standards
     ARCHITECTURE = "architecture"  # Step 3: Solution Architecture
@@ -97,6 +100,8 @@ class DocumentVersion(BaseModel):
             "epic_number",
             "version",
             unique=True,
-            postgresql_where=text("epic_number IS NOT NULL AND document_type = 'plan_epic' AND is_deleted = false"),
+            postgresql_where=text(
+                "epic_number IS NOT NULL AND document_type = 'plan_epic' AND is_deleted = false"
+            ),
         ),
     )

@@ -3,14 +3,23 @@ Models for Alembic migrations.
 This file is imported by alembic/env.py to get the Base metadata.
 """
 
-import sys
-import os
 
 # Minimal imports to avoid loading the entire application during migrations
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, DateTime, Boolean, ForeignKey, func, String, Text, Integer, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import declarative_base
 
 # Create Base directly here to avoid app imports
 Base = declarative_base()

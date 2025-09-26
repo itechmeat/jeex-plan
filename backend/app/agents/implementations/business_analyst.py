@@ -4,12 +4,12 @@ Specializes in project description, problem analysis, and business requirements.
 """
 
 import json
-from typing import Type, Dict, Any, List
+from typing import Any
 
 from ..base.agent_base import AgentBase
-from ..base.vector_context import vector_context
 from ..base.quality_control import quality_controller
-from ..contracts.base import ProjectContext, AgentInput, AgentOutput, ValidationResult
+from ..base.vector_context import vector_context
+from ..contracts.base import AgentInput, AgentOutput, ProjectContext, ValidationResult
 from ..contracts.business_analyst import BusinessAnalystInput, BusinessAnalystOutput
 
 
@@ -26,11 +26,11 @@ class BusinessAnalystAgent(AgentBase):
             Your expertise includes market analysis, user research, business model design, and risk assessment.""",
         )
 
-    def get_input_model(self) -> Type[AgentInput]:
+    def get_input_model(self) -> type[AgentInput]:
         """Return BusinessAnalystInput model."""
         return BusinessAnalystInput
 
-    def get_output_model(self) -> Type[AgentOutput]:
+    def get_output_model(self) -> type[AgentOutput]:
         """Return BusinessAnalystOutput model."""
         return BusinessAnalystOutput
 
@@ -112,7 +112,7 @@ class BusinessAnalystAgent(AgentBase):
 
 Focus on depth of analysis rather than breadth. Provide specific, actionable insights."""
 
-    async def get_context_data(self, context: ProjectContext) -> Dict[str, Any]:
+    async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         """Retrieve relevant context for business analysis."""
         # For step 1, there's usually no prior context
         if context.current_step == 1:
@@ -122,58 +122,58 @@ Focus on depth of analysis rather than breadth. Provide specific, actionable ins
         return await vector_context.get_step_context(context, context.current_step)
 
     def _build_task_description(
-        self, input_data: BusinessAnalystInput, context_data: Dict[str, Any]
+        self, input_data: BusinessAnalystInput, context_data: dict[str, Any]
     ) -> str:
         """Build detailed task description for CrewAI."""
         task_parts = [
-            f"Analyze the following project idea and create a comprehensive business analysis document:",
-            f"",
-            f"**Project Idea:**",
+            "Analyze the following project idea and create a comprehensive business analysis document:",
+            "",
+            "**Project Idea:**",
             f"{input_data.idea_description}",
-            f"",
+            "",
         ]
 
         if input_data.target_audience:
             task_parts.extend(
                 [
-                    f"**Known Target Audience:**",
+                    "**Known Target Audience:**",
                     f"{input_data.target_audience}",
-                    f"",
+                    "",
                 ]
             )
 
         if input_data.business_goals:
             task_parts.extend(
                 [
-                    f"**Known Business Goals:**",
+                    "**Known Business Goals:**",
                     f"{', '.join(input_data.business_goals)}",
-                    f"",
+                    "",
                 ]
             )
 
         if input_data.constraints:
             task_parts.extend(
                 [
-                    f"**Known Constraints:**",
+                    "**Known Constraints:**",
                     f"{', '.join(input_data.constraints)}",
-                    f"",
+                    "",
                 ]
             )
 
         if input_data.user_clarifications:
             task_parts.extend(
                 [
-                    f"**Previous Clarifications:**",
+                    "**Previous Clarifications:**",
                     f"{json.dumps(input_data.user_clarifications, indent=2)}",
-                    f"",
+                    "",
                 ]
             )
 
         if context_data.get("documents"):
             task_parts.extend(
                 [
-                    f"**Relevant Context:**",
-                    f"Consider the following context from previous analysis:",
+                    "**Relevant Context:**",
+                    "Consider the following context from previous analysis:",
                 ]
             )
             for doc in context_data["documents"][:3]:  # Limit context
@@ -182,15 +182,15 @@ Focus on depth of analysis rather than breadth. Provide specific, actionable ins
 
         task_parts.extend(
             [
-                f"**Your Task:**",
-                f"1. Analyze the project idea thoroughly from a business perspective",
-                f"2. Create a structured business analysis document in Markdown format",
-                f"3. Focus on problem definition, target audience, value proposition, and business viability",
-                f"4. Include specific, measurable success metrics and KPIs",
-                f"5. Assess risks and provide mitigation strategies",
-                f"6. Generate thoughtful follow-up questions to improve understanding",
-                f"",
-                f"**Important:** Extract key facts and insights that should be remembered for future analysis steps.",
+                "**Your Task:**",
+                "1. Analyze the project idea thoroughly from a business perspective",
+                "2. Create a structured business analysis document in Markdown format",
+                "3. Focus on problem definition, target audience, value proposition, and business viability",
+                "4. Include specific, measurable success metrics and KPIs",
+                "5. Assess risks and provide mitigation strategies",
+                "6. Generate thoughtful follow-up questions to improve understanding",
+                "",
+                "**Important:** Extract key facts and insights that should be remembered for future analysis steps.",
             ]
         )
 
@@ -214,7 +214,7 @@ Focus on depth of analysis rather than breadth. Provide specific, actionable ins
 The document should be professional, well-structured, and actionable. Include specific examples and recommendations where possible."""
 
     async def _parse_crew_result(
-        self, result: Any, execution_time_ms: int
+        self, result: object, execution_time_ms: int
     ) -> BusinessAnalystOutput:
         """Parse CrewAI result into typed output."""
         content = str(result)
@@ -260,7 +260,7 @@ The document should be professional, well-structured, and actionable. Include sp
             clarifying_questions=clarifying_questions,
         )
 
-    def _extract_key_facts(self, content: str) -> List[str]:
+    def _extract_key_facts(self, content: str) -> list[str]:
         """Extract key facts for vector storage."""
         # Simple extraction based on content analysis
         facts = []
@@ -268,14 +268,14 @@ The document should be professional, well-structured, and actionable. Include sp
 
         for line in lines:
             line = line.strip()
-            if (line.startswith("- ") or line.startswith("* ")) and len(line) > 20:
+            if (line.startswith(("- ", "* "))) and len(line) > 20:
                 facts.append(line[2:].strip())
             elif line.startswith("**") and line.endswith("**") and len(line) > 10:
                 facts.append(line.strip("*").strip())
 
         return facts[:10]  # Limit to top 10 facts
 
-    def _extract_section(self, content: str, section_names: List[str]) -> str:
+    def _extract_section(self, content: str, section_names: list[str]) -> str:
         """Extract content from a specific section."""
         for section_name in section_names:
             patterns = [
@@ -299,7 +299,7 @@ The document should be professional, well-structured, and actionable. Include sp
                         return section_content
         return ""
 
-    def _extract_list_items(self, content: str, section_names: List[str]) -> List[str]:
+    def _extract_list_items(self, content: str, section_names: list[str]) -> list[str]:
         """Extract list items from a section."""
         section_content = self._extract_section(content, section_names)
         if not section_content:
@@ -308,7 +308,7 @@ The document should be professional, well-structured, and actionable. Include sp
         items = []
         for line in section_content.split("\n"):
             line = line.strip()
-            if (line.startswith("- ") or line.startswith("* ")) and len(line) > 5:
+            if (line.startswith(("- ", "* "))) and len(line) > 5:
                 items.append(line[2:].strip())
 
         return items

@@ -3,18 +3,19 @@ OAuth2 providers for Google and GitHub authentication.
 """
 
 import uuid
-from typing import Optional, Dict, Any
+from typing import Any
+
+import httpx
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from fastapi import HTTPException, status
 from sqlalchemy import func
-import httpx
 
 from ..core.config import get_settings
 from ..core.logger import get_logger
-from ..models.user import User
 from ..models.tenant import Tenant
-from ..repositories.user import UserRepository
+from ..models.user import User
 from ..repositories.tenant import TenantRepository
+from ..repositories.user import UserRepository
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -23,7 +24,7 @@ logger = get_logger(__name__)
 class OAuthProvider:
     """Base OAuth provider class."""
 
-    def __init__(self, client_id: str, client_secret: str):
+    def __init__(self, client_id: str, client_secret: str) -> None:
         self.client_id = client_id
         self.client_secret = client_secret
 
@@ -31,7 +32,7 @@ class OAuthProvider:
         """Get authorization URL for OAuth flow."""
         raise NotImplementedError
 
-    async def get_user_info(self, code: str, state: str) -> Dict[str, Any]:
+    async def get_user_info(self, code: str, state: str) -> dict[str, Any]:
         """Get user information from OAuth provider."""
         raise NotImplementedError
 
@@ -39,7 +40,7 @@ class OAuthProvider:
 class GoogleOAuthProvider(OAuthProvider):
     """Google OAuth2 provider."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
             raise ValueError("Google OAuth credentials not configured")
 
@@ -53,34 +54,30 @@ class GoogleOAuthProvider(OAuthProvider):
         async with AsyncOAuth2Client(
             client_id=self.client_id,
             redirect_uri=settings.OAUTH_REDIRECT_URL,
-            scope="openid email profile"
+            scope="openid email profile",
         ) as client:
             authorization_url, _ = client.create_authorization_url(
-                self.authorization_endpoint,
-                state=state
+                self.authorization_endpoint, state=state
             )
 
         return authorization_url
 
-    async def get_user_info(self, code: str, state: str) -> Dict[str, Any]:
+    async def get_user_info(self, code: str, state: str) -> dict[str, Any]:
         """Get user information from Google."""
         try:
             async with AsyncOAuth2Client(
                 client_id=self.client_id,
                 client_secret=self.client_secret,
-                redirect_uri=settings.OAUTH_REDIRECT_URL
+                redirect_uri=settings.OAUTH_REDIRECT_URL,
             ) as client:
                 # Exchange code for token
-                token = await client.fetch_token(
-                    self.token_endpoint,
-                    code=code
-                )
+                token = await client.fetch_token(self.token_endpoint, code=code)
 
             # Get user info
             async with httpx.AsyncClient() as http_client:
                 response = await http_client.get(
                     self.userinfo_endpoint,
-                    headers={"Authorization": f"Bearer {token['access_token']}"}
+                    headers={"Authorization": f"Bearer {token['access_token']}"},
                 )
                 response.raise_for_status()
                 user_info = response.json()
@@ -91,25 +88,23 @@ class GoogleOAuthProvider(OAuthProvider):
                 "email": user_info["email"],
                 "full_name": user_info.get("name", ""),
                 "avatar_url": user_info.get("picture", ""),
-                "verified_email": user_info.get("verified_email", False)
+                "verified_email": user_info.get("verified_email", False),
             }
 
         except Exception as e:
             logger.error(
-                "Google OAuth user info retrieval failed",
-                error=str(e),
-                exc_info=True
+                "Google OAuth user info retrieval failed", error=str(e), exc_info=True
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Authentication with provider failed"
+                detail="Authentication with provider failed",
             ) from e
 
 
 class GitHubOAuthProvider(OAuthProvider):
     """GitHub OAuth2 provider."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
             raise ValueError("GitHub OAuth credentials not configured")
 
@@ -124,54 +119,47 @@ class GitHubOAuthProvider(OAuthProvider):
         async with AsyncOAuth2Client(
             client_id=self.client_id,
             redirect_uri=settings.OAUTH_REDIRECT_URL,
-            scope="user:email"
+            scope="user:email",
         ) as client:
             authorization_url, _ = client.create_authorization_url(
-                self.authorization_endpoint,
-                state=state
+                self.authorization_endpoint, state=state
             )
 
         return authorization_url
 
-    async def get_user_info(self, code: str, state: str) -> Dict[str, Any]:
+    async def get_user_info(self, code: str, state: str) -> dict[str, Any]:
         """Get user information from GitHub."""
         try:
             async with AsyncOAuth2Client(
                 client_id=self.client_id,
                 client_secret=self.client_secret,
-                redirect_uri=settings.OAUTH_REDIRECT_URL
+                redirect_uri=settings.OAUTH_REDIRECT_URL,
             ) as client:
                 # Exchange code for token
-                token = await client.fetch_token(
-                    self.token_endpoint,
-                    code=code
-                )
+                token = await client.fetch_token(self.token_endpoint, code=code)
 
             headers = {
                 "Authorization": f"Bearer {token['access_token']}",
-                "Accept": "application/vnd.github.v3+json"
+                "Accept": "application/vnd.github.v3+json",
             }
 
             async with httpx.AsyncClient() as http_client:
                 # Get user info
                 user_response = await http_client.get(
-                    self.userinfo_endpoint,
-                    headers=headers
+                    self.userinfo_endpoint, headers=headers
                 )
                 user_response.raise_for_status()
                 user_info = user_response.json()
 
                 # Get primary email
                 emails_response = await http_client.get(
-                    self.emails_endpoint,
-                    headers=headers
+                    self.emails_endpoint, headers=headers
                 )
                 emails_response.raise_for_status()
                 emails = emails_response.json()
 
                 primary_email_entry = next(
-                    (email for email in emails if email.get("primary")),
-                    None
+                    (email for email in emails if email.get("primary")), None
                 )
                 primary_email = (
                     primary_email_entry["email"]
@@ -183,8 +171,12 @@ class GitHubOAuthProvider(OAuthProvider):
                     verified_email = bool(primary_email_entry.get("verified", False))
                 elif primary_email:
                     matching_entry = next(
-                        (email for email in emails if email.get("email") == primary_email),
-                        None
+                        (
+                            email
+                            for email in emails
+                            if email.get("email") == primary_email
+                        ),
+                        None,
                     )
                     if matching_entry is not None:
                         verified_email = bool(matching_entry.get("verified", False))
@@ -199,25 +191,23 @@ class GitHubOAuthProvider(OAuthProvider):
                 "email": primary_email,
                 "full_name": user_info.get("name", user_info.get("login", "")),
                 "avatar_url": user_info.get("avatar_url", ""),
-                "verified_email": bool(verified_email)
+                "verified_email": bool(verified_email),
             }
 
         except Exception as e:
             logger.error(
-                "GitHub OAuth user info retrieval failed",
-                error=str(e),
-                exc_info=True
+                "GitHub OAuth user info retrieval failed", error=str(e), exc_info=True
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Authentication with provider failed"
+                detail="Authentication with provider failed",
             ) from e
 
 
 class OAuthService:
     """Service for handling OAuth authentication."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         self.db = db
         self.tenant_repo = TenantRepository(db)
         self.providers = {
@@ -231,7 +221,7 @@ class OAuthService:
         if not provider:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"OAuth provider '{provider_name}' not configured"
+                detail=f"OAuth provider '{provider_name}' not configured",
             )
         return provider
 
@@ -245,7 +235,7 @@ class OAuthService:
         provider_name: str,
         code: str,
         state: str,
-        tenant_id: Optional[uuid.UUID] = None
+        tenant_id: uuid.UUID | None = None,
     ) -> User:
         """Authenticate user with OAuth provider."""
         provider = self.get_provider(provider_name)
@@ -259,8 +249,7 @@ class OAuthService:
         tenant_user_repo = UserRepository(self.db, tenant_id)
 
         user = await tenant_user_repo.get_by_oauth(
-            user_info["provider"],
-            user_info["provider_id"]
+            user_info["provider"], user_info["provider_id"]
         )
 
         if user:
@@ -270,9 +259,7 @@ class OAuthService:
             return user
 
         # Check if user exists with same email
-        existing_user = await tenant_user_repo.get_by_email(
-            user_info["email"]
-        )
+        existing_user = await tenant_user_repo.get_by_email(user_info["email"])
 
         if existing_user:
             # Link OAuth account to existing user
@@ -284,8 +271,7 @@ class OAuthService:
 
         # Create new user
         username = await self._generate_unique_username(
-            tenant_user_repo,
-            user_info["email"]
+            tenant_user_repo, user_info["email"]
         )
 
         new_user = User(
@@ -296,7 +282,7 @@ class OAuthService:
             oauth_provider=user_info["provider"],
             oauth_id=user_info["provider_id"],
             is_active=True,
-            last_login_at=func.now()
+            last_login_at=func.now(),
         )
 
         self.db.add(new_user)
@@ -314,7 +300,7 @@ class OAuthService:
                 name="Default Tenant",
                 slug="default",
                 description="Default tenant for new users",
-                is_active=True
+                is_active=True,
             )
             self.db.add(default_tenant)
             await self.db.commit()
@@ -323,9 +309,7 @@ class OAuthService:
         return default_tenant.id
 
     async def _generate_unique_username(
-        self,
-        user_repo: UserRepository,
-        email: str
+        self, user_repo: UserRepository, email: str
     ) -> str:
         """Generate unique username for tenant."""
         base_username = email.split("@")[0].lower()

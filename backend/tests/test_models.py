@@ -2,22 +2,22 @@
 Test models for Epic 01 - Multi-tenant foundation.
 """
 
+from datetime import UTC, datetime
+
 import pytest
-import uuid
-from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 
+from app.models.document import Document, DocumentStatus, DocumentType
+from app.models.project import Project, ProjectStatus
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.models.project import Project, ProjectStatus
-from app.models.document import Document, DocumentType, DocumentStatus
 
 
 class TestTenantModel:
     """Test Tenant model functionality."""
 
     @pytest.mark.asyncio
-    async def test_create_tenant(self, test_session):
+    async def test_create_tenant(self, test_session) -> None:
         """Test creating a tenant."""
         tenant = Tenant(
             name="Test Company",
@@ -38,7 +38,7 @@ class TestTenantModel:
         assert tenant.updated_at is not None
 
     @pytest.mark.asyncio
-    async def test_tenant_slug_unique(self, test_session):
+    async def test_tenant_slug_unique(self, test_session) -> None:
         """Test that tenant slugs must be unique."""
         tenant1 = Tenant(name="Company 1", slug="unique-slug")
         tenant2 = Tenant(name="Company 2", slug="unique-slug")
@@ -63,7 +63,7 @@ class TestUserModel:
         return tenant
 
     @pytest.mark.asyncio
-    async def test_create_user(self, test_session, sample_tenant):
+    async def test_create_user(self, test_session, sample_tenant) -> None:
         """Test creating a user."""
         user = User(
             tenant_id=sample_tenant.id,
@@ -87,7 +87,7 @@ class TestUserModel:
         assert user.is_deleted is False
 
     @pytest.mark.asyncio
-    async def test_user_oauth_fields(self, test_session, sample_tenant):
+    async def test_user_oauth_fields(self, test_session, sample_tenant) -> None:
         """Test user OAuth fields."""
         user = User(
             tenant_id=sample_tenant.id,
@@ -105,7 +105,7 @@ class TestUserModel:
         assert user.oauth_id == "google_123456"
 
     @pytest.mark.asyncio
-    async def test_user_tenant_email_unique(self, test_session, sample_tenant):
+    async def test_user_tenant_email_unique(self, test_session, sample_tenant) -> None:
         """Test that email is unique within a tenant."""
         user1 = User(
             tenant_id=sample_tenant.id,
@@ -148,7 +148,7 @@ class TestProjectModel:
         return tenant, user
 
     @pytest.mark.asyncio
-    async def test_create_project(self, test_session, sample_tenant_and_user):
+    async def test_create_project(self, test_session, sample_tenant_and_user) -> None:
         """Test creating a project."""
         tenant, user = sample_tenant_and_user
 
@@ -172,7 +172,7 @@ class TestProjectModel:
         assert project.is_deleted is False
 
     @pytest.mark.asyncio
-    async def test_project_status_enum(self, test_session, sample_tenant_and_user):
+    async def test_project_status_enum(self, test_session, sample_tenant_and_user) -> None:
         """Test project status enum values."""
         tenant, user = sample_tenant_and_user
 
@@ -189,7 +189,7 @@ class TestProjectModel:
         # All should be created successfully
 
     @pytest.mark.asyncio
-    async def test_project_tenant_name_unique(self, test_session, sample_tenant_and_user):
+    async def test_project_tenant_name_unique(self, test_session, sample_tenant_and_user) -> None:
         """Test that project names are unique within a tenant."""
         tenant, user = sample_tenant_and_user
 
@@ -243,9 +243,9 @@ class TestDocumentModel:
         return tenant, user, project
 
     @pytest.mark.asyncio
-    async def test_create_document(self, test_session, sample_project_setup):
+    async def test_create_document(self, test_session, sample_project_setup) -> None:
         """Test creating a document."""
-        tenant, user, project = sample_project_setup
+        tenant, _user, project = sample_project_setup
 
         document = Document(
             tenant_id=tenant.id,
@@ -273,9 +273,9 @@ class TestDocumentModel:
         assert document.is_deleted is False
 
     @pytest.mark.asyncio
-    async def test_document_type_enum(self, test_session, sample_project_setup):
+    async def test_document_type_enum(self, test_session, sample_project_setup) -> None:
         """Test document type enum values."""
-        tenant, user, project = sample_project_setup
+        tenant, _user, project = sample_project_setup
 
         for doc_type in DocumentType:
             document = Document(
@@ -291,9 +291,9 @@ class TestDocumentModel:
         # All should be created successfully
 
     @pytest.mark.asyncio
-    async def test_document_status_enum(self, test_session, sample_project_setup):
+    async def test_document_status_enum(self, test_session, sample_project_setup) -> None:
         """Test document status enum values."""
-        tenant, user, project = sample_project_setup
+        tenant, _user, project = sample_project_setup
 
         for status in DocumentStatus:
             document = Document(
@@ -309,9 +309,9 @@ class TestDocumentModel:
         # All should be created successfully
 
     @pytest.mark.asyncio
-    async def test_document_generation_metadata(self, test_session, sample_project_setup):
+    async def test_document_generation_metadata(self, test_session, sample_project_setup) -> None:
         """Test document generation metadata fields."""
-        tenant, user, project = sample_project_setup
+        tenant, _user, project = sample_project_setup
 
         document = Document(
             tenant_id=tenant.id,
@@ -337,7 +337,7 @@ class TestModelRelationships:
     """Test relationships between models."""
 
     @pytest.mark.asyncio
-    async def test_tenant_user_relationship(self, test_session):
+    async def test_tenant_user_relationship(self, test_session) -> None:
         """Test tenant-user relationship."""
         tenant = Tenant(name="Test Tenant", slug="test-tenant")
         test_session.add(tenant)
@@ -356,7 +356,7 @@ class TestModelRelationships:
         assert user.tenant_id == tenant.id
 
     @pytest.mark.asyncio
-    async def test_user_project_relationship(self, test_session):
+    async def test_user_project_relationship(self, test_session) -> None:
         """Test user-project relationship."""
         tenant = Tenant(name="Test Tenant", slug="test-tenant")
         test_session.add(tenant)
@@ -383,7 +383,7 @@ class TestModelRelationships:
         assert project.owner_id == user.id
 
     @pytest.mark.asyncio
-    async def test_project_document_relationship(self, test_session):
+    async def test_project_document_relationship(self, test_session) -> None:
         """Test project-document relationship."""
         tenant = Tenant(name="Test Tenant", slug="test-tenant")
         test_session.add(tenant)
@@ -425,7 +425,7 @@ class TestSoftDelete:
     """Test soft delete functionality."""
 
     @pytest.mark.asyncio
-    async def test_user_soft_delete(self, test_session):
+    async def test_user_soft_delete(self, test_session) -> None:
         """Test user soft delete functionality."""
         tenant = Tenant(name="Test Tenant", slug="test-tenant")
         test_session.add(tenant)
@@ -443,14 +443,14 @@ class TestSoftDelete:
 
         # Soft delete
         user.is_deleted = True
-        user.deleted_at = datetime.now(timezone.utc)
+        user.deleted_at = datetime.now(UTC)
         await test_session.commit()
 
         assert user.is_deleted is True
         assert user.deleted_at is not None
 
     @pytest.mark.asyncio
-    async def test_project_soft_delete(self, test_session):
+    async def test_project_soft_delete(self, test_session) -> None:
         """Test project soft delete functionality."""
         tenant = Tenant(name="Test Tenant", slug="test-tenant")
         test_session.add(tenant)
@@ -477,7 +477,7 @@ class TestSoftDelete:
 
         # Soft delete
         project.is_deleted = True
-        project.deleted_at = datetime.now(timezone.utc)
+        project.deleted_at = datetime.now(UTC)
         await test_session.commit()
 
         assert project.is_deleted is True

@@ -2,9 +2,9 @@
 Business logic services and agent orchestration.
 """
 
-from . import user, rbac
+from . import rbac, user
 
 __all__ = [
-    "user",
     "rbac",
+    "user",
 ]

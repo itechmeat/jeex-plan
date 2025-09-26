@@ -2,22 +2,27 @@
 Document model with multi-tenant support.
 """
 
+from enum import Enum
+
 from sqlalchemy import (
     Column,
+    ForeignKeyConstraint,
+    Integer,
     String,
     Text,
-    Enum as SQLEnum,
-    Integer,
-    ForeignKeyConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from enum import Enum
+from sqlalchemy.orm import relationship
+
 from .base import BaseModel
 
 
 class DocumentType(str, Enum):
     """Document type enumeration."""
+
     ARCHITECTURE = "ARCHITECTURE"
     PLANNING = "PLANNING"
     STANDARDS = "STANDARDS"
@@ -26,6 +31,7 @@ class DocumentType(str, Enum):
 
 class DocumentStatus(str, Enum):
     """Document generation status."""
+
     PENDING = "PENDING"
     GENERATING = "GENERATING"
     COMPLETED = "COMPLETED"
@@ -69,4 +75,5 @@ class Document(BaseModel):
 
     class Config:
         """Pydantic config."""
+
         from_attributes = True

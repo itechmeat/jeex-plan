@@ -14,4 +14,4 @@ __status__ = "Development"
 from .core import settings
 from .main import app
 
-__all__ = ["settings", "app"]
+__all__ = ["app", "settings"]

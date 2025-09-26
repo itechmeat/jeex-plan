@@ -2,9 +2,10 @@
 Health check endpoint tests.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch
 
 from app.main import app
 
@@ -17,7 +18,7 @@ class TestHealthEndpoints:
         """Create test client"""
         return TestClient(app)
 
-    def test_root_endpoint(self, client):
+    def test_root_endpoint(self, client) -> None:
         """Test root endpoint returns basic info"""
         response = client.get("/")
         assert response.status_code == 200
@@ -27,7 +28,7 @@ class TestHealthEndpoints:
         assert "environment" in data
         assert data["service"] == "JEEX Plan API"
 
-    def test_simple_health_check(self, client):
+    def test_simple_health_check(self, client) -> None:
         """Test simple health check endpoint"""
         response = client.get("/api/v1/health/simple")
         assert response.status_code == 200
@@ -44,7 +45,7 @@ class TestHealthEndpoints:
         mock_redis_adapter,
         mock_db_health_check,
         client
-    ):
+    ) -> None:
         """Test comprehensive health check when all services are healthy"""
         # Mock healthy responses
         mock_db_health_check.return_value = {
@@ -83,7 +84,7 @@ class TestHealthEndpoints:
         self,
         mock_db_health_check,
         client
-    ):
+    ) -> None:
         """Test comprehensive health check when database is unhealthy"""
         # Mock unhealthy database response
         mock_db_health_check.return_value = {
@@ -98,21 +99,21 @@ class TestHealthEndpoints:
         assert data["detail"]["error"] == "Service unavailable"
         assert "database" in data["detail"]["unhealthy_components"]
 
-    def test_readiness_check(self, client):
+    def test_readiness_check(self, client) -> None:
         """Test readiness check endpoint"""
         response = client.get("/api/v1/health/ready")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ready"
 
-    def test_liveness_check(self, client):
+    def test_liveness_check(self, client) -> None:
         """Test liveness check endpoint"""
         response = client.get("/api/v1/health/live")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "alive"
 
-    def test_health_metrics(self, client):
+    def test_health_metrics(self, client) -> None:
         """Test health metrics endpoint"""
         response = client.get("/api/v1/health/metrics")
         assert response.status_code == 200

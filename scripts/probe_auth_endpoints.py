@@ -3,13 +3,16 @@
 Simple test script to verify auth endpoints work
 """
 import asyncio
+import os
+
 import httpx
 
-async def test_auth_endpoints():
-    """Test authentication endpoints"""
-    base_url = "http://172.20.0.1:5210"  # Docker gateway IP
 
-    async with httpx.AsyncClient() as client:
+async def probe_auth_endpoints() -> None:
+    """Test authentication endpoints"""
+    base_url = os.getenv("JEEX_API_BASE_URL", "http://localhost:8000")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
         # Test providers endpoint (GET)
         print("Testing /auth/providers...")
         try:
@@ -39,4 +42,4 @@ async def test_auth_endpoints():
             print(f"Error: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(test_auth_endpoints())
+    asyncio.run(probe_auth_endpoints())
