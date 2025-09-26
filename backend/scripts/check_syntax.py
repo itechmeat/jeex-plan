@@ -23,7 +23,7 @@ def check_syntax(file_path: Path) -> tuple[bool, str]:
         return False, f"Error: {e}"
 
 
-def main():
+def main() -> None:
     """Main function to check all Python files."""
     app_dir = Path(__file__).parent.parent / "app"
 

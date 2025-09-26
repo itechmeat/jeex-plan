@@ -205,8 +205,8 @@ class RBACService:
     async def check_permission(
         self,
         user_id: uuid.UUID,
+        project_id: uuid.UUID | None,
         permission: Permission,
-        project_id: uuid.UUID | None = None,
     ) -> bool:
         """Check if a user has a specific permission, optionally scoped to a project."""
 

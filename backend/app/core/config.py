@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     VAULT_ADDR: str = Field(default="http://vault:8200", env="VAULT_ADDR")
     VAULT_TOKEN: str | None = Field(default=None, env="VAULT_TOKEN")
     USE_VAULT: bool = Field(default=True, env="USE_VAULT")
+    VAULT_VERIFY: bool | str = Field(default=True, env="VAULT_VERIFY")
 
     # Authentication
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
@@ -104,6 +105,8 @@ class Settings(BaseSettings):
     CACHE_EMBEDDING_TTL: int = Field(
         default=86400, env="CACHE_EMBEDDING_TTL"
     )  # 24 hours
+    CACHE_STATS_TTL: int = Field(default=300, env="CACHE_STATS_TTL")  # 5 minutes
+    CACHE_WARMUP_DELAY_SEC: float = Field(default=0.1, env="CACHE_WARMUP_DELAY_SEC")
 
     # File Storage
     UPLOAD_DIR: str = Field(default="/app/uploads", env="UPLOAD_DIR")
@@ -115,7 +118,7 @@ class Settings(BaseSettings):
 
     @field_validator("ENVIRONMENT")
     @classmethod
-    def validate_environment(cls, v):
+    def validate_environment(cls, v: str) -> str:
         """Validate environment setting"""
         allowed = ["development", "staging", "production"]
         if v not in allowed:
@@ -136,7 +139,7 @@ class Settings(BaseSettings):
 
         if token in (None, "", placeholder):
             raise ValueError(
-                "VAULT_TOKEN must be set when USE_VAULT is true and cannot be the placeholder value"
+                "VAULT_TOKEN must be set when USE_VAULT is true"
             )
 
         if isinstance(token, str) and len(token) < 10:

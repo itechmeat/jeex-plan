@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Code quality checker for the JEEX Plan project.
-Checks for common issues like missing type hints, unused imports, etc.
+Checks for common issues like missing type hints, discouraged patterns (TODO/print), and basic secret scanning.
 """
 
 import ast
@@ -12,7 +12,7 @@ from pathlib import Path
 class CodeQualityChecker:
     """Code quality checker class."""
 
-    def __init__(self, app_dir: Path):
+    def __init__(self, app_dir: Path) -> None:
         self.app_dir = app_dir
         self.issues: list[str] = []
 
@@ -87,7 +87,7 @@ class CodeQualityChecker:
 class QualityVisitor(ast.NodeVisitor):
     """AST visitor for code quality checks."""
 
-    def __init__(self, file_path: Path):
+    def __init__(self, file_path: Path) -> None:
         self.file_path = file_path
         self.issues: list[str] = []
         self.imports: set[str] = set()
@@ -174,7 +174,7 @@ class QualityVisitor(ast.NodeVisitor):
         )
 
 
-def main():
+def main() -> None:
     """Main function."""
     app_dir = Path(__file__).parent.parent / "app"
 
@@ -188,7 +188,10 @@ def main():
     for py_file in python_files:
         checker.check_file(py_file)
 
-    print(checker.get_report())
+    report = checker.get_report()
+    print(report)
+    if checker.issues:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

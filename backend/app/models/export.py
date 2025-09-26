@@ -38,7 +38,7 @@ class Export(BaseModel):
 
     # Export info
     status = Column(
-        String(50), default=ExportStatus.PENDING.value, nullable=False, index=True
+        String(50), default=ExportStatus.PENDING.value, nullable=False
     )
     file_path = Column(Text, nullable=True)
 
@@ -53,7 +53,6 @@ class Export(BaseModel):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC) + timedelta(hours=24),
         nullable=False,
-        index=True,
     )
 
     # Project relationship
@@ -61,7 +60,9 @@ class Export(BaseModel):
     project = relationship(
         "Project",
         back_populates="exports",
-        primaryjoin="and_(Export.project_id==Project.id, Export.tenant_id==Project.tenant_id)",
+        primaryjoin=(
+            "and_(Export.project_id==Project.id, Export.tenant_id==Project.tenant_id)"
+        ),
         foreign_keys=[project_id],
     )
 

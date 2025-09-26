@@ -1,0 +1,125 @@
+reviews:
+  # Linter integration
+  tools:
+    ruff:
+      enabled: true
+      config_file: "backend/pyproject.toml"
+    eslint:
+      enabled: true
+      config_file: "frontend/eslint.config.js"
+
+  # Review profile to reduce noise
+  profile: "chill"  # Focus on critical issues
+
+  # Custom instructions for different paths
+  path_instructions:
+    # Frontend instructions (integrated with ESLint)
+    - path: "frontend/**/*.tsx"
+      instructions: |
+        For React components:
+        - Follow existing ESLint configuration in eslint.config.js
+        - Focus on component architecture, not style (ESLint handles style)
+        - Prioritize React 19+ patterns and modern hooks usage
+        - Respect established TypeScript patterns
+        - ESLint handles basic TypeScript issues - focus on logic/architecture
+        - Allow explicit types for clarity (no-inferrable-types is off)
+        - Avoid duplicate recommendations with ESLint
+
+    - path: "frontend/**/*.ts"
+      instructions: |
+        For TypeScript services:
+        - Follow existing ESLint configuration
+        - Focus on service architecture and API integration patterns
+        - Type safety is handled by ESLint - focus on business logic
+        - Prioritize proper error handling and async patterns
+        - Avoid style suggestions handled by ESLint
+
+    - path: "frontend/**/*.scss"
+      instructions: |
+        For SCSS/CSS modules:
+        - Focus on responsive design and CSS architecture
+        - Ensure proper component encapsulation
+        - Check for accessibility considerations (ARIA, contrast)
+        - Avoid style suggestions that ESLint doesn't handle
+
+    - path: "frontend/**/*.test.{ts,tsx}"
+      instructions: |
+        For test files:
+        - ESLint allows 'any' and console in tests - respect this
+        - Focus on test coverage and quality
+        - Check for proper mocking and async test patterns
+
+    - path: "frontend/package.json"
+      instructions: |
+        For package.json:
+        - Check for security vulnerabilities in dependencies
+        - Ensure version compatibility (React 19+, TypeScript 5.9+)
+        - Verify peer dependency configurations for Radix UI
+
+    # Backend instructions
+    - path: "backend/app/**/*.py"
+      instructions: |
+        For Python backend code:
+        - Follow existing Ruff configuration in pyproject.toml
+        - Focus on functional issues, not style (Ruff handles style)
+        - Prioritize multi-tenant isolation and security
+        - Respect FastAPI patterns (Depends() in defaults is acceptable)
+        - MD5 usage for cache keys is acceptable (not for security)
+        - Avoid duplicate recommendations with Ruff
+
+    - path: "backend/alembic/**/*.py"
+      instructions: |
+        For Alembic migrations:
+        - Ignore line length violations (E501) - migrations are auto-generated
+        - Focus on data integrity and migration safety
+        - Don't suggest style improvements for generated code
+
+    - path: "backend/tests/**/*.py"
+      instructions: |
+        For test files:
+        - Allow assert statements (S101) - standard in pytest
+        - Focus on test coverage and correctness
+        - Ignore style issues handled by Ruff
+
+  # Global instructions
+  instructions: |
+    Project Context: JEEX Plan - Multi-tenant documentation generation system
+
+    Key Principles:
+    - Multi-tenant isolation is CRITICAL - never suggest bypassing tenant_id checks
+    - Follow CLAUDE.md project guidelines
+    - Modern stack: React 19+, TypeScript 5.9+, Python 3.11+, FastAPI 0.116+
+
+    Linter Integration Guidelines:
+    Backend (Python):
+    - Respect existing Ruff configuration - avoid duplicate style suggestions
+    - Focus on functional/logical issues, not formatting
+    - Preserve FastAPI dependency injection patterns
+    - Ignore: B008 (Depends), S324 (MD5 cache), S101 (assert tests), ANN401 (Any utilities)
+
+    Frontend (TypeScript/React):
+    - Respect existing ESLint configuration - avoid duplicate style suggestions
+    - Focus on component architecture and business logic, not syntax
+    - Preserve React 19+ patterns and modern TypeScript usage
+    - Allow explicit types for clarity (no-inferrable-types disabled)
+    - Ignore: @typescript-eslint/no-explicit-any in tests, console.log in tests
+
+    Review Focus Areas:
+    - Architecture and design patterns
+    - Security (especially tenant isolation)
+    - Performance and accessibility
+    - Error handling and edge cases
+    - API design and integration patterns
+
+    Avoid Suggesting:
+    - Style/formatting changes handled by linters
+    - Basic TypeScript/Python syntax issues
+    - Import organization (handled by tools)
+    - Code style preferences (use project conventions)
+
+# Additional settings
+language: "en"
+early_access: false
+auto_review:
+  enabled: true
+  drafts: false

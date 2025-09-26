@@ -32,7 +32,13 @@ class TokenService:
         else:
             expire = issued_at + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-        to_encode.update({"exp": expire, "type": "access", "iat": issued_at})
+        to_encode.update(
+            {
+                "exp": int(expire.timestamp()),
+                "type": "access",
+                "iat": int(issued_at.timestamp()),
+            }
+        )
 
         try:
             encoded_jwt = jwt.encode(
@@ -54,7 +60,13 @@ class TokenService:
         else:
             expire = issued_at + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-        to_encode.update({"exp": expire, "type": "refresh", "iat": issued_at})
+        to_encode.update(
+            {
+                "exp": int(expire.timestamp()),
+                "type": "refresh",
+                "iat": int(issued_at.timestamp()),
+            }
+        )
 
         try:
             encoded_jwt = jwt.encode(

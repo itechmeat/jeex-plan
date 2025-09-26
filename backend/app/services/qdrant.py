@@ -167,23 +167,28 @@ class QdrantService:
 
             # Upsert points
             await asyncio.get_event_loop().run_in_executor(
-                None, self.client.upsert, self.collection_name, points
+                None,
+                lambda: self.client.upsert(
+                    collection_name=self.collection_name, points=points
+                )
             )
 
+            tenant_ctx = metadata_list[0] if metadata_list else {}
             logger.info(
                 "Upserted documents to Qdrant",
                 count=len(points),
-                tenant_id=tenant_id,
-                project_id=project_id,
+                tenant_id=tenant_ctx.get("tenant_id"),
+                project_id=tenant_ctx.get("project_id"),
             )
             return ids
 
         except Exception as exc:
+            tenant_ctx = metadata_list[0] if metadata_list else {}
             logger.error(
                 "Failed to upsert documents to Qdrant",
                 error=str(exc),
-                tenant_id=tenant_id,
-                project_id=project_id,
+                tenant_id=tenant_ctx.get("tenant_id"),
+                project_id=tenant_ctx.get("project_id"),
             )
             raise
 
@@ -308,13 +313,15 @@ class QdrantService:
             return "\n---\n".join(context_parts)
 
         except (ConnectionError, TimeoutError) as exc:
-            logger.error("Qdrant connection failed during context retrieval", error=str(exc))
+            logger.error(
+                "Qdrant connection failed during context retrieval", error=str(exc)
+            )
             return ""
         except (ValueError, KeyError, TypeError) as exc:
             logger.error("Invalid data during context retrieval", error=str(exc))
             return ""
         except Exception as exc:
-            logger.error("Failed to get document context", error=str(exc), exc_info=True)
+            logger.exception("Failed to get document context", error=str(exc))
             return ""
 
     async def delete_project_documents(self, tenant_id: str, project_id: str) -> None:
@@ -328,9 +335,10 @@ class QdrantService:
             # Delete points
             await asyncio.get_event_loop().run_in_executor(
                 None,
-                self.client.delete,
-                self.collection_name,
-                models.FilterSelector(filter=project_filter),
+                lambda: self.client.delete(
+                    collection_name=self.collection_name,
+                    points_selector=models.FilterSelector(filter=project_filter),
+                ),
             )
 
             logger.info(
@@ -368,9 +376,10 @@ class QdrantService:
             # Delete points
             await asyncio.get_event_loop().run_in_executor(
                 None,
-                self.client.delete,
-                self.collection_name,
-                models.FilterSelector(filter=document_filter),
+                lambda: self.client.delete(
+                    collection_name=self.collection_name,
+                    points_selector=models.FilterSelector(filter=document_filter),
+                ),
             )
 
             logger.info("Deleted document", document_id=document_id)
@@ -423,10 +432,10 @@ class QdrantService:
         except (ConnectionError, TimeoutError) as e:
             return {
                 "status": "unhealthy",
-                "error": f"Connection failed: {str(e)}",
+                "error": f"Connection failed: {e!s}",
                 "collection": self.collection_name,
             }
-        except Exception as e:
+        except (ValueError, RuntimeError, TypeError, AttributeError) as e:
             return {
                 "status": "unhealthy",
                 "error": str(e),

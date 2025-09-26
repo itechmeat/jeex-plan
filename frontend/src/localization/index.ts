@@ -1,5 +1,4 @@
-import type { Locale } from './en';
-import { en } from './en';
+import { en, type Locale } from './en';
 
 type TranslateOptions = {
   fallbackKey?: string;

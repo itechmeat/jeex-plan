@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import AuthService
+from ..core.password_service import PasswordService
 from ..models.user import User
 from ..repositories.tenant import TenantRepository
 from ..repositories.user import UserRepository
@@ -29,6 +30,7 @@ class UserService:
         # Global repositories (no tenant scope)
         self.tenant_repo = TenantRepository(db)
         self.auth_service = AuthService(db, tenant_id)
+        self.password_service = PasswordService()
 
     async def register_user(
         self,
@@ -65,7 +67,7 @@ class UserService:
             )
 
         # Hash password
-        hashed_password = self.auth_service.get_password_hash(password)
+        hashed_password = self.password_service.get_password_hash(password)
 
         # Create user
         user = await self.user_repo.create(
@@ -139,7 +141,7 @@ class UserService:
 
         return user
 
-    async def update_user_profile(self, user_id: uuid.UUID, **updates) -> User:
+    async def update_user_profile(self, user_id: uuid.UUID, **updates: Any) -> User:
         """Update user profile."""
         if self.user_repo is None:
             raise HTTPException(
@@ -213,7 +215,7 @@ class UserService:
             )
 
         # Verify current password
-        if not user.hashed_password or not self.auth_service.verify_password(
+        if not user.hashed_password or not self.password_service.verify_password(
             current_password, user.hashed_password
         ):
             raise HTTPException(
@@ -222,7 +224,7 @@ class UserService:
             )
 
         # Hash new password
-        new_hashed_password = self.auth_service.get_password_hash(new_password)
+        new_hashed_password = self.password_service.get_password_hash(new_password)
 
         # Update password
         await self.user_repo.update(user_id, hashed_password=new_hashed_password)
@@ -231,6 +233,11 @@ class UserService:
 
     async def deactivate_user(self, user_id: uuid.UUID) -> User:
         """Deactivate user account."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized",
+            )
         user = await self.user_repo.deactivate_user(user_id)
 
         if not user:
@@ -242,6 +249,11 @@ class UserService:
 
     async def activate_user(self, user_id: uuid.UUID) -> User:
         """Activate user account."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized",
+            )
         user = await self.user_repo.activate_user(user_id)
 
         if not user:
@@ -291,8 +303,9 @@ class UserService:
         repo = self.user_repo
 
         if repo is None:
-            raise RuntimeError(
-                "UserService.link_oauth_account requires an initialized user_repo"
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized",
             )
 
         # Check if OAuth account is already linked
@@ -317,6 +330,12 @@ class UserService:
 
     async def unlink_oauth_account(self, user_id: uuid.UUID) -> User:
         """Unlink OAuth account from user."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized",
+            )
+
         user = await self.user_repo.unlink_oauth_account(user_id)
 
         if not user:

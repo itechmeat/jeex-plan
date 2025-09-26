@@ -29,7 +29,8 @@ class VaultAdapter(LoggerMixin):
             self.client = hvac.Client(
                 url=settings.VAULT_ADDR,
                 token=settings.VAULT_TOKEN,
-                verify=False,  # For development - use proper SSL in production
+                # Keep TLS verification enabled by default; configurable via settings
+                verify=getattr(settings, "VAULT_VERIFY", True),
             )
 
             if self.client.is_authenticated():
@@ -318,11 +319,16 @@ class VaultAdapter(LoggerMixin):
         """
         if self.client:
             secret_data = await self.read_secret(vault_path)
-            if secret_data and "value" in secret_data:
-                value = secret_data["value"]
-                if value is None:
-                    return default
-                return str(value)
+            if isinstance(secret_data, dict):
+                if "value" in secret_data:
+                    val = secret_data["value"]
+                    if val is not None:
+                        return str(val)
+                elif len(secret_data) == 1:
+                    val = next(iter(secret_data.values()))
+                    if val is not None:
+                        return str(val)
+                # Multiple values present or value is None; fall back to env/default
 
         return os.getenv(env_var, default)
 

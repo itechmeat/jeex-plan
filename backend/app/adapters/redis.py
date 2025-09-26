@@ -253,16 +253,17 @@ class RedisAdapter(LoggerMixin):
             }
 
     # Queue operations
-    async def enqueue(self, queue_name: str, value: JSONValue) -> bool:
+    async def enqueue(self, queue_name: str, value: JSONValue) -> int:
         """Add item to queue"""
         try:
             serialized_value = (
                 json.dumps(value) if not isinstance(value, str) else value
             )
-            return await self.client.lpush(queue_name, serialized_value)
+            result = await self.client.lpush(queue_name, serialized_value)
+            return result
         except RedisError as e:
             logger.error("Queue ENQUEUE failed", queue=queue_name, error=str(e))
-            return False
+            return 0
 
     async def dequeue(self, queue_name: str, timeout: int = 30) -> JSONValue | None:
         """Get item from queue with timeout"""

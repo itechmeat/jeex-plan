@@ -237,6 +237,8 @@ class HNSWConfigurator:
         # Graph memory (very rough estimate)
         m = config.get("m", 16)
         payload_m = config.get("payload_m", 16)
+        if payload_m is None:
+            payload_m = 0
         graph_connections = (
             vector_count * (m + payload_m) * 8 / (1024 * 1024)
         )  # 64-bit pointers

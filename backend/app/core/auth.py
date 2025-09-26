@@ -27,7 +27,7 @@ security = HTTPBearer()
 
 
 class AuthService:
-    """Service for handling authentication and authorization - now focused only on auth logic."""
+    """Service for handling authentication and authorization."""
 
     def __init__(
         self,
@@ -179,9 +179,9 @@ class AuthService:
     async def create_tokens_for_user(self, user: User) -> dict[str, Any]:
         """Create access and refresh tokens for user."""
         user_data = {
-            "id": user.id,
+            "id": str(user.id),
             "email": user.email,
-            "tenant_id": user.tenant_id,
+            "tenant_id": str(user.tenant_id) if user.tenant_id is not None else None,
             "username": user.username,
             "full_name": user.full_name or "",
         }
@@ -244,8 +244,8 @@ async def get_current_user(
             )
 
         return user
-    except Exception:
-        raise credentials_exception
+    except Exception as exc:
+        raise credentials_exception from exc
 
 
 async def get_current_active_user(

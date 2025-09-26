@@ -37,19 +37,21 @@ Run CodeRabbit CLI analysis in prompt-only mode optimized for AI agents, then sy
 **Step 1: CodeRabbit Analysis**
 Run CodeRabbit analysis on ${ARGUMENTS:-.} (current directory if no arguments provided):
 
-!timeout 600 coderabbit --prompt-only ${ARGUMENTS:+--cwd $ARGUMENTS}
+!timeout 900 coderabbit --prompt-only ${ARGUMENTS:+--cwd $ARGUMENTS}
 
 **IMPORTANT: Analysis Duration**
 CodeRabbit analysis can take up to 10 minutes to complete, especially for large changesets or projects with many files. **Wait patiently** - do NOT interrupt the process.
 
 **CRITICAL: Error Handling**
 If CodeRabbit returns any error (rate limits, authentication, network issues, etc.):
+
 1. **Immediately stop execution** - do NOT proceed with agent activation
 2. **Notify the user** about the specific error encountered
 3. **Provide guidance** on how to resolve the issue (e.g., wait for rate limit reset, check authentication)
 4. **Exit gracefully** without launching any agents
 
 Common error scenarios:
+
 - **Rate limit exceeded**: "CodeRabbit API rate limit exceeded. Please wait and try again later."
 - **Authentication failed**: "CodeRabbit authentication failed. Please check your API credentials."
 - **Network/connectivity issues**: "CodeRabbit API is unreachable. Please check your internet connection."
@@ -59,6 +61,7 @@ Common error scenarios:
 **ONLY proceed if CodeRabbit analysis completed successfully without errors.**
 
 **If the argument equals "frontend" or includes "frontend/":**
+
 ```
 Use the Task tool with parameters:
 - subagent_type: "tech-frontend"
@@ -67,6 +70,7 @@ Use the Task tool with parameters:
 ```
 
 **If the argument equals "backend" or includes "backend/":**
+
 ```
 Use the Task tool with parameters:
 - subagent_type: "tech-python"
@@ -75,6 +79,7 @@ Use the Task tool with parameters:
 ```
 
 **If the argument equals "all" or is omitted:**
+
 ```
 1. Review the CodeRabbit output and identify the types of files with issues
 2. If there are frontend issues, launch the tech-frontend agent
@@ -85,6 +90,7 @@ Use the Task tool with parameters:
 **Step 3: Specialized Agent Execution**
 
 The activated agent must:
+
 1. **Read each issue carefully** - understand the problem, location, and proposed fix
 2. **Implement exact fixes** - apply the precise corrections from the "Prompt for AI Agent" sections
 3. **Maintain consistency** - follow existing patterns and conventions
