@@ -67,7 +67,8 @@
       "Bash(coderabbit:*)",
       "WebFetch(domain:www.coderabbit.ai)",
       "Bash(npm run lint:*)",
-      "Bash(npm run type-check:*)"
+      "Bash(npm run type-check:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",

@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/useAuth';
 import { appConfig } from '../../config/appConfig';
 import { ROUTES } from '../../config/routes';
 import { Button } from '../ui/Button/Button';
+import classNames from 'classnames';
+import buttonStyles from '../ui/Button/Button.module.scss';
 import styles from './Layout.module.scss';
 
 type LayoutProps = {
@@ -69,18 +71,46 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           <nav className={styles.nav}>
-            <Button variant="ghost" onClick={() => navigate(ROUTES.DASHBOARD)}>
+            <Link
+              to={ROUTES.DASHBOARD}
+              className={classNames(
+                buttonStyles.button,
+                buttonStyles.ghost,
+                buttonStyles.md
+              )}
+            >
               Dashboard
-            </Button>
-            <Button variant="ghost" onClick={() => navigate(ROUTES.PROJECTS)}>
+            </Link>
+            <Link
+              to={ROUTES.PROJECTS}
+              className={classNames(
+                buttonStyles.button,
+                buttonStyles.ghost,
+                buttonStyles.md
+              )}
+            >
               Projects
-            </Button>
-            <Button variant="ghost" onClick={() => navigate(ROUTES.HEALTH)}>
+            </Link>
+            <Link
+              to={ROUTES.HEALTH}
+              className={classNames(
+                buttonStyles.button,
+                buttonStyles.ghost,
+                buttonStyles.md
+              )}
+            >
               System Health
-            </Button>
-            <Button variant="primary" onClick={() => navigate(ROUTES.PROJECTS_NEW)}>
+            </Link>
+            <Link
+              to={ROUTES.PROJECTS_NEW}
+              className={classNames(
+                buttonStyles.button,
+                buttonStyles.primary,
+                buttonStyles.md
+              )}
+            >
               New Project
-            </Button>
+            </Link>
           </nav>
 
           <div className={styles.userSection}>
@@ -111,9 +141,9 @@ export const Layout: React.FC<LayoutProps> = ({
             &copy; {resolvedYear} {resolvedAppName}. All rights reserved.
           </p>
           <div className={styles.footerLinks}>
-            <button className={styles.footerLink} onClick={() => navigate(ROUTES.HEALTH)}>
+            <Link to={ROUTES.HEALTH} className={styles.footerLink}>
               System Status
-            </button>
+            </Link>
             <Link to={ROUTES.TERMS}>Terms</Link>
             <Link to={ROUTES.PRIVACY}>Privacy</Link>
             <Link to={ROUTES.SUPPORT}>Support</Link>
