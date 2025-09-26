@@ -1,0 +1,121 @@
+@use '../../../styles/variables' as vars;
+@use '../../../styles/mixins' as mixins;
+
+.button {
+  @include mixins.button-base;
+  @include mixins.flex-center;
+  gap: vars.$spacing-sm;
+  position: relative;
+  overflow: hidden;
+
+  &.fullWidth {
+    width: 100%;
+  }
+
+  // Sizes
+  &.sm {
+    @include mixins.button-size(vars.$spacing-sm, vars.$spacing-md, vars.$font-size-sm);
+    min-height: 32px;
+  }
+
+  &.md {
+    @include mixins.button-size(
+      vars.$spacing-md,
+      vars.$spacing-lg,
+      vars.$font-size-base
+    );
+    min-height: 40px;
+  }
+
+  &.lg {
+    @include mixins.button-size(vars.$spacing-lg, vars.$spacing-xl, vars.$font-size-lg);
+    min-height: 48px;
+  }
+
+  // Variants
+  &.primary {
+    @include mixins.button-primary;
+  }
+
+  &.secondary {
+    @include mixins.button-secondary;
+  }
+
+  &.outline {
+    background-color: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-primary-light);
+    }
+  }
+
+  &.ghost {
+    background-color: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid transparent;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-surface-hover);
+    }
+  }
+
+  &.danger {
+    background-color: var(--color-error);
+    color: white;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-error-hover);
+    }
+  }
+
+  // Loading state
+  &.loading {
+    color: transparent;
+    pointer-events: none;
+  }
+
+  .spinner {
+    @include mixins.spinner(16px, 2px);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  // Icon spacing
+  .leftIcon {
+    display: flex;
+    align-items: center;
+    margin-right: calc(-1 * vars.$spacing-xs);
+
+    svg {
+      width: 1em;
+      height: 1em;
+    }
+  }
+
+  .rightIcon {
+    display: flex;
+    align-items: center;
+    margin-left: calc(-1 * vars.$spacing-xs);
+
+    svg {
+      width: 1em;
+      height: 1em;
+    }
+  }
+
+  // Focus styles
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  // Disabled state
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

@@ -1,0 +1,219 @@
+@use '../../styles/variables' as vars;
+@use '../../styles/mixins' as mixins;
+
+.projectsPage {
+  min-height: 100vh;
+  background-color: var(--color-surface);
+}
+
+.container {
+  @include mixins.container;
+  padding-top: vars.$spacing-2xl;
+  padding-bottom: vars.$spacing-2xl;
+}
+
+.header {
+  @include mixins.flex-between;
+  margin-bottom: vars.$spacing-2xl;
+
+  @include mixins.mobile-only {
+    flex-direction: column;
+    gap: vars.$spacing-lg;
+  }
+}
+
+.titleSection {
+  h1 {
+    @include mixins.heading-1;
+    color: var(--color-text-primary);
+    margin-bottom: vars.$spacing-sm;
+  }
+
+  p {
+    @include mixins.body-text;
+    color: var(--color-text-secondary);
+  }
+}
+
+.filters {
+  margin-bottom: vars.$spacing-xl;
+  max-width: 400px;
+}
+
+.projectsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: vars.$spacing-xl;
+  margin-bottom: vars.$spacing-2xl;
+
+  @include mixins.mobile-only {
+    grid-template-columns: 1fr;
+    gap: vars.$spacing-lg;
+  }
+}
+
+.projectCard {
+  @include mixins.card-hover;
+  padding: vars.$spacing-xl;
+  cursor: pointer;
+  background-color: var(--color-background);
+  transition: all vars.$transition-fast;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--color-border-focus);
+    outline-offset: 4px;
+    box-shadow: vars.$shadow-md;
+    transform: translateY(-2px);
+  }
+}
+
+.projectHeader {
+  @include mixins.flex-between;
+  align-items: flex-start;
+  margin-bottom: vars.$spacing-md;
+  gap: vars.$spacing-md;
+}
+
+.projectName {
+  @include mixins.heading-3;
+  color: var(--color-text-primary);
+  margin: 0;
+  flex: 1;
+  line-height: vars.$line-height-tight;
+}
+
+.statusBadge {
+  padding: vars.$spacing-xs vars.$spacing-sm;
+  border-radius: vars.$border-radius-xl;
+  font-size: vars.$font-size-xs;
+  font-weight: vars.$font-weight-medium;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+
+  &.default {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  &.success {
+    background-color: rgb(16 185 129 / 0.1);
+    color: var(--color-success);
+  }
+
+  &.error {
+    background-color: rgb(239 68 68 / 0.1);
+    color: var(--color-error);
+  }
+}
+
+.projectDescription {
+  @include mixins.body-text;
+  color: var(--color-text-secondary);
+  margin-bottom: vars.$spacing-lg;
+  line-height: vars.$line-height-relaxed;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.progressSection {
+  margin-bottom: vars.$spacing-lg;
+}
+
+.projectFooter {
+  @include mixins.flex-between;
+  align-items: center;
+  border-top: 1px solid var(--color-border);
+  padding-top: vars.$spacing-md;
+}
+
+.projectMeta {
+  display: flex;
+  gap: vars.$spacing-lg;
+
+  span {
+    @include mixins.body-text-sm;
+    color: var(--color-text-muted);
+    font-size: vars.$font-size-xs;
+  }
+}
+
+.pagination {
+  @include mixins.flex-center;
+  gap: vars.$spacing-lg;
+  margin-top: vars.$spacing-xl;
+}
+
+.pageInfo {
+  @include mixins.body-text;
+  color: var(--color-text-secondary);
+  font-size: vars.$font-size-sm;
+}
+
+.emptyState {
+  @include mixins.card;
+  padding: vars.$spacing-3xl;
+  text-align: center;
+  background-color: var(--color-background);
+
+  h3 {
+    @include mixins.heading-3;
+    margin-bottom: vars.$spacing-md;
+    color: var(--color-text-primary);
+  }
+
+  p {
+    @include mixins.body-text;
+    color: var(--color-text-secondary);
+    margin-bottom: vars.$spacing-xl;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.emptyIcon {
+  font-size: 4rem;
+  margin-bottom: vars.$spacing-lg;
+  opacity: 0.5;
+}
+
+.loadingContainer {
+  @include mixins.flex-center;
+  @include mixins.flex-column;
+  min-height: 60vh;
+  gap: vars.$spacing-lg;
+
+  p {
+    @include mixins.body-text;
+    color: var(--color-text-secondary);
+  }
+}
+
+.errorContainer {
+  @include mixins.flex-center;
+  @include mixins.flex-column;
+  min-height: 60vh;
+  gap: vars.$spacing-lg;
+  text-align: center;
+
+  h2 {
+    @include mixins.heading-2;
+    color: var(--color-error);
+  }
+
+  p {
+    @include mixins.body-text;
+    color: var(--color-text-secondary);
+  }
+}
+
+.spinner {
+  @include mixins.spinner(32px, 3px);
+}

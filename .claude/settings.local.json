@@ -57,7 +57,18 @@
       "WebFetch(domain:www.pinecone.io)",
       "WebFetch(domain:weaviate.io)",
       "Bash(gh pr:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm create:*)",
+      "Bash(npx create-vite:*)",
+      "WebFetch(domain:tanstack.com)",
+      "Bash(npm run build:*)",
+      "Bash(kill:*)",
+      "WebFetch(domain:docs.coderabbit.ai)",
+      "Bash(coderabbit:*)",
+      "WebFetch(domain:www.coderabbit.ai)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",

@@ -1,0 +1,70 @@
+@use '../../../styles/variables' as vars;
+@use '../../../styles/mixins' as mixins;
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$spacing-sm;
+
+  &.fullWidth {
+    width: 100%;
+  }
+}
+
+.label {
+  @include mixins.body-text;
+  font-weight: vars.$font-weight-medium;
+  font-size: vars.$font-size-sm;
+  color: var(--color-text-primary);
+}
+
+.textarea {
+  @include mixins.input-base;
+  min-height: 100px;
+  line-height: vars.$line-height-normal;
+  font-family: vars.$font-family-sans;
+
+  .hasError & {
+    border-color: var(--color-error);
+
+    &:focus {
+      border-color: var(--color-error);
+      box-shadow: 0 0 0 3px rgb(239 68 68 / 0.1);
+    }
+  }
+
+  // Resize options
+  &.resize-none {
+    resize: none;
+  }
+
+  &.resize-vertical {
+    resize: vertical;
+  }
+
+  &.resize-horizontal {
+    resize: horizontal;
+  }
+
+  &.resize-both {
+    resize: both;
+  }
+}
+
+.helperContainer {
+  display: flex;
+  align-items: center;
+  gap: vars.$spacing-sm;
+}
+
+.error {
+  @include mixins.body-text-sm;
+  color: var(--color-error);
+  font-size: vars.$font-size-xs;
+}
+
+.helperText {
+  @include mixins.body-text-sm;
+  color: var(--color-text-muted);
+  font-size: vars.$font-size-xs;
+}

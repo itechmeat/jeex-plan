@@ -1,0 +1,167 @@
+@use '../../styles/variables' as vars;
+@use '../../styles/mixins' as mixins;
+
+.wizard {
+  @include mixins.card;
+  display: flex;
+  flex-direction: column;
+  min-height: 600px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.header {
+  padding: vars.$spacing-xl;
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.progressSection {
+  margin-bottom: vars.$spacing-xl;
+}
+
+.stepNav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: vars.$spacing-md;
+
+  @include mixins.mobile-only {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stepNavItem {
+  display: flex;
+  align-items: center;
+  gap: vars.$spacing-md;
+  padding: vars.$spacing-md;
+  border-radius: vars.$border-radius-md;
+  transition: all vars.$transition-fast;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+
+  &.active {
+    background-color: var(--color-primary-light);
+    border: 1px solid var(--color-primary);
+  }
+
+  &.completed {
+    background-color: var(--color-surface-hover);
+    opacity: 0.7;
+  }
+
+  &.clickable {
+    &:hover {
+      background-color: var(--color-surface-hover);
+    }
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+}
+
+.stepNumber {
+  @include mixins.flex-center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: vars.$font-size-sm;
+  font-weight: vars.$font-weight-semibold;
+  flex-shrink: 0;
+
+  .stepNavItem.active & {
+    background-color: var(--color-primary);
+    color: white;
+  }
+
+  .stepNavItem.completed & {
+    background-color: var(--color-success);
+    color: white;
+  }
+
+  .stepNavItem:not(.active):not(.completed) & {
+    background-color: var(--color-border);
+    color: var(--color-text-secondary);
+  }
+}
+
+.stepInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.stepTitle {
+  @include mixins.body-text;
+  font-weight: vars.$font-weight-medium;
+  font-size: vars.$font-size-sm;
+  margin-bottom: vars.$spacing-xs;
+  line-height: vars.$line-height-tight;
+}
+
+.stepDescription {
+  @include mixins.body-text-sm;
+  color: var(--color-text-muted);
+  font-size: vars.$font-size-xs;
+  line-height: vars.$line-height-normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: vars.$spacing-xl;
+}
+
+.stepHeader {
+  margin-bottom: vars.$spacing-xl;
+}
+
+.stepTitle {
+  @include mixins.heading-2;
+  margin-bottom: vars.$spacing-md;
+}
+
+.stepDescription {
+  @include mixins.body-text;
+  color: var(--color-text-secondary);
+}
+
+.stepContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.footer {
+  padding: vars.$spacing-xl;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.navigationButtons {
+  @include mixins.flex-between;
+  gap: vars.$spacing-lg;
+
+  @include mixins.mobile-only {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.rightButtons {
+  display: flex;
+  gap: vars.$spacing-md;
+
+  @include mixins.mobile-only {
+    flex-direction: column-reverse;
+  }
+}
