@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { appConfig } from '../../config/appConfig';
@@ -23,6 +23,7 @@ export const Layout: React.FC<LayoutProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user, logout, isLoading } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const currentYear = new Date().getFullYear();
   const envYearValue = import.meta.env.VITE_APP_COPYRIGHT_YEAR;
@@ -36,11 +37,16 @@ export const Layout: React.FC<LayoutProps> = ({
     currentYear;
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await logout();
-      navigate(ROUTES.LOGIN);
     } catch (error) {
       console.error('Logout failed:', error);
+    } finally {
+      // Always redirect to login, even if logout API fails
+      // Use replace: true to prevent back-navigation to protected pages
+      navigate(ROUTES.LOGIN, { replace: true });
+      setIsLoggingOut(false);
     }
   };
 
@@ -122,7 +128,13 @@ export const Layout: React.FC<LayoutProps> = ({
                   </span>
                   <span className={styles.userEmail}>{user.email}</span>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleLogout}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogout}
+                  isLoading={isLoggingOut}
+                  disabled={isLoggingOut}
+                >
                   Logout
                 </Button>
               </>
