@@ -24,6 +24,7 @@
     "@tanstack/react-db": "^0.1.22",
     "@types/react-syntax-highlighter": "^15.5.13",
     "classnames": "^2.5.1",
+    "event-source-polyfill": "^1.0.31",
     "lucide-react": "^0.544.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@types/event-source-polyfill": "^1.0.5",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
@@ -88,6 +90,12 @@
         }
       },
       "@radix-ui/react-toast@*": {
+        "peerDependencies": {
+          "react": "^16.8 || ^17 || ^18 || ^19",
+          "react-dom": "^16.8 || ^17 || ^18 || ^19"
+        }
+      },
+      "@radix-ui/react-icons@*": {
         "peerDependencies": {
           "react": "^16.8 || ^17 || ^18 || ^19",
           "react-dom": "^16.8 || ^17 || ^18 || ^19"

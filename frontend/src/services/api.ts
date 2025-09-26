@@ -1,3 +1,4 @@
+import { EventSourcePolyfill } from 'event-source-polyfill';
 import {
   ApiResponse,
   PaginatedResponse,
@@ -247,14 +248,14 @@ class ApiClient {
   createProgressEventSource(projectId: string): EventSource {
     const token = this.getAccessToken();
     const base = this.baseURL.replace(/\/$/, '');
-    let url = `${base}/projects/${projectId}/progress`;
+    const url = `${base}/projects/${projectId}/progress`;
 
+    const headers: Record<string, string> = {};
     if (token) {
-      const delimiter = url.includes('?') ? '&' : '?';
-      url = `${url}${delimiter}access_token=${encodeURIComponent(token)}`;
+      headers.Authorization = `Bearer ${token}`;
     }
 
-    return new EventSource(url);
+    return new EventSourcePolyfill(url, { headers }) as EventSource;
   }
 
   // Token management

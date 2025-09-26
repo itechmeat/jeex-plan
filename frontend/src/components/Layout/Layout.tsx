@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { appConfig } from '../../config/appConfig';
+import { ROUTES } from '../../config/routes';
 import { Button } from '../ui/Button/Button';
 import styles from './Layout.module.scss';
 
@@ -35,7 +36,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/login');
+      navigate(ROUTES.LOGIN);
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -60,14 +61,14 @@ export const Layout: React.FC<LayoutProps> = ({
               tabIndex={0}
               role="button"
               aria-label={`Navigate to ${resolvedBrandTitle} dashboard`}
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(ROUTES.DASHBOARD)}
               onKeyDown={event => {
                 if (event.key === 'Enter') {
-                  navigate('/dashboard');
+                  navigate(ROUTES.DASHBOARD);
                 }
                 if (event.key === ' ' || event.key === 'Spacebar') {
                   event.preventDefault();
-                  navigate('/dashboard');
+                  navigate(ROUTES.DASHBOARD);
                 }
               }}
             >
@@ -77,16 +78,16 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           <nav className={styles.nav}>
-            <Button variant="ghost" onClick={() => navigate('/dashboard')}>
+            <Button variant="ghost" onClick={() => navigate(ROUTES.DASHBOARD)}>
               Dashboard
             </Button>
-            <Button variant="ghost" onClick={() => navigate('/projects')}>
+            <Button variant="ghost" onClick={() => navigate(ROUTES.PROJECTS)}>
               Projects
             </Button>
-            <Button variant="ghost" onClick={() => navigate('/health')}>
+            <Button variant="ghost" onClick={() => navigate(ROUTES.HEALTH)}>
               System Health
             </Button>
-            <Button variant="primary" onClick={() => navigate('/projects/new')}>
+            <Button variant="primary" onClick={() => navigate(ROUTES.PROJECTS_NEW)}>
               New Project
             </Button>
           </nav>
@@ -119,12 +120,12 @@ export const Layout: React.FC<LayoutProps> = ({
             &copy; {resolvedYear} {resolvedAppName}. All rights reserved.
           </p>
           <div className={styles.footerLinks}>
-            <button className={styles.footerLink} onClick={() => navigate('/health')}>
+            <button className={styles.footerLink} onClick={() => navigate(ROUTES.HEALTH)}>
               System Status
             </button>
-            <Link to="/terms">Terms</Link>
-            <Link to="/privacy">Privacy</Link>
-            <Link to="/support">Support</Link>
+            <Link to={ROUTES.TERMS}>Terms</Link>
+            <Link to={ROUTES.PRIVACY}>Privacy</Link>
+            <Link to={ROUTES.SUPPORT}>Support</Link>
           </div>
         </div>
       </footer>
