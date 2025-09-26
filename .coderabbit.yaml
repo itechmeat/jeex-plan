@@ -46,7 +46,7 @@ reviews:
       enabled: true
 
     # 📦 Additional quality tools
-    oxlint:
+    oxc:
       enabled: true
 
 
