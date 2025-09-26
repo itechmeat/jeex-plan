@@ -181,8 +181,22 @@ select = [
     "W",    # pycodestyle warnings
     "YTT",  # flake8-2020
 ]
+
+# Ignore rules that conflict with project patterns or are handled by CodeRabbit
+ignore = [
+    "B008",  # FastAPI Depends() in argument defaults is acceptable
+    "S324",  # MD5 usage for cache keys (not cryptographic)
+    "ANN401", # Any types in generic utilities are acceptable
+]
+
 # Allow unused variables when they start with underscore
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Per-file ignores to align with CodeRabbit configuration
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]  # Allow assert in tests
+"alembic/**/*.py" = ["E501"]  # Allow long lines in migrations
+"**/conftest.py" = ["ANN"]  # Skip annotations in test config
 
 [tool.ruff.format]
 # Like Black, use double quotes for strings

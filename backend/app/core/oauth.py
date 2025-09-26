@@ -55,6 +55,7 @@ class GoogleOAuthProvider(OAuthProvider):
             client_id=self.client_id,
             redirect_uri=settings.OAUTH_REDIRECT_URL,
             scope="openid email profile",
+            timeout=httpx.Timeout(10.0, connect=5.0),
         ) as client:
             authorization_url, _ = client.create_authorization_url(
                 self.authorization_endpoint, state=state
@@ -69,12 +70,15 @@ class GoogleOAuthProvider(OAuthProvider):
                 client_id=self.client_id,
                 client_secret=self.client_secret,
                 redirect_uri=settings.OAUTH_REDIRECT_URL,
+                timeout=httpx.Timeout(10.0, connect=5.0),
             ) as client:
                 # Exchange code for token
                 token = await client.fetch_token(self.token_endpoint, code=code)
 
             # Get user info
-            async with httpx.AsyncClient() as http_client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(10.0, connect=5.0)
+            ) as http_client:
                 response = await http_client.get(
                     self.userinfo_endpoint,
                     headers={"Authorization": f"Bearer {token['access_token']}"},
@@ -120,6 +124,7 @@ class GitHubOAuthProvider(OAuthProvider):
             client_id=self.client_id,
             redirect_uri=settings.OAUTH_REDIRECT_URL,
             scope="user:email",
+            timeout=httpx.Timeout(10.0, connect=5.0),
         ) as client:
             authorization_url, _ = client.create_authorization_url(
                 self.authorization_endpoint, state=state
@@ -134,6 +139,7 @@ class GitHubOAuthProvider(OAuthProvider):
                 client_id=self.client_id,
                 client_secret=self.client_secret,
                 redirect_uri=settings.OAUTH_REDIRECT_URL,
+                timeout=httpx.Timeout(10.0, connect=5.0),
             ) as client:
                 # Exchange code for token
                 token = await client.fetch_token(self.token_endpoint, code=code)
@@ -143,7 +149,9 @@ class GitHubOAuthProvider(OAuthProvider):
                 "Accept": "application/vnd.github.v3+json",
             }
 
-            async with httpx.AsyncClient() as http_client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(10.0, connect=5.0)
+            ) as http_client:
                 # Get user info
                 user_response = await http_client.get(
                     self.userinfo_endpoint, headers=headers

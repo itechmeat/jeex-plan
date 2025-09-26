@@ -8,6 +8,7 @@ accessed data with automatic tenant isolation and cache management.
 import asyncio
 import hashlib
 import json
+from enum import Enum
 from typing import Any
 
 from redis.exceptions import RedisError
@@ -17,6 +18,40 @@ from app.core.config import settings
 from app.core.logger import LoggerMixin, get_logger
 
 logger = get_logger(__name__)
+
+
+def _cache_json_default(value: Any) -> Any:
+    """Provide deterministic serialization for cache key components."""
+    if isinstance(value, Enum):
+        return value.value
+
+    if hasattr(value, "model_dump"):
+        try:
+            return value.model_dump()
+        except (AttributeError, TypeError, ValueError):
+            logger.debug(
+                "Failed to serialize value using model_dump", value_type=type(value)
+            )
+
+    # Handle collections deterministically
+    if isinstance(value, (set, frozenset)):
+        # Convert to sorted list with recursive processing
+        return sorted([_cache_json_default(item) for item in value])
+
+    if isinstance(value, dict):
+        # Sort by keys and recursively process values
+        return {k: _cache_json_default(v) for k, v in sorted(value.items())}
+
+    if isinstance(value, (list, tuple)):
+        # Process each element recursively, preserving order
+        return [_cache_json_default(item) for item in value]
+
+    # For types that cannot be deterministically serialized, raise TypeError
+    if hasattr(value, '__dict__') or callable(value):
+        typename = type(value).__name__
+        raise TypeError(f"Cannot deterministically serialize type {typename}")
+
+    return str(value)
 
 
 class CacheKey:
@@ -38,7 +73,9 @@ class CacheKey:
             "filters": sorted(filters.items()),
             "limit": limit,
         }
-        return f"search:{hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()}"
+        return "search:" + hashlib.md5(
+            json.dumps(key_data, sort_keys=True, default=_cache_json_default).encode()
+        ).hexdigest()
 
     @staticmethod
     def generate_embedding_key(text: str, model: str, normalization: str) -> str:
@@ -48,7 +85,8 @@ class CacheKey:
             "model": model,
             "normalization": normalization,
         }
-        return f"embedding:{hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()}"
+        json_str = json.dumps(key_data, sort_keys=True).encode()
+        return f"embedding:{hashlib.md5(json_str).hexdigest()}"
 
     @staticmethod
     def generate_stats_key(tenant_id: str, project_id: str) -> str:
@@ -77,6 +115,7 @@ class VectorCache(LoggerMixin):
         self.default_ttl = settings.CACHE_DEFAULT_TTL
         self.search_ttl = settings.CACHE_SEARCH_TTL
         self.embedding_ttl = settings.CACHE_EMBEDDING_TTL
+        self.stats_ttl = settings.CACHE_STATS_TTL
 
         # Cache statistics
         self.cache_hits = 0
@@ -312,8 +351,8 @@ class VectorCache(LoggerMixin):
 
             # Shorter TTL for stats as they change more frequently
             success = await self.redis.set(
-                cache_key, json.dumps(stats), ex=300
-            )  # 5 minutes
+                cache_key, json.dumps(stats), ex=self.stats_ttl
+            )
 
             if success:
                 # Add to project index for invalidation
@@ -456,11 +495,12 @@ class VectorCache(LoggerMixin):
             Warm-up statistics
         """
         try:
-            from app.services.embedding import get_embedding_service
+            from app.services.embedding import EmbeddingService
+
+            embedding_service = EmbeddingService()
 
             warmed_count = 0
             failed_count = 0
-            embedding_service = get_embedding_service()
 
             warmup_exceptions = (
                 RuntimeError,
@@ -486,7 +526,7 @@ class VectorCache(LoggerMixin):
                         )
                         warmed_count += 1
 
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(settings.CACHE_WARMUP_DELAY_SEC)
 
                 except warmup_exceptions as exc:
                     logger.warning(

@@ -214,18 +214,6 @@ async def logout_user(
     # For now, client should discard the tokens
 
     return LogoutResponse(message="Successfully logged out")
-    """
-    User logout endpoint.
-
-    Invalidates the current session (for future token blacklisting).
-    """
-    logger.info("Logout successful", user_id=str(current_user.id))
-
-    # NOTE: Token blacklisting in Redis not implemented for security
-    # Should store invalidated tokens in Redis with expiration for proper logout
-    # For now, client should discard the tokens
-
-    return LogoutResponse(message="Successfully logged out")
 
 
 @router.get("/me", response_model=UserResponse)

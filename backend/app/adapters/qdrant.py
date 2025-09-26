@@ -2,6 +2,7 @@
 Qdrant vector database adapter with multi-tenancy support.
 """
 
+import asyncio
 from datetime import UTC
 from typing import Any, Union
 
@@ -45,7 +46,9 @@ class QdrantAdapter(LoggerMixin):
     async def health_check(self) -> dict[str, Any]:
         """Check Qdrant service health"""
         try:
-            collections = self.client.get_collections()
+            collections = await asyncio.get_running_loop().run_in_executor(
+                None, self.client.get_collections
+            )
         except qdrant_exceptions.ApiException as exc:
             logger.error("Qdrant API health check failed", error=str(exc))
             return {
@@ -62,14 +65,13 @@ class QdrantAdapter(LoggerMixin):
             }
 
         return {
-            "status": "healthy",
-            "message": "Qdrant connection successful",
-            "details": {
-                "url": settings.QDRANT_URL,
-                "collection_count": len(collections.collections),
-                "version": "1.15.4",
-            },
-        }
+                "status": "healthy",
+                "message": "Qdrant connection successful",
+                "details": {
+                    "url": settings.QDRANT_URL,
+                    "collection_count": len(collections.collections),
+                },
+            }
 
     async def ensure_collection_exists(self) -> None:
         """Ensure the collection exists with proper configuration"""
@@ -184,8 +186,10 @@ class QdrantAdapter(LoggerMixin):
         try:
             await self.ensure_collection_exists()
 
+            if len(vectors) != len(payloads):
+                raise ValueError("vectors and payloads must have the same length")
             enriched_payloads: list[dict[str, Any]] = []
-            for i, (_vector, payload) in enumerate(zip(vectors, payloads, strict=False)):
+            for i, (_vector, payload) in enumerate(zip(vectors, payloads, strict=True)):
                 doc_type_str = (
                     doc_type.value if hasattr(doc_type, "value") else str(doc_type)
                 )
@@ -215,12 +219,16 @@ class QdrantAdapter(LoggerMixin):
             points = [
                 PointStruct(id=str(uuid.uuid4()), vector=vector, payload=payload)
                 for i, (vector, payload) in enumerate(
-                    zip(vectors, enriched_payloads, strict=False)
+                    zip(vectors, enriched_payloads, strict=True)
                 )
             ]
 
-            operation_info = self.client.upsert(
-                collection_name=self.collection_name, points=points, wait=True
+            loop = asyncio.get_running_loop()
+            operation_info = await loop.run_in_executor(
+                None,
+                lambda: self.client.upsert(
+                    collection_name=self.collection_name, points=points, wait=True
+                ),
             )
 
             logger.info(

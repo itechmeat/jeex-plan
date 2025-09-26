@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 from fastapi import HTTPException, Request, status
+from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -24,7 +25,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
     for all vector database operations.
     """
 
-    def __init__(self, app) -> None:
+    def __init__(self, app: Starlette) -> None:
         super().__init__(app)
         self.vector_endpoints = {
             "/api/v1/vectors/search",
@@ -51,7 +52,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
             if not context:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Missing tenant/project context",
+                    detail="Missing tenant or project context",
                 )
 
             # Validate tenant isolation
@@ -81,7 +82,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error during tenant isolation",
+                detail="Internal server error",
             )
 
     async def _extract_tenant_context(self, request: Request) -> dict[str, str] | None:
@@ -148,7 +149,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
                 if "tenant_id" in query_params or "project_id" in query_params:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Cannot override tenant/project context in search parameters",
+                        detail="Overriding tenant_id or project_id via query params forbidden",
                     )
 
                 # Validate filter parameters don't attempt cross-tenant access
@@ -159,7 +160,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
                         if tenant_id not in filters or project_id not in filters:
                             raise HTTPException(
                                 status_code=status.HTTP_403_FORBIDDEN,
-                                detail="Invalid filter parameters detected",
+                                detail="Filters must include tenant_id and project_id",
                             )
 
             except Exception as e:
@@ -176,7 +177,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
                 if content_length > max_payload_size:
                     raise HTTPException(
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"Payload too large. Maximum size: {max_payload_size} bytes",
+                        detail="Request payload exceeds maximum size",
                     )
             except ValueError:
                 logger.warning(

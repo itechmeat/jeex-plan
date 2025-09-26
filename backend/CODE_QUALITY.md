@@ -75,16 +75,18 @@ Add to `.vscode/settings.json`:
 
 ```json
 {
-  "python.formatting.provider": "ruff",
+  "python.formatting.provider": "none",
   "python.linting.enabled": true,
-  "python.linting.ruffEnabled": true,
-  "python.formatting.ruffPath": "./backend/venv/bin/ruff",
-  "python.linting.ruffPath": "./backend/venv/bin/ruff",
+  "ruff.enabled": true,
+  "ruff.path": "./backend/venv/bin/ruff",
+  "ruff.args": ["--config", "./backend/pyproject.toml"],
   "[python]": {
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-      "source.organizeImports": true
-    }
+      "source.organizeImports": true,
+      "source.fixAll.ruff": true
+    },
+    "editor.defaultFormatter": "charliermarsh.ruff"
   }
 }
 ```

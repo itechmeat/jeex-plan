@@ -26,7 +26,7 @@ class BaseRepository(ABC, Generic[ModelType]):
         self.session = session
         self.model = model
 
-    async def create(self, **kwargs) -> ModelType:
+    async def create(self, **kwargs: Any) -> ModelType:
         """Create a new entity."""
         try:
             instance = self.model(**kwargs)
@@ -106,7 +106,7 @@ class BaseRepository(ABC, Generic[ModelType]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def update(self, entity_id: UUID, **kwargs) -> ModelType | None:
+    async def update(self, entity_id: UUID, **kwargs: Any) -> ModelType | None:
         """Update entity by ID."""
         try:
             instance = await self.get_by_id(entity_id)
@@ -227,7 +227,7 @@ class TenantRepository(BaseRepository[ModelType]):
         super().__init__(session, model)
         self.tenant_id = tenant_id
 
-    async def create(self, **kwargs) -> ModelType:
+    async def create(self, **kwargs: Any) -> ModelType:
         """Create entity with tenant isolation."""
         kwargs["tenant_id"] = self.tenant_id
         return await super().create(**kwargs)

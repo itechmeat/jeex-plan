@@ -6,9 +6,10 @@ import contextlib
 import hashlib
 import secrets
 import time
+from collections.abc import Awaitable, Callable
 
 import redis.asyncio as redis
-from fastapi import HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..core.config import get_settings
@@ -25,7 +26,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         redis_client: redis.Redis | None = None,
         default_requests: int = 100,
         default_window: int = 60,
@@ -41,7 +42,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "/health",
         ]
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with rate limiting checks."""
 
         # Skip rate limiting for excluded paths
@@ -77,7 +82,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
     async def _check_rate_limit(
-        self, request: Request, redis_client=None
+        self, request: Request, redis_client: redis.Redis | None = None
     ) -> tuple[bool, dict]:
         """Check if request is within rate limits."""
 
@@ -118,7 +123,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ttl = 0
         try:
             ttl = await redis_client.ttl(key)
-        except Exception:
+        except (redis.RedisError, redis.ConnectionError, redis.TimeoutError):
             ttl = 0
         reset_time = current_time + (ttl if ttl and ttl > 0 else time_window)
         remaining = max(0, requests_limit - current_requests)
@@ -162,9 +167,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Apply user-specific multipliers (premium users could have higher limits)
         tenant_id = TenantContextManager.get_tenant_id(request)
         if tenant_id:
-            # TODO: Implement tenant-based rate limits here
-            # For now, use default config for all tenants
-            logger.debug("Tenant-specific rate limits not implemented", tenant_id=tenant_id)
+            logger.debug("Using default rate limits for tenant", tenant_id=tenant_id)
 
         return config
 

@@ -1,0 +1,248 @@
+# 🤖 JEEX Plan - Advanced CodeRabbit Configuration
+# Multi-tenant documentation generation system
+# Updated for CodeRabbit 2025 with all advanced features
+
+reviews:
+  # Assertive profile for comprehensive analysis
+  profile: "assertive"
+
+  # Advanced auto-review settings
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches: ["master", "main", "develop"]
+
+  # Enhanced review features
+  high_level_summary: true
+  poem: true
+  review_status: true
+  request_changes_workflow: false
+  collapse_walkthrough: false
+
+  # Comprehensive toolchain integration
+  tools:
+    # 🐍 Python backend analysis
+    ruff:
+      enabled: true
+
+    # ⚡ Frontend code quality
+    eslint:
+      enabled: true
+
+    # 🔐 Security scanning
+    gitleaks:
+      enabled: true
+
+    # 🐳 Docker best practices
+    hadolint:
+      enabled: true
+
+    # 🖥️ Shell script validation
+    shellcheck:
+      enabled: true
+
+    # 🔄 GitHub Actions linting
+    actionlint:
+      enabled: true
+
+    # 📦 Additional quality tools
+    oxc:
+      enabled: true
+
+
+  # 📁 Path-specific intelligent instructions
+  path_instructions:
+    # 🔐 Critical security modules
+    - path: "backend/app/core/auth.py"
+      instructions: |
+        🔐 **CRITICAL AUTHENTICATION MODULE**
+        Security Focus Areas:
+        - JWT token validation completeness and security
+        - Timing attack prevention in token comparison
+        - Proper session management and cleanup
+        - Multi-factor authentication implementation
+        - Rate limiting for auth endpoints
+        - Secure password reset flows
+        - **MANDATORY**: Tenant isolation in all auth flows
+
+    - path: "backend/app/core/database.py"
+      instructions: |
+        🗄️ **DATABASE CORE MODULE**
+        Critical Checks:
+        - Connection pooling security and limits
+        - Transaction isolation levels
+        - Prepared statement usage
+        - Database migration safety
+        - Tenant-scoped connection validation
+        - Backup and recovery considerations
+
+    # 🏗️ Data models and architecture
+    - path: "backend/app/models/**/*.py"
+      instructions: |
+        🏗️ **DATABASE MODELS**
+        Architecture Review:
+        - **MANDATORY**: tenant_id in all tenant-scoped models
+        - Foreign key relationships respect tenant boundaries
+        - Proper indexing strategy for tenant queries
+        - Soft delete implementation consistency
+        - Data validation and constraints
+        - Migration compatibility
+        - Performance optimization for large datasets
+
+    - path: "backend/app/repositories/**/*.py"
+      instructions: |
+        📊 **DATA ACCESS LAYER**
+        Repository Pattern Review:
+        - Tenant isolation in all queries (CRITICAL)
+        - SQL injection prevention
+        - Query optimization and N+1 prevention
+        - Proper error handling and logging
+        - Transaction management
+        - Cache invalidation strategies
+
+    # 🌐 API endpoints and security
+    - path: "backend/app/api/**/*.py"
+      instructions: |
+        🌐 **API ENDPOINTS**
+        Security & Architecture:
+        - Input validation and sanitization (Pydantic models)
+        - Proper HTTP status codes and error responses
+        - Rate limiting implementation
+        - Authentication and authorization checks
+        - Request/response logging (no sensitive data)
+        - API versioning considerations
+        - OpenAPI documentation accuracy
+        - **CRITICAL**: Multi-tenant access control
+
+    # ⚛️ React components and frontend architecture
+    - path: "frontend/src/components/**/*.tsx"
+      instructions: |
+        ⚛️ **REACT COMPONENTS**
+        Modern React 19+ Best Practices:
+        - Component composition and reusability
+        - Proper TypeScript prop validation
+        - Performance optimization (memo, useMemo, useCallback)
+        - Accessibility compliance (ARIA, keyboard navigation)
+        - Error boundary integration
+        - Security: XSS prevention in dynamic content
+        - State management patterns
+        - Testing considerations
+
+    - path: "frontend/src/hooks/**/*.ts"
+      instructions: |
+        🪝 **CUSTOM HOOKS**
+        Hook Architecture Review:
+        - Proper dependency arrays (exhaustive-deps)
+        - Cleanup in useEffect for subscriptions/timers
+        - Error handling and loading states
+        - Hook composition patterns
+        - Performance considerations
+        - Reusability and abstraction levels
+
+    - path: "frontend/src/services/**/*.ts"
+      instructions: |
+        🔌 **FRONTEND SERVICES**
+        Service Layer Architecture:
+        - API error handling and retry logic
+        - Request cancellation (AbortController)
+        - Authentication token management
+        - Response data validation
+        - Caching strategies
+        - Offline handling considerations
+        - Security: No sensitive data in logs
+
+    # 🔧 Configuration and infrastructure
+    - path: "docker-compose.yml"
+      instructions: |
+        🐳 **DOCKER ORCHESTRATION**
+        DevOps Security Review:
+        - Non-root user configuration
+        - Secrets management (no hardcoded values)
+        - Service networking and isolation
+        - Health checks implementation
+        - Resource limits and quotas
+        - Volume security and permissions
+        - Multi-stage build optimization
+
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        🔄 **CI/CD PIPELINES**
+        Security & Automation:
+        - Secure secret handling (GitHub Secrets)
+        - Minimal permissions (GITHUB_TOKEN)
+        - Dependency vulnerability scanning
+        - Code quality gates
+        - Security policy enforcement
+        - Deployment strategies
+        - Monitoring and alerting
+
+    # 📦 Dependency management
+    - path: "backend/pyproject.toml"
+      instructions: |
+        🔧 **PYTHON DEPENDENCIES**
+        Dependency Security:
+        - Version pinning strategy
+        - Security vulnerability scanning
+        - License compatibility
+        - Dependency tree analysis
+        - Development vs production dependencies
+        - Tool configuration consistency
+
+    - path: "frontend/package.json"
+      instructions: |
+        📦 **FRONTEND DEPENDENCIES**
+        Package Management:
+        - Security audit results (npm/yarn audit)
+        - Version compatibility matrix
+        - Peer dependency management
+        - Bundle size optimization
+        - Tree shaking considerations
+        - Runtime vs dev dependencies
+
+    # 🧪 Testing strategies
+    - path: "backend/tests/**/*.py"
+      instructions: |
+        🧪 **BACKEND TESTING**
+        Test Quality Review:
+        - Test coverage completeness
+        - Security test scenarios
+        - Integration test patterns
+        - Mocking strategies
+        - Test data management
+        - Performance test considerations
+        - Multi-tenant test isolation
+
+    - path: "frontend/src/**/*.test.{ts,tsx}"
+      instructions: |
+        🎯 **FRONTEND TESTING**
+        Component Testing:
+        - User interaction testing (Testing Library)
+        - Accessibility testing integration
+        - Error state testing
+        - Performance testing (React DevTools)
+        - Integration test coverage
+        - Mock service strategies
+
+# 💬 Chat integration for enhanced collaboration
+chat:
+  auto_reply: true
+
+# 🧠 Knowledge base integration for learning
+knowledge_base:
+  learnings:
+    scope: "auto"
+  web_search:
+    enabled: true
+
+# 🤖 AI-powered code generation
+code_generation:
+  docstrings: {}
+  unit_tests: {}
+
+# 🌍 Global configuration
+language: "en"
+early_access: true
+
+# 🎨 Custom AI personality and focus
+tone_instructions: >
+  Focus reviews on JEEX Plan security, architecture, performance, and reliability; stay constructive, avoid style nitpicks already covered by linters, and keep multi-tenant isolation top of mind.

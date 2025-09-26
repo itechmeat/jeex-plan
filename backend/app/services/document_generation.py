@@ -6,9 +6,10 @@ Orchestrates the four-stage document generation workflow with agent coordination
 from typing import Any
 from uuid import UUID, uuid4
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.agents.contracts.base import ProjectContext
 from app.agents.orchestration.workflow import workflow_engine
-from app.core.database import AsyncSession
 from app.core.logger import get_logger
 from app.models.agent_execution import AgentType
 from app.models.document_version import DocumentType

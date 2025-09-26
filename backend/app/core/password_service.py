@@ -6,7 +6,12 @@ Separated from AuthService to follow Single Responsibility Principle.
 import secrets
 
 from passlib.context import CryptContext
-from passlib.exc import InvalidHashError, PasswordValueError, UnknownHashError
+from passlib.exc import (
+    InvalidHashError,
+    MalformedHashError,
+    PasswordValueError,
+    UnknownHashError,
+)
 
 
 class PasswordService:
@@ -24,7 +29,7 @@ class PasswordService:
 
         try:
             return self.pwd_context.verify(plain_password, hashed_password)
-        except (UnknownHashError, InvalidHashError, PasswordValueError):
+        except (UnknownHashError, InvalidHashError, MalformedHashError, PasswordValueError):
             return False
 
     def get_password_hash(self, password: str) -> str:
@@ -108,7 +113,7 @@ class PasswordService:
         try:
             # Check if the hash needs to be updated (deprecated scheme)
             return not self.pwd_context.needs_update(hashed_password)
-        except (UnknownHashError, InvalidHashError, PasswordValueError):
+        except (UnknownHashError, InvalidHashError, MalformedHashError, PasswordValueError):
             return False
 
     def update_hash_if_needed(

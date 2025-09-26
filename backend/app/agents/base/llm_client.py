@@ -6,7 +6,9 @@ Supports multiple LLM providers with failover.
 import os
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from enum import Enum
+from typing import Any
 
 import httpx
 from tenacity import (
@@ -66,7 +68,12 @@ class CircuitBreaker:
         self.last_failure_time = None
         self.state = CircuitBreakerState.CLOSED
 
-    async def call(self, func, *args, **kwargs):
+    async def call(
+        self,
+        func: Callable[..., Awaitable[Any]],
+        *args: Any,
+        **kwargs: Any
+    ) -> Any:
         """Execute function with circuit breaker protection."""
         if self.state == CircuitBreakerState.OPEN:
             if time.time() - self.last_failure_time < self.timeout:
@@ -124,7 +131,7 @@ class LLMClient(ABC):
         model: str,
         max_tokens: int | None = None,
         temperature: float = 0.7,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Generate text completion."""
 
@@ -141,7 +148,7 @@ class LLMClient(ABC):
         correlation_id: str,
         max_tokens: int | None = None,
         temperature: float = 0.7,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Make request with retry logic."""
         return await self.circuit_breaker.call(
@@ -162,7 +169,7 @@ class LLMClient(ABC):
         correlation_id: str,
         max_tokens: int | None = None,
         temperature: float = 0.7,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Internal implementation of text generation."""
 
@@ -188,7 +195,7 @@ class OpenAIClient(LLMClient):
         max_tokens: int | None = None,
         temperature: float = 0.7,
         correlation_id: str = "unknown",
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Generate text using OpenAI API."""
         return await self._make_request(
@@ -207,7 +214,7 @@ class OpenAIClient(LLMClient):
         correlation_id: str,
         max_tokens: int | None = None,
         temperature: float = 0.7,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Internal OpenAI API call."""
         if not self.api_key:
@@ -310,7 +317,7 @@ class AnthropicClient(LLMClient):
         max_tokens: int | None = None,
         temperature: float = 0.7,
         correlation_id: str = "unknown",
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Generate text using Anthropic API."""
         return await self._make_request(
@@ -329,7 +336,7 @@ class AnthropicClient(LLMClient):
         correlation_id: str,
         max_tokens: int | None = None,
         temperature: float = 0.7,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Internal Anthropic API call."""
         if not self.api_key:
@@ -456,7 +463,7 @@ class LLMManager:
         model: str | None = None,
         provider: LLMProvider | None = None,
         correlation_id: str = "unknown",
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Generate text with provider fallback."""
         provider = provider or self.default_provider

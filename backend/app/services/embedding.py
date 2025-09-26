@@ -8,6 +8,7 @@ including intelligent chunking, deduplication, and batch processing.
 import asyncio
 import hashlib
 import re
+import unicodedata
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
@@ -16,6 +17,7 @@ from typing import Any
 from tenacity import (
     retry,
     retry_if_exception_type,
+    retry_if_not_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
@@ -216,13 +218,17 @@ class EmbeddingService(LoggerMixin):
         # Apply minimal normalization first
         text = self._minimal_normalization(text)
 
-        # Normalize quotes
-        text = text.replace('"', '"').replace('"', '"')
-        text = text.replace(""", "'").replace(""", "'")
-
-        # Normalize common Unicode characters
-        text = text.replace("–", "-").replace("—", "--")
-        text = text.replace("…", "...")
+        # Normalize Unicode punctuation (quotes, dashes, ellipsis)
+        text = unicodedata.normalize("NFKC", text)
+        # Curly quotes -> straight quotes
+        text = text.translate({
+            0x2018: 0x27,
+            0x2019: 0x27,
+            0x201C: 0x22,
+            0x201D: 0x22,
+        })
+        # Dashes and ellipsis
+        text = text.replace("\u2013", "-").replace("\u2014", "--").replace("\u2026", "...")
 
         # Remove special characters that might interfere with embeddings
         text = re.sub(
@@ -247,7 +253,7 @@ class EmbeddingService(LoggerMixin):
 
         # Normalize email addresses and URLs
         text = re.sub(
-            r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "<EMAIL>", text
+            r"(?i)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}\b", "<EMAIL>", text
         )
         text = re.sub(
             r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
@@ -502,7 +508,11 @@ class EmbeddingService(LoggerMixin):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((Exception,)),
+        retry=(
+            retry_if_exception_type(Exception)
+            & retry_if_not_exception_type(asyncio.CancelledError)
+        ),
+        reraise=True,
     )
     async def _compute_embeddings(self, chunks: list[TextChunk]) -> list[list[float]]:
         """
@@ -630,7 +640,7 @@ class EmbeddingService(LoggerMixin):
 _embedding_service_instance = None
 
 
-def get_embedding_service():
+def get_embedding_service() -> 'EmbeddingService':
     """Get or create the embedding service instance."""
     global _embedding_service_instance
     if _embedding_service_instance is None:

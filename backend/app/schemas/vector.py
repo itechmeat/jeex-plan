@@ -2,7 +2,7 @@
 Vector database payload schemas for multi-tenant Qdrant implementation.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -57,7 +57,7 @@ class VectorPayload(BaseModel):
 
     # Timestamps
     created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="Creation timestamp",
     )
     updated_at: str | None = Field(None, description="Last update timestamp")

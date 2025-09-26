@@ -4,8 +4,9 @@ Comprehensive tests for authentication system.
 # cSpell:ignore authuser wrongpass correctpassword refreshuser changepass oldpassword wrongcurrent wrongpassword Aemail
 
 import uuid
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
+
+UTC = UTC
 from unittest.mock import patch
 
 import pytest
@@ -229,7 +230,7 @@ class TestUserService:
         return tenant
 
     @pytest.mark.asyncio
-    async def test_user_registration_success(self, user_service, _async_db) -> None:
+    async def test_user_registration_success(self, user_service, async_db) -> None:
         """Test successful user registration."""
         email = "newuser@example.com"
         username = "newuser"
@@ -287,7 +288,7 @@ class TestUserService:
         assert "Email already registered" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_user_authentication_success(self, user_service, _async_db) -> None:
+    async def test_user_authentication_success(self, user_service, async_db) -> None:
         """Test successful user authentication."""
         # First register a user
         email = "auth@example.com"
@@ -311,7 +312,7 @@ class TestUserService:
         assert user.is_active is True
 
     @pytest.mark.asyncio
-    async def test_user_authentication_wrong_password(self, user_service, _async_db) -> None:
+    async def test_user_authentication_wrong_password(self, user_service, async_db) -> None:
         """Test user authentication with wrong password."""
         # Register a user
         email = "wrongpass@example.com"
@@ -338,7 +339,7 @@ class TestUserService:
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
-    async def test_refresh_token_success(self, user_service, _async_db) -> None:
+    async def test_refresh_token_success(self, user_service, async_db) -> None:
         """Test successful token refresh."""
         # Register and get tokens
         result = await user_service.register_user(
@@ -366,7 +367,7 @@ class TestUserService:
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
-    async def test_change_password_success(self, user_service, _async_db) -> None:
+    async def test_change_password_success(self, user_service, async_db) -> None:
         """Test successful password change."""
         # Register user
         result = await user_service.register_user(
@@ -395,7 +396,7 @@ class TestUserService:
         assert auth_result["user"].id == user_id
 
     @pytest.mark.asyncio
-    async def test_change_password_wrong_current(self, user_service, _async_db) -> None:
+    async def test_change_password_wrong_current(self, user_service, async_db) -> None:
         """Test password change with wrong current password."""
         # Register user
         result = await user_service.register_user(
