@@ -28,9 +28,13 @@ class VectorBenchmark:
         self.cache = VectorCache()
         self.hnsw_configurator = HNSWConfigurator()
 
-    async def setup_test_data(self, tenant_count: int, project_count: int, docs_per_project: int):
+    async def setup_test_data(
+        self, tenant_count: int, project_count: int, docs_per_project: int
+    ):
         """Setup test data for benchmarking"""
-        print(f"🔧 Setting up test data: {tenant_count} tenants, {project_count} projects each, {docs_per_project} docs per project")
+        print(
+            f"🔧 Setting up test data: {tenant_count} tenants, {project_count} projects each, {docs_per_project} docs per project"
+        )
 
         test_documents = [
             "Machine learning algorithms enable systems to learn from data and improve performance over time.",
@@ -42,7 +46,7 @@ class VectorBenchmark:
             "Anomaly detection identifies unusual patterns that don't conform to expected behavior.",
             "Recommendation systems suggest items based on user preferences and behavior patterns.",
             "Clustering algorithms group similar data points together without predefined labels.",
-            "Classification models predict categorical labels for input data based on training examples."
+            "Classification models predict categorical labels for input data based on training examples.",
         ]
 
         setup_start = time.time()
@@ -69,7 +73,11 @@ class VectorBenchmark:
                     try:
                         result = await self.embedding.process_document(
                             text=doc,
-                            metadata={"tenant": tenant_idx, "project": project_idx, "doc_index": doc_idx}
+                            metadata={
+                                "tenant": tenant_idx,
+                                "project": project_idx,
+                                "doc_index": doc_idx,
+                            },
                         )
 
                         doc_embeddings.extend(result.embeddings)
@@ -78,7 +86,7 @@ class VectorBenchmark:
                                 **chunk.metadata,
                                 "text": chunk.text,
                                 "tenant_id": tenant_id,
-                                "project_id": project_id
+                                "project_id": project_id,
                             }
                             doc_payloads.append(payload)
 
@@ -94,7 +102,7 @@ class VectorBenchmark:
                         tenant_id=tenant_id,
                         project_id=project_id,
                         vectors=doc_embeddings,
-                        payloads=doc_payloads
+                        payloads=doc_payloads,
                     )
                     total_vectors += len(doc_embeddings)
 
@@ -107,10 +115,12 @@ class VectorBenchmark:
             "project_count": project_count,
             "docs_per_project": docs_per_project,
             "total_vectors": total_vectors,
-            "setup_time": setup_time
+            "setup_time": setup_time,
         }
 
-    async def benchmark_search_latency(self, tenant_id: str, project_id: str, iterations: int = 100):
+    async def benchmark_search_latency(
+        self, tenant_id: str, project_id: str, iterations: int = 100
+    ):
         """Benchmark search latency for a specific tenant/project"""
         print(f"⏱️  Benchmarking search latency for {tenant_id}/{project_id}")
 
@@ -125,7 +135,7 @@ class VectorBenchmark:
                     tenant_id=tenant_id,
                     project_id=project_id,
                     query_vector=query_vector,
-                    limit=10
+                    limit=10,
                 )
                 latency_ms = (time.time() - start_time) * 1000
                 latencies.append(latency_ms)
@@ -148,9 +158,15 @@ class VectorBenchmark:
             "median_latency_ms": statistics.median(latencies),
             "min_latency_ms": min(latencies),
             "max_latency_ms": max(latencies),
-            "p95_latency_ms": statistics.quantiles(latencies, n=20)[18],  # 95th percentile
-            "p99_latency_ms": statistics.quantiles(latencies, n=100)[98] if len(latencies) >= 100 else max(latencies),
-            "std_deviation_ms": statistics.stdev(latencies) if len(latencies) > 1 else 0
+            "p95_latency_ms": statistics.quantiles(latencies, n=20)[
+                18
+            ],  # 95th percentile
+            "p99_latency_ms": statistics.quantiles(latencies, n=100)[98]
+            if len(latencies) >= 100
+            else max(latencies),
+            "std_deviation_ms": statistics.stdev(latencies)
+            if len(latencies) > 1
+            else 0,
         }
 
         print("📈 Search latency stats:")
@@ -161,7 +177,9 @@ class VectorBenchmark:
 
         return stats
 
-    async def benchmark_concurrent_searches(self, tenant_ids: list[str], project_ids: list[str], concurrent_users: int = 50):
+    async def benchmark_concurrent_searches(
+        self, tenant_ids: list[str], project_ids: list[str], concurrent_users: int = 50
+    ):
         """Benchmark concurrent search performance"""
         print(f"🔄 Benchmarking concurrent searches with {concurrent_users} users")
 
@@ -180,14 +198,22 @@ class VectorBenchmark:
                     tenant_id=tenant_id,
                     project_id=project_id,
                     query_vector=query_vector,
-                    limit=5
+                    limit=5,
                 )
 
                 latency_ms = (time.time() - start_time) * 1000
-                return {"success": True, "latency_ms": latency_ms, "results_count": len(results)}
+                return {
+                    "success": True,
+                    "latency_ms": latency_ms,
+                    "results_count": len(results),
+                }
 
             except (ConnectionError, TimeoutError, RuntimeError) as e:
-                return {"success": False, "error": str(e), "latency_ms": (time.time() - start_time) * 1000}
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "latency_ms": (time.time() - start_time) * 1000,
+                }
 
         # Execute concurrent searches
         start_time = time.time()
@@ -213,10 +239,14 @@ class VectorBenchmark:
             "total_time": total_time,
             "successful_requests": len(successful_results),
             "error_count": errors,
-            "throughput_rps": len(successful_results) / total_time if total_time > 0 else 0,
+            "throughput_rps": len(successful_results) / total_time
+            if total_time > 0
+            else 0,
             "avg_latency_ms": statistics.mean(latencies) if latencies else 0,
-            "p95_latency_ms": statistics.quantiles(latencies, n=20)[18] if len(latencies) >= 20 else 0,
-            "error_rate": errors / concurrent_users if concurrent_users > 0 else 0
+            "p95_latency_ms": statistics.quantiles(latencies, n=20)[18]
+            if len(latencies) >= 20
+            else 0,
+            "error_rate": errors / concurrent_users if concurrent_users > 0 else 0,
         }
 
         print("📊 Concurrent search stats:")
@@ -235,7 +265,7 @@ class VectorBenchmark:
             ("balanced", WorkloadType.BALANCED),
             ("speed", WorkloadType.SPEED),
             ("quality", WorkloadType.QUALITY),
-            ("memory", WorkloadType.MEMORY)
+            ("memory", WorkloadType.MEMORY),
         ]
 
         results = {}
@@ -265,11 +295,15 @@ class VectorBenchmark:
                 "config": config,
                 "avg_latency_ms": statistics.mean(simulated_latencies),
                 "p95_latency_ms": statistics.quantiles(simulated_latencies, n=20)[18],
-                "memory_estimate_mb": self.hnsw_configurator.estimate_memory_usage(config, 10000)["total_estimated_mb"]
+                "memory_estimate_mb": self.hnsw_configurator.estimate_memory_usage(
+                    config, 10000
+                )["total_estimated_mb"],
             }
 
             print(f"      Avg latency: {results[config_name]['avg_latency_ms']:.2f}ms")
-            print(f"      Memory estimate: {results[config_name]['memory_estimate_mb']:.2f}MB")
+            print(
+                f"      Memory estimate: {results[config_name]['memory_estimate_mb']:.2f}MB"
+            )
 
         return results
 
@@ -286,12 +320,16 @@ class VectorBenchmark:
             "neural network architectures",
             "data preprocessing techniques",
             "model evaluation metrics",
-            "feature engineering methods"
+            "feature engineering methods",
         ]
 
         # Generate mock search results
         mock_results = [
-            {"id": f"result_{i}", "score": 0.8 + (i * 0.01), "payload": {"text": f"Mock result {i}"}}
+            {
+                "id": f"result_{i}",
+                "score": 0.8 + (i * 0.01),
+                "payload": {"text": f"Mock result {i}"},
+            }
             for i in range(10)
         ]
 
@@ -299,7 +337,9 @@ class VectorBenchmark:
         cache_times = []
         cache_hits = 0
 
-        for _i, _query in enumerate(test_queries * 20):  # Repeat queries to test cache hits
+        for _i, _query in enumerate(
+            test_queries * 20
+        ):  # Repeat queries to test cache hits
             start_time = time.time()
 
             # Try to get from cache first
@@ -325,7 +365,7 @@ class VectorBenchmark:
             "cache_hit_rate": cache_hits / len(cache_times),
             "avg_cache_time_ms": statistics.mean(cache_times),
             "min_cache_time_ms": min(cache_times),
-            "max_cache_time_ms": max(cache_times)
+            "max_cache_time_ms": max(cache_times),
         }
 
         print("📊 Cache performance stats:")
@@ -344,20 +384,22 @@ class VectorBenchmark:
         results = {
             "benchmark_config": config,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "results": {}
+            "results": {},
         }
 
         # Setup test data
         setup_info = await self.setup_test_data(
             tenant_count=config["tenants"],
             project_count=config["projects_per_tenant"],
-            docs_per_project=config["docs_per_project"]
+            docs_per_project=config["docs_per_project"],
         )
         results["setup"] = setup_info
 
         # Generate test tenant/project IDs
         tenant_ids = [f"benchmark_tenant_{i:03d}" for i in range(config["tenants"])]
-        project_ids = [f"benchmark_project_{i:03d}" for i in range(config["projects_per_tenant"])]
+        project_ids = [
+            f"benchmark_project_{i:03d}" for i in range(config["projects_per_tenant"])
+        ]
 
         # Run benchmark tests
         print("\n" + "=" * 60)
@@ -413,10 +455,24 @@ def parse_args():
     parser.add_argument("--tenants", type=int, default=5, help="Number of test tenants")
     parser.add_argument("--projects", type=int, default=3, help="Projects per tenant")
     parser.add_argument("--docs", type=int, default=10, help="Documents per project")
-    parser.add_argument("--search-iterations", type=int, default=100, help="Search iterations for latency test")
-    parser.add_argument("--concurrent-users", type=int, default=50, help="Concurrent users for load test")
-    parser.add_argument("--test-hnsw", action="store_true", help="Test HNSW configurations")
-    parser.add_argument("--test-cache", action="store_true", help="Test cache performance")
+    parser.add_argument(
+        "--search-iterations",
+        type=int,
+        default=100,
+        help="Search iterations for latency test",
+    )
+    parser.add_argument(
+        "--concurrent-users",
+        type=int,
+        default=50,
+        help="Concurrent users for load test",
+    )
+    parser.add_argument(
+        "--test-hnsw", action="store_true", help="Test HNSW configurations"
+    )
+    parser.add_argument(
+        "--test-cache", action="store_true", help="Test cache performance"
+    )
     return parser.parse_args()
 
 
@@ -431,7 +487,7 @@ async def main() -> None:
         "search_iterations": args.search_iterations,
         "concurrent_users": args.concurrent_users,
         "test_hnsw_configs": args.test_hnsw,
-        "test_cache": args.test_cache
+        "test_cache": args.test_cache,
     }
 
     benchmark = VectorBenchmark()
@@ -440,7 +496,9 @@ async def main() -> None:
     # Print summary
     print("\n📋 BENCHMARK SUMMARY")
     print("=" * 60)
-    print(f"Configuration: {config['tenants']} tenants × {config['projects_per_tenant']} projects × {config['docs_per_project']} docs")
+    print(
+        f"Configuration: {config['tenants']} tenants × {config['projects_per_tenant']} projects × {config['docs_per_project']} docs"
+    )
     print(f"Total vectors: {results['setup']['total_vectors']}")
     print(f"Setup time: {results['setup']['setup_time']:.2f}s")
 

@@ -46,7 +46,7 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
             epic_name: Epic name for PLAN_EPIC documents
             metadata: Additional metadata to store with the document
         """
-        base_data = {
+        base_data: dict[str, Any] = {
             "project_id": project_id,
             "document_type": document_type.value,
             "title": title,
@@ -92,7 +92,9 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         epic_number: int | None = None,
     ) -> int:
         """Get the next version number for a document type."""
-        filters = {"project_id": project_id, "document_type": document_type.value}
+        filters: dict[str, Any] = {}
+        filters["project_id"] = project_id
+        filters["document_type"] = document_type.value
 
         if document_type == DocumentType.PLAN_EPIC and epic_number is not None:
             filters["epic_number"] = epic_number
@@ -116,7 +118,10 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         epic_number: int | None = None,
     ) -> DocumentVersion | None:
         """Get the latest version of a document."""
-        filters = {"project_id": project_id, "document_type": document_type.value}
+        filters: dict[str, Any] = {
+            "project_id": project_id,
+            "document_type": document_type.value,
+        }
 
         if document_type == DocumentType.PLAN_EPIC and epic_number is not None:
             filters["epic_number"] = epic_number
@@ -145,11 +150,10 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         epic_number: int | None = None,
     ) -> DocumentVersion | None:
         """Get a specific version of a document."""
-        filters = {
-            "project_id": project_id,
-            "document_type": document_type.value,
-            "version": version,
-        }
+        filters: dict[str, Any] = {}
+        filters["project_id"] = project_id
+        filters["document_type"] = document_type.value
+        filters["version"] = version
 
         if document_type == DocumentType.PLAN_EPIC and epic_number is not None:
             filters["epic_number"] = epic_number
@@ -170,7 +174,9 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         epic_number: int | None = None,
     ) -> list[DocumentVersion]:
         """Get all versions of a document, ordered by version desc."""
-        filters = {"project_id": project_id, "document_type": document_type.value}
+        filters: dict[str, Any] = {}
+        filters["project_id"] = project_id
+        filters["document_type"] = document_type.value
 
         if document_type == DocumentType.PLAN_EPIC and epic_number is not None:
             filters["epic_number"] = epic_number
@@ -306,7 +312,10 @@ class DocumentVersionRepository(TenantRepository[DocumentVersion]):
         epic_number: int | None = None,
     ) -> int:
         """Soft delete all versions of a document."""
-        filters = {"project_id": project_id, "document_type": document_type.value}
+        filters: dict[str, Any] = {
+            "project_id": project_id,
+            "document_type": document_type.value,
+        }
 
         if document_type == DocumentType.PLAN_EPIC and epic_number is not None:
             filters["epic_number"] = epic_number

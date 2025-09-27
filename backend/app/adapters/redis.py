@@ -3,7 +3,8 @@ Redis adapter for caching, rate limiting, and queue management.
 """
 
 import json
-from typing import Any, TypeAlias
+from collections.abc import Awaitable
+from typing import Any, TypeAlias, cast
 
 import redis.asyncio as redis
 from redis.exceptions import RedisError
@@ -23,14 +24,13 @@ class RedisAdapter(LoggerMixin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.client = None
-        self._initialize_client()
+        self.client: redis.Redis = self._initialize_client()
 
-    def _initialize_client(self) -> None:
+    def _initialize_client(self) -> redis.Redis:
         """Initialize Redis client connection"""
         try:
             redis_settings = settings.get_redis_settings()
-            self.client = redis.Redis(
+            client = redis.Redis(
                 host=redis_settings["host"],
                 port=redis_settings["port"],
                 password=redis_settings.get("password"),
@@ -40,6 +40,7 @@ class RedisAdapter(LoggerMixin):
                 retry_on_timeout=True,
             )
             logger.info("Redis client initialized", host=redis_settings["host"])
+            return client
         except (RedisError, OSError) as exc:
             logger.error("Failed to initialize Redis client", error=str(exc))
             raise
@@ -48,10 +49,10 @@ class RedisAdapter(LoggerMixin):
         """Check Redis service health"""
         try:
             # Test basic connectivity
-            pong = await self.client.ping()
+            pong = bool(await self.client.ping())
             if pong:
                 # Get additional info
-                info = await self.client.info("server")
+                info = cast(dict[str, Any], await self.client.info("server"))
                 return {
                     "status": "healthy",
                     "message": "Redis connection successful",
@@ -80,7 +81,8 @@ class RedisAdapter(LoggerMixin):
     async def get(self, key: str) -> str | None:
         """Get value from Redis"""
         try:
-            return await self.client.get(key)
+            value = await self.client.get(key)
+            return cast(str | None, value)
         except RedisError as e:
             logger.error("Redis GET failed", key=key, error=str(e))
             return None
@@ -90,7 +92,8 @@ class RedisAdapter(LoggerMixin):
     ) -> bool:
         """Set value in Redis with optional expiration"""
         try:
-            return await self.client.set(key, value, ex=ex, px=px)
+            result = await self.client.set(key, value, ex=ex, px=px)
+            return bool(result)
         except RedisError as e:
             logger.error("Redis SET failed", key=key, error=str(e))
             return False
@@ -98,7 +101,7 @@ class RedisAdapter(LoggerMixin):
     async def delete(self, key: str) -> bool:
         """Delete key from Redis"""
         try:
-            result = await self.client.delete(key)
+            result = cast(int, await self.client.delete(key))
             return result > 0
         except RedisError as e:
             logger.error("Redis DELETE failed", key=key, error=str(e))
@@ -107,7 +110,8 @@ class RedisAdapter(LoggerMixin):
     async def exists(self, key: str) -> bool:
         """Check if key exists in Redis"""
         try:
-            return await self.client.exists(key) > 0
+            exists_count = cast(int, await self.client.exists(key))
+            return exists_count > 0
         except RedisError as e:
             logger.error("Redis EXISTS failed", key=key, error=str(e))
             return False
@@ -115,7 +119,8 @@ class RedisAdapter(LoggerMixin):
     async def ttl(self, key: str) -> int:
         """Get time-to-live for key"""
         try:
-            return await self.client.ttl(key)
+            ttl_value = await self.client.ttl(key)
+            return cast(int, ttl_value)
         except RedisError as e:
             logger.error("Redis TTL failed", key=key, error=str(e))
             return -1
@@ -123,7 +128,8 @@ class RedisAdapter(LoggerMixin):
     async def expire(self, key: str, seconds: int) -> bool:
         """Set expiration for key"""
         try:
-            return await self.client.expire(key, seconds)
+            result = await self.client.expire(key, seconds)
+            return bool(result)
         except RedisError as e:
             logger.error("Redis EXPIRE failed", key=key, error=str(e))
             return False
@@ -131,7 +137,8 @@ class RedisAdapter(LoggerMixin):
     async def incr(self, key: str) -> int | None:
         """Increment value"""
         try:
-            return await self.client.incr(key)
+            value = await self.client.incr(key)
+            return cast(int | None, value)
         except RedisError as e:
             logger.error("Redis INCR failed", key=key, error=str(e))
             return None
@@ -139,7 +146,8 @@ class RedisAdapter(LoggerMixin):
     async def decr(self, key: str) -> int | None:
         """Decrement value"""
         try:
-            return await self.client.decr(key)
+            value = await self.client.decr(key)
+            return cast(int | None, value)
         except RedisError as e:
             logger.error("Redis DECR failed", key=key, error=str(e))
             return None
@@ -148,8 +156,10 @@ class RedisAdapter(LoggerMixin):
     async def smembers(self, key: str) -> list[str]:
         """Get all members of a set"""
         try:
-            result = await self.client.smembers(key)
-            return result if result is not None else []
+            raw_result = await cast(Awaitable[Any], self.client.smembers(key))
+            if isinstance(raw_result, set):
+                return [str(item) for item in raw_result]
+            return []
         except RedisError as e:
             logger.error("Redis SMEMBERS failed", key=key, error=str(e))
             return []
@@ -157,7 +167,8 @@ class RedisAdapter(LoggerMixin):
     async def sadd(self, key: str, *values: str) -> int:
         """Add one or more members to a set"""
         try:
-            return await self.client.sadd(key, *values)
+            raw_result = await cast(Awaitable[Any], self.client.sadd(key, *values))
+            return int(raw_result)
         except RedisError as e:
             logger.error("Redis SADD failed", key=key, values=values, error=str(e))
             return 0
@@ -165,7 +176,8 @@ class RedisAdapter(LoggerMixin):
     async def srem(self, key: str, *values: str) -> int:
         """Remove one or more members from a set"""
         try:
-            return await self.client.srem(key, *values)
+            raw_result = await cast(Awaitable[Any], self.client.srem(key, *values))
+            return int(raw_result)
         except RedisError as e:
             logger.error("Redis SREM failed", key=key, values=values, error=str(e))
             return 0
@@ -175,7 +187,8 @@ class RedisAdapter(LoggerMixin):
         """Get JSON value from Redis"""
         try:
             value = await self.client.get(key)
-            return json.loads(value) if value else None
+            value_str = cast(str | None, value)
+            return json.loads(value_str) if value_str else None
         except (RedisError, json.JSONDecodeError) as e:
             logger.error("Redis GET JSON failed", key=key, error=str(e))
             return None
@@ -184,7 +197,8 @@ class RedisAdapter(LoggerMixin):
         """Set JSON value in Redis"""
         try:
             json_value = json.dumps(value)
-            return await self.client.set(key, json_value, ex=ex)
+            result = await self.client.set(key, json_value, ex=ex)
+            return bool(result)
         except (RedisError, TypeError) as e:
             logger.error("Redis SET JSON failed", key=key, error=str(e))
             return False
@@ -212,12 +226,15 @@ class RedisAdapter(LoggerMixin):
             await self.client.zremrangebyscore(key, 0, window_start)
 
             # Get current count
-            current_count = await self.client.zcard(key)
+            current_count = cast(int, await self.client.zcard(key))
 
             # Check if limit exceeded
             if current_count >= limit:
                 # Get oldest request time
-                oldest = await self.client.zrange(key, 0, 0, withscores=True)
+                oldest = cast(
+                    list[tuple[str, float]],
+                    await self.client.zrange(key, 0, 0, withscores=True),
+                )
                 reset_time = int(oldest[0][1]) + window if oldest else current_time
 
                 return {
@@ -259,8 +276,10 @@ class RedisAdapter(LoggerMixin):
             serialized_value = (
                 json.dumps(value) if not isinstance(value, str) else value
             )
-            result = await self.client.lpush(queue_name, serialized_value)
-            return result
+            raw_result = await cast(
+                Awaitable[Any], self.client.lpush(queue_name, serialized_value)
+            )
+            return int(raw_result)
         except RedisError as e:
             logger.error("Queue ENQUEUE failed", queue=queue_name, error=str(e))
             return 0
@@ -268,13 +287,18 @@ class RedisAdapter(LoggerMixin):
     async def dequeue(self, queue_name: str, timeout: int = 30) -> JSONValue | None:
         """Get item from queue with timeout"""
         try:
-            result = await self.client.brpop(queue_name, timeout=timeout)
-            if result:
-                _, value = result
+            raw_result = await cast(
+                Awaitable[Any], self.client.brpop([queue_name], timeout=timeout)
+            )
+            if raw_result:
+                if isinstance(raw_result, tuple) and len(raw_result) == 2:
+                    _, value = raw_result
+                else:
+                    return None
                 try:
-                    return json.loads(value)
+                    return cast(JSONValue, json.loads(value))
                 except json.JSONDecodeError:
-                    return value
+                    return cast(JSONValue, value)
             return None
         except RedisError as e:
             logger.error("Queue DEQUEUE failed", queue=queue_name, error=str(e))
@@ -283,7 +307,8 @@ class RedisAdapter(LoggerMixin):
     async def queue_length(self, queue_name: str) -> int:
         """Get queue length"""
         try:
-            return await self.client.llen(queue_name)
+            raw_length = await cast(Awaitable[Any], self.client.llen(queue_name))
+            return int(raw_length)
         except RedisError as e:
             logger.error("Queue LENGTH failed", queue=queue_name, error=str(e))
             return 0
@@ -315,27 +340,40 @@ class RedisAdapter(LoggerMixin):
     ) -> bool:
         """Set progress data for project step"""
         key = f"progress:{tenant_id}:{project_id}:{step}"
-        return await self.set_json(key, progress_data, ex=3600)  # 1 hour expiry
+        return await self.set_json(key, progress_data, ex=3600)
 
     async def get_progress(
         self, tenant_id: str, project_id: str, step: int
     ) -> dict[str, Any] | None:
         """Get progress data for project step"""
         key = f"progress:{tenant_id}:{project_id}:{step}"
-        return await self.get_json(key)
+        value = await self.get_json(key)
+        return value if isinstance(value, dict) else None
 
     # Tenant management
     async def get_tenant_stats(self, tenant_id: str) -> dict[str, Any]:
         """Get tenant usage statistics"""
         try:
             pattern = f"tenant:{tenant_id}:*"
-            keys = await self.client.keys(pattern)
+            raw_keys = await cast(Awaitable[Any], self.client.keys(pattern))
+            keys = [str(key) for key in raw_keys] if isinstance(raw_keys, list) else []
 
-            stats = {"cache_keys": len(keys), "memory_usage": 0, "active_projects": 0}
+            stats: dict[str, Any] = {
+                "cache_keys": len(keys),
+                "memory_usage": 0,
+                "active_projects": 0,
+            }
 
             # Count active projects
             progress_pattern = f"progress:{tenant_id}:*"
-            progress_keys = await self.client.keys(progress_pattern)
+            raw_progress_keys = await cast(
+                Awaitable[Any], self.client.keys(progress_pattern)
+            )
+            progress_keys = (
+                [str(key) for key in raw_progress_keys]
+                if isinstance(raw_progress_keys, list)
+                else []
+            )
             project_ids = set()
             for key in progress_keys:
                 parts = key.split(":")
@@ -359,6 +397,5 @@ class RedisAdapter(LoggerMixin):
 
     async def close(self) -> None:
         """Close Redis connection"""
-        if self.client:
-            await self.client.close()
-            logger.info("Redis connection closed")
+        await self.client.close()
+        logger.info("Redis connection closed")

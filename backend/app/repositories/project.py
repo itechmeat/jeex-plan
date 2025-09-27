@@ -136,7 +136,8 @@ class ProjectRepository(TenantRepository[Project]):
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalar()
+        count_value = result.scalar()
+        return int(count_value or 0)
 
     async def count_by_owner(self, owner_id: UUID) -> int:
         """Count projects by owner within tenant."""
@@ -148,7 +149,8 @@ class ProjectRepository(TenantRepository[Project]):
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalar()
+        count_value = result.scalar()
+        return int(count_value or 0)
 
     async def check_name_availability(
         self, name: str, exclude_project_id: UUID | None = None

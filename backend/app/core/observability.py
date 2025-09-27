@@ -1,5 +1,11 @@
 """OpenTelemetry observability helpers with optional instrumentation."""
 
+from __future__ import annotations
+
+import types
+from collections.abc import Callable
+from typing import Any, Literal, Self
+
 from fastapi import FastAPI
 
 from app.core.config import settings
@@ -11,10 +17,15 @@ logger = get_logger(__name__)
 class _NoOpSpan:
     """Span placeholder used when observability is disabled."""
 
-    def __enter__(self) -> "_NoOpSpan":
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> Literal[False]:
         return False
 
     def set_attribute(self, *_: object, **__: object) -> None:
@@ -28,6 +39,10 @@ class _NoOpSpan:
 
     def end(self) -> None:
         return None
+
+
+TracerLike = Any
+MeterLike = Any
 
 
 class _NoOpTracer:
@@ -80,17 +95,25 @@ def _noop_setup_observability(_: FastAPI) -> None:
     logger.debug("Observability disabled; instrumentation skipped")
 
 
-def _noop_get_tracer(_: str | None = None) -> _NoOpTracer:
+def _noop_get_tracer(_: str | None = None) -> TracerLike:
     return NOOP_TRACER
 
 
-def _noop_get_meter(_: str | None = None) -> _NoOpMeter:
+def _noop_get_meter(_: str | None = None) -> MeterLike:
     return NOOP_METER
 
 
 NOOP_SETUP_OBSERVABILITY = _noop_setup_observability
 NOOP_GET_TRACER = _noop_get_tracer
 NOOP_GET_METER = _noop_get_meter
+
+SetupFunc = Callable[[FastAPI], None]
+TracerFactory = Callable[[str | None], TracerLike]
+MeterFactory = Callable[[str | None], MeterLike]
+
+setup_observability: SetupFunc = NOOP_SETUP_OBSERVABILITY
+get_tracer: TracerFactory = NOOP_GET_TRACER
+get_meter: MeterFactory = NOOP_GET_METER
 
 
 if settings.ENABLE_OBSERVABILITY:
@@ -129,7 +152,7 @@ if settings.ENABLE_OBSERVABILITY:
 
     else:
 
-        def setup_observability(app: FastAPI) -> None:
+        def _setup_observability_impl(app: FastAPI) -> None:
             """Configure OpenTelemetry instrumentation for the FastAPI app."""
             try:
                 resource = Resource.create(
@@ -184,18 +207,17 @@ if settings.ENABLE_OBSERVABILITY:
             except Exception as error:  # pragma: no cover - defensive
                 logger.error("Failed to setup OpenTelemetry", error=str(error))
 
-        def get_tracer(name: str | None = None):
+        def _get_tracer_impl(name: str | None = None) -> TracerLike:
             """Return a tracer from the configured provider."""
             return trace.get_tracer(name or settings.APP_NAME)
 
-        def get_meter(name: str | None = None):
+        def _get_meter_impl(name: str | None = None) -> MeterLike:
             """Return a meter from the configured provider."""
             return metrics.get_meter(name or settings.APP_NAME)
 
-else:
-    setup_observability = NOOP_SETUP_OBSERVABILITY
-    get_tracer = NOOP_GET_TRACER
-    get_meter = NOOP_GET_METER
+        setup_observability = _setup_observability_impl
+        get_tracer = _get_tracer_impl
+        get_meter = _get_meter_impl
 
 
 class ObservabilityMixin:
@@ -203,22 +225,34 @@ class ObservabilityMixin:
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self.tracer = get_tracer(self.__class__.__name__)
-        self.meter = get_meter(self.__class__.__name__)
+        self.tracer: TracerLike = get_tracer(self.__class__.__name__)
+        self.meter: MeterLike = get_meter(self.__class__.__name__)
 
-    def start_span(self, name: str, **attributes: object):
+    def start_span(self, name: str, **attributes: object) -> Any:
         """Start a span with optional attributes."""
-        return self.tracer.start_span(name, **attributes)
+        span = self.tracer.start_span(name)
+        if attributes:
+            set_attr = getattr(span, "set_attribute", None)
+            if callable(set_attr):
+                for key, value in attributes.items():
+                    try:
+                        set_attr(key, value)
+                    except Exception as e:
+                        logger.warning("Failed to set span attribute %s: %s", key, e)
+                        continue
+        return span
 
-    def create_counter(self, name: str, description: str, unit: str = ""):
+    def create_counter(self, name: str, description: str, unit: str = "") -> Any:
         """Create a counter metric."""
         return self.meter.create_counter(name, description=description, unit=unit)
 
-    def create_histogram(self, name: str, description: str, unit: str = ""):
+    def create_histogram(self, name: str, description: str, unit: str = "") -> Any:
         """Create a histogram metric."""
         return self.meter.create_histogram(name, description=description, unit=unit)
 
-    def create_up_down_counter(self, name: str, description: str, unit: str = ""):
+    def create_up_down_counter(
+        self, name: str, description: str, unit: str = ""
+    ) -> Any:
         """Create an up-down counter metric."""
         return self.meter.create_up_down_counter(
             name, description=description, unit=unit

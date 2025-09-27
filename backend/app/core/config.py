@@ -8,7 +8,7 @@ from functools import lru_cache
 from typing import Any
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 try:
     from pydantic.fields import FieldValidationInfo  # type: ignore
@@ -19,102 +19,90 @@ except ImportError:  # Pydantic >=2.11 uses ValidationInfo instead
 class Settings(BaseSettings):
     """Application settings with environment variable support"""
 
-    model_config = {"extra": "ignore"}
+    model_config = SettingsConfigDict(extra="ignore")
 
     # Application
     APP_NAME: str = "JEEX Plan API"
-    ENVIRONMENT: str = Field(default="development", env="ENVIRONMENT")
-    SECRET_KEY: str = Field(default="dev-secret-key", env="SECRET_KEY")
-    DEBUG: bool = Field(default=False, env="DEBUG")
+    ENVIRONMENT: str = Field(default="development")
+    SECRET_KEY: str = Field(default="dev-secret-key")
+    DEBUG: bool = Field(default=False)
 
     # Default Technology Stack
     DEFAULT_TECHNOLOGY_STACK: list[str] = Field(
         default=["JavaScript", "Node.js", "React", "PostgreSQL"],
-        env="DEFAULT_TECHNOLOGY_STACK",
     )
 
     # API Settings
     API_V1_PREFIX: str = "/api/v1"
-    ALLOWED_ORIGINS_STR: str | None = Field(default=None, env="ALLOWED_ORIGINS")
+    ALLOWED_ORIGINS_STR: str | None = Field(default=None, alias="ALLOWED_ORIGINS")
 
     # Database
     DATABASE_URL: str = Field(
         default="postgresql://postgres:password@localhost:5432/jeex_plan",
-        env="DATABASE_URL",
     )
 
     # Redis
-    REDIS_URL: str = Field(default="redis://localhost:6379", env="REDIS_URL")
-    REDIS_PASSWORD: str | None = Field(default=None, env="REDIS_PASSWORD")
+    REDIS_URL: str = Field(default="redis://localhost:6379")
+    REDIS_PASSWORD: str | None = Field(default=None)
 
     # Qdrant Vector Database
-    QDRANT_URL: str = Field(default="http://localhost:6333", env="QDRANT_URL")
-    QDRANT_API_KEY: str | None = Field(default=None, env="QDRANT_API_KEY")
-    QDRANT_COLLECTION: str = Field(
-        default="jeex_plan_documents", env="QDRANT_COLLECTION"
-    )
+    QDRANT_URL: str = Field(default="http://localhost:6333")
+    QDRANT_API_KEY: str | None = Field(default=None)
+    QDRANT_COLLECTION: str = Field(default="jeex_plan_documents")
 
     # HashiCorp Vault
-    VAULT_ADDR: str = Field(default="http://vault:8200", env="VAULT_ADDR")
-    VAULT_TOKEN: str | None = Field(default=None, env="VAULT_TOKEN")
-    USE_VAULT: bool = Field(default=True, env="USE_VAULT")
-    VAULT_VERIFY: bool | str = Field(default=True, env="VAULT_VERIFY")
+    VAULT_ADDR: str = Field(default="http://vault:8200")
+    VAULT_TOKEN: str | None = Field(default=None)
+    USE_VAULT: bool = Field(default=True)
+    VAULT_VERIFY: bool | str = Field(default=True)
 
     # Authentication
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30, env="ACCESS_TOKEN_EXPIRE_MINUTES"
-    )
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, env="REFRESH_TOKEN_EXPIRE_DAYS")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
     ALGORITHM: str = "HS256"
 
     # OAuth2 Settings
-    GOOGLE_CLIENT_ID: str | None = Field(default=None, env="GOOGLE_CLIENT_ID")
-    GOOGLE_CLIENT_SECRET: str | None = Field(default=None, env="GOOGLE_CLIENT_SECRET")
-    GITHUB_CLIENT_ID: str | None = Field(default=None, env="GITHUB_CLIENT_ID")
-    GITHUB_CLIENT_SECRET: str | None = Field(default=None, env="GITHUB_CLIENT_SECRET")
-    OAUTH_REDIRECT_URL: str = Field(
-        default="http://localhost:5210/auth/callback", env="OAUTH_REDIRECT_URL"
-    )
+    GOOGLE_CLIENT_ID: str | None = Field(default=None)
+    GOOGLE_CLIENT_SECRET: str | None = Field(default=None)
+    GITHUB_CLIENT_ID: str | None = Field(default=None)
+    GITHUB_CLIENT_SECRET: str | None = Field(default=None)
+    OAUTH_REDIRECT_URL: str = Field(default="http://localhost:5210/auth/callback")
 
     # Rate Limiting
-    RATE_LIMIT_REQUESTS: int = Field(default=100, env="RATE_LIMIT_REQUESTS")
-    RATE_LIMIT_WINDOW: int = Field(default=60, env="RATE_LIMIT_WINDOW")  # seconds
+    RATE_LIMIT_REQUESTS: int = Field(default=100)
+    RATE_LIMIT_WINDOW: int = Field(default=60)  # seconds
 
     # LLM Settings
-    OPENAI_API_KEY: str | None = Field(default=None, env="OPENAI_API_KEY")
-    OPENAI_BASE_URL: str | None = Field(default=None, env="OPENAI_BASE_URL")
-    ANTHROPIC_API_KEY: str | None = Field(default=None, env="ANTHROPIC_API_KEY")
-    DEFAULT_LLM_MODEL: str = Field(default="gpt-4", env="DEFAULT_LLM_MODEL")
+    OPENAI_API_KEY: str | None = Field(default=None)
+    OPENAI_BASE_URL: str | None = Field(default=None)
+    ANTHROPIC_API_KEY: str | None = Field(default=None)
+    DEFAULT_LLM_MODEL: str = Field(default="gpt-4")
 
     # Embedding Settings
-    EMBEDDING_MODEL: str = Field(
-        default="text-embedding-3-small", env="EMBEDDING_MODEL"
-    )
-    EMBEDDING_MAX_CHUNK_SIZE: int = Field(default=1000, env="EMBEDDING_MAX_CHUNK_SIZE")
-    EMBEDDING_CHUNK_OVERLAP: int = Field(default=200, env="EMBEDDING_CHUNK_OVERLAP")
-    EMBEDDING_BATCH_SIZE: int = Field(default=10, env="EMBEDDING_BATCH_SIZE")
+    EMBEDDING_MODEL: str = Field(default="text-embedding-3-small")
+    EMBEDDING_MAX_CHUNK_SIZE: int = Field(default=1000)
+    EMBEDDING_CHUNK_OVERLAP: int = Field(default=200)
+    EMBEDDING_BATCH_SIZE: int = Field(default=10)
 
     # Observability
-    ENABLE_OBSERVABILITY: bool = Field(default=False, env="ENABLE_OBSERVABILITY")
-    OTLP_ENDPOINT: str | None = Field(default=None, env="OTLP_ENDPOINT")
-    LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
+    ENABLE_OBSERVABILITY: bool = Field(default=False)
+    OTLP_ENDPOINT: str | None = Field(default=None)
+    LOG_LEVEL: str = Field(default="INFO")
 
     # Cache Settings
-    CACHE_DEFAULT_TTL: int = Field(default=3600, env="CACHE_DEFAULT_TTL")  # 1 hour
-    CACHE_SEARCH_TTL: int = Field(default=1800, env="CACHE_SEARCH_TTL")  # 30 minutes
-    CACHE_EMBEDDING_TTL: int = Field(
-        default=86400, env="CACHE_EMBEDDING_TTL"
-    )  # 24 hours
-    CACHE_STATS_TTL: int = Field(default=300, env="CACHE_STATS_TTL")  # 5 minutes
-    CACHE_WARMUP_DELAY_SEC: float = Field(default=0.1, env="CACHE_WARMUP_DELAY_SEC")
+    CACHE_DEFAULT_TTL: int = Field(default=3600)  # 1 hour
+    CACHE_SEARCH_TTL: int = Field(default=1800)  # 30 minutes
+    CACHE_EMBEDDING_TTL: int = Field(default=86400)  # 24 hours
+    CACHE_STATS_TTL: int = Field(default=300)  # 5 minutes
+    CACHE_WARMUP_DELAY_SEC: float = Field(default=0.1)
 
     # File Storage
-    UPLOAD_DIR: str = Field(default="/app/uploads", env="UPLOAD_DIR")
-    EXPORT_DIR: str = Field(default="/app/exports", env="EXPORT_DIR")
+    UPLOAD_DIR: str = Field(default="/app/uploads")
+    EXPORT_DIR: str = Field(default="/app/exports")
 
     # Multi-tenancy
-    DEFAULT_TENANT_ID: str = Field(default="default", env="DEFAULT_TENANT_ID")
-    ENABLE_TENANT_ISOLATION: bool = Field(default=True, env="ENABLE_TENANT_ISOLATION")
+    DEFAULT_TENANT_ID: str = Field(default="default")
+    ENABLE_TENANT_ISOLATION: bool = Field(default=True)
 
     @field_validator("ENVIRONMENT")
     @classmethod
@@ -138,9 +126,7 @@ class Settings(BaseSettings):
             return token
 
         if token in (None, "", placeholder):
-            raise ValueError(
-                "VAULT_TOKEN must be set when USE_VAULT is true"
-            )
+            raise ValueError("VAULT_TOKEN must be set when USE_VAULT is true")
 
         if isinstance(token, str) and len(token) < 10:
             raise ValueError("VAULT_TOKEN appears to be too short to be valid")
@@ -172,7 +158,7 @@ class Settings(BaseSettings):
             "http://localhost:8080",
         ]
 
-    def get_database_settings(self) -> dict:
+    def get_database_settings(self) -> dict[str, Any]:
         """Get database connection settings"""
         return {
             "url": self.DATABASE_URL,
@@ -182,13 +168,13 @@ class Settings(BaseSettings):
             "pool_pre_ping": True,
         }
 
-    def get_redis_settings(self) -> dict:
+    def get_redis_settings(self) -> dict[str, Any]:
         """Get Redis connection settings"""
         from urllib.parse import urlparse
 
         parsed = urlparse(self.REDIS_URL)
 
-        settings = {
+        settings_dict: dict[str, Any] = {
             "host": parsed.hostname or "localhost",
             "port": parsed.port or 6379,
             "decode_responses": True,
@@ -196,11 +182,11 @@ class Settings(BaseSettings):
 
         # Use password from URL or from separate env var
         if parsed.password:
-            settings["password"] = parsed.password
+            settings_dict["password"] = parsed.password
         elif self.REDIS_PASSWORD:
-            settings["password"] = self.REDIS_PASSWORD
+            settings_dict["password"] = self.REDIS_PASSWORD
 
-        return settings
+        return settings_dict
 
 
 logger = logging.getLogger(__name__)
@@ -215,7 +201,7 @@ class VaultSettings:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._vault_cache: dict[str, Any] = {}
+        self._vault_cache: dict[str, dict[str, Any]] = {}
         self._use_vault = settings.USE_VAULT and settings.is_production
 
     async def get_vault_secret(
@@ -224,8 +210,7 @@ class VaultSettings:
         """Get secret from Vault with caching."""
         if not self._use_vault:
             logger.debug(
-                "Vault disabled or not in production, skipping secret",
-                secret_path=path,
+                "Vault disabled or not in production; skipping secret %s", path
             )
             return None
 
@@ -236,19 +221,14 @@ class VaultSettings:
             # Import here to avoid circular imports
             from .vault import vault_client
 
-            secrets = await vault_client.get_secret(path)
+            secrets: dict[str, Any] | None = await vault_client.get_secret(path)
             if secrets and use_cache:
                 self._vault_cache[path] = secrets
-            logger.info(
-                "Successfully retrieved secret from Vault", secret_path=path
-            )
+            if secrets:
+                logger.info("Successfully retrieved secret from Vault path %s", path)
             return secrets
         except Exception as exc:
-            logger.warning(
-                "Failed to get secret from Vault",
-                secret_path=path,
-                error=str(exc),
-            )
+            logger.warning("Failed to get secret from Vault path %s: %s", path, exc)
             return None
 
     async def get_database_url(self) -> str:
@@ -257,24 +237,35 @@ class VaultSettings:
             secrets = await self.get_vault_secret("database/postgres")
             if secrets:
                 logger.info("Using database URL from Vault")
-                if secrets.get("async_url"):
-                    return secrets["async_url"]
-                if secrets.get("url"):
-                    return secrets["url"]
-                return (
-                    f"postgresql://{secrets['username']}:{secrets['password']}"
-                    f"@{secrets['host']}:{secrets['port']}/{secrets['database']}"
+                async_url = secrets.get("async_url")
+                if isinstance(async_url, str):
+                    return async_url
+
+                sync_url = secrets.get("url")
+                if isinstance(sync_url, str):
+                    return sync_url
+
+                username = secrets.get("username")
+                password = secrets.get("password")
+                host = secrets.get("host")
+                port = secrets.get("port")
+                database = secrets.get("database")
+
+                if all(
+                    isinstance(value, str)
+                    for value in (username, password, host, database)
+                ) and isinstance(port, (int, str)):
+                    port_str = str(port)
+                    return (
+                        f"postgresql://{username}:{password}"
+                        f"@{host}:{port_str}/{database}"
+                    )
+                logger.warning(
+                    "Failed to get database secrets from Vault, using env fallback"
                 )
-            logger.warning(
-                "Failed to get database secrets from Vault, using env fallback"
-            )
 
         # Fallback to environment variables (development or Vault failure)
-        return getattr(
-            self.settings,
-            "DATABASE_URL",
-            "postgresql://postgres:password@localhost:5432/jeex_plan",
-        )
+        return self.settings.DATABASE_URL
 
     async def get_redis_url(self) -> str:
         """Get Redis URL from Vault in production or fallback to env config."""
@@ -283,13 +274,18 @@ class VaultSettings:
             if secrets:
                 logger.info("Using Redis URL from Vault")
                 password_part = (
-                    f":{secrets['password']}@" if secrets.get("password") else ""
+                    f":{secrets['password']}@"
+                    if isinstance(secrets.get("password"), str)
+                    else ""
                 )
-                return f"redis://{password_part}{secrets['host']}:{secrets['port']}/0"
+                host = secrets.get("host")
+                port = secrets.get("port")
+                if isinstance(host, str) and isinstance(port, (int, str)):
+                    return f"redis://{password_part}{host}:{port}/0"
             logger.warning("Failed to get Redis secrets from Vault, using env fallback")
 
         # Fallback to environment variables (development or Vault failure)
-        return getattr(self.settings, "REDIS_URL", "redis://localhost:6379")
+        return self.settings.REDIS_URL
 
     async def get_jwt_secret(self) -> str:
         """Get JWT secret from Vault in production or fallback to env config."""
@@ -297,8 +293,12 @@ class VaultSettings:
             secrets = await self.get_vault_secret("auth/jwt")
             if secrets:
                 logger.info("Using JWT secret from Vault")
-                return secrets.get("secret_key", self.settings.SECRET_KEY)
-            logger.warning("Failed to get JWT secret from Vault, using env fallback")
+                secret_key = secrets.get("secret_key")
+                if isinstance(secret_key, str):
+                    return secret_key
+                logger.warning(
+                    "Failed to get JWT secret from Vault, using env fallback"
+                )
 
         # Fallback to environment variables (development or Vault failure)
         return self.settings.SECRET_KEY
@@ -309,7 +309,9 @@ class VaultSettings:
             secrets = await self.get_vault_secret("ai/openai")
             if secrets:
                 logger.info("Using OpenAI API key from Vault")
-                return secrets.get("api_key")
+                api_key = secrets.get("api_key")
+                if isinstance(api_key, str):
+                    return api_key
             logger.debug("No OpenAI API key found in Vault, using env fallback")
 
         # Fallback to environment variables (development or Vault failure)
@@ -321,7 +323,9 @@ class VaultSettings:
             secrets = await self.get_vault_secret("ai/anthropic")
             if secrets:
                 logger.info("Using Anthropic API key from Vault")
-                return secrets.get("api_key")
+                api_key = secrets.get("api_key")
+                if isinstance(api_key, str):
+                    return api_key
             logger.debug("No Anthropic API key found in Vault, using env fallback")
 
         # Fallback to environment variables (development or Vault failure)

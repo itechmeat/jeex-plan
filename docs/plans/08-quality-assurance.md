@@ -64,14 +64,16 @@
 ## Dependencies
 
 **Incoming**:
-- [Epic 05.6.2](05-document-generation.md#056) — Document management для validation targets
+
+- [Epic 05.6.2](05-document-generation.md#056) — Document management for validation targets
 - [Epic 04.6.1](04-agent-orchestration.md#046) — Agent validation integration
-- [Epic 03.4.4](03-vector-database.md#034) — Vector search для consistency checking
+- [Epic 03.4.4](03-vector-database.md#034) — Vector search for consistency checking
 
 **Outgoing**:
-- Enables quality-gated exports в [Epic 07.4.2](07-export-system.md#074)
-- Enables user feedback integration в [Epic 10.2.1](10-testing.md#102)
-- Improves agent output quality через feedback loops
+
+- Enables quality-gated exports in [Epic 07.4.2](07-export-system.md#074)
+- Enables user feedback integration in [Epic 10.2.1](10-testing.md#102)
+- Improves agent output quality through feedback loops
 
 **External**: Grammar checking APIs, Readability analysis libraries
 

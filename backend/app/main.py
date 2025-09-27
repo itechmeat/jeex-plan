@@ -1,14 +1,10 @@
-"""
-JEEX Plan Backend - Main Application Entry Point
+"""Main FastAPI application entry point for JEEX Plan backend."""
 
-FastAPI application with multi-tenancy support, health checks,
-and infrastructure for AI-powered documentation generation.
-"""
-
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from structlog import get_logger
@@ -30,7 +26,7 @@ logger = get_logger()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan manager"""
     # Startup
     logger.info("Starting JEEX Plan Backend")
@@ -52,9 +48,9 @@ async def lifespan(app: FastAPI):
         app.state.redis_client = redis_client
         logger.info("Redis connection established")
 
-    except redis.RedisError as e:
+    except redis.RedisError as exc:
         logger.warning(
-            "Failed to connect to Redis, rate limiting will be disabled", error=str(e)
+            "Failed to connect to Redis, rate limiting will be disabled: %s", exc
         )
         app.state.redis_client = None
 
@@ -131,7 +127,9 @@ app.add_middleware(
 
 # Add request logging middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Log all HTTP requests with structured logging"""
     logger.info(
         "HTTP request received",
@@ -154,14 +152,9 @@ async def log_requests(request: Request, call_next):
 
 # Global exception handler
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler with structured logging"""
-    logger.error(
-        "Unhandled exception",
-        exc_info=exc,
-        method=request.method,
-        url=str(request.url),
-    )
+    logger.exception("Unhandled exception for %s %s", request.method, request.url)
 
     return JSONResponse(
         status_code=500,

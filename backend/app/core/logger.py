@@ -1,13 +1,18 @@
-"""
-Structured logging configuration using structlog.
-"""
+"""Structured logging configuration using structlog."""
 
+from __future__ import annotations
+
+import inspect
 import logging
 import sys
+from collections.abc import Awaitable, Callable
+from typing import Any, cast
 
 import structlog
 
 from app.core.config import settings
+
+BoundLogger = structlog.stdlib.BoundLogger
 
 
 def setup_logging() -> None:
@@ -46,27 +51,28 @@ def setup_logging() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str | None = None) -> BoundLogger:
     """Get a structured logger instance"""
-    return structlog.get_logger(name or "jeex_plan")
+    return cast(BoundLogger, structlog.get_logger(name or "jeex_plan"))
 
 
 class LoggerMixin:
     """Mixin class to add logging capability to other classes"""
 
     @property
-    def logger(self) -> structlog.stdlib.BoundLogger:
+    def logger(self) -> BoundLogger:
         """Get logger for the class"""
         return get_logger(self.__class__.__name__)
 
 
-def log_function_call(func):
-    """Decorator to log function calls with arguments and timing"""
+def log_function_call(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorator to log function calls with arguments and timing."""
+
     import functools
     import time
 
     @functools.wraps(func)
-    async def async_wrapper(*args, **kwargs):
+    async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
         logger = get_logger(func.__module__)
         start_time = time.time()
 
@@ -78,7 +84,7 @@ def log_function_call(func):
         )
 
         try:
-            result = await func(*args, **kwargs)
+            result = await cast(Callable[..., Awaitable[Any]], func)(*args, **kwargs)
             duration = time.time() - start_time
 
             logger.info(
@@ -89,21 +95,21 @@ def log_function_call(func):
 
             return result
 
-        except Exception as e:
+        except Exception as exc:
             duration = time.time() - start_time
 
             logger.error(
                 "Function failed",
                 function=func.__name__,
                 duration_ms=round(duration * 1000, 2),
-                error=str(e),
+                error=str(exc),
                 exc_info=True,
             )
 
             raise
 
     @functools.wraps(func)
-    def sync_wrapper(*args, **kwargs):
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
         logger = get_logger(func.__module__)
         start_time = time.time()
 
@@ -126,25 +132,23 @@ def log_function_call(func):
 
             return result
 
-        except Exception as e:
+        except Exception as exc:
             duration = time.time() - start_time
 
             logger.error(
                 "Function failed",
                 function=func.__name__,
                 duration_ms=round(duration * 1000, 2),
-                error=str(e),
+                error=str(exc),
                 exc_info=True,
             )
 
             raise
 
-    if hasattr(func, "__code__") and func.__code__.co_flags & 0x80:
-        # Async function
+    if inspect.iscoroutinefunction(func):
         return async_wrapper
-    else:
-        # Sync function
-        return sync_wrapper
+
+    return sync_wrapper
 
 
 # Initialize logging on module import

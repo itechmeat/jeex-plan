@@ -36,7 +36,7 @@ class TestAuthService:
             name="Test Tenant",
             slug="test-tenant",
             description="Test tenant for auth tests",
-            is_active=True
+            is_active=True,
         )
         async_db.add(tenant)
         await async_db.commit()
@@ -50,7 +50,7 @@ class TestAuthService:
             hashed_password="$2b$12$dummy_hash_for_testing",
             is_active=True,
             oauth_provider=None,
-            oauth_id=None
+            oauth_id=None,
         )
         async_db.add(user)
         await async_db.commit()
@@ -78,7 +78,7 @@ class TestAuthService:
         data = {
             "sub": str(uuid.uuid4()),
             "email": "test@example.com",
-            "tenant_id": str(uuid.uuid4())
+            "tenant_id": str(uuid.uuid4()),
         }
 
         token = auth_service.create_access_token(data)
@@ -95,10 +95,7 @@ class TestAuthService:
 
     def test_create_refresh_token(self, auth_service) -> None:
         """Test JWT refresh token creation."""
-        data = {
-            "sub": str(uuid.uuid4()),
-            "email": "test@example.com"
-        }
+        data = {"sub": str(uuid.uuid4()), "email": "test@example.com"}
 
         token = auth_service.create_refresh_token(data)
 
@@ -141,7 +138,7 @@ class TestOAuthProviders:
 
     def test_google_oauth_provider_initialization(self) -> None:
         """Test Google OAuth provider initialization."""
-        with patch('app.core.oauth.settings') as mock_settings:
+        with patch("app.core.oauth.settings") as mock_settings:
             mock_settings.GOOGLE_CLIENT_ID = "test_client_id"
             mock_settings.GOOGLE_CLIENT_SECRET = "test_client_secret"
 
@@ -152,7 +149,7 @@ class TestOAuthProviders:
 
     def test_google_oauth_provider_missing_credentials(self) -> None:
         """Test Google OAuth provider with missing credentials."""
-        with patch('app.core.oauth.settings') as mock_settings:
+        with patch("app.core.oauth.settings") as mock_settings:
             mock_settings.GOOGLE_CLIENT_ID = None
             mock_settings.GOOGLE_CLIENT_SECRET = None
 
@@ -161,7 +158,7 @@ class TestOAuthProviders:
 
     def test_github_oauth_provider_initialization(self) -> None:
         """Test GitHub OAuth provider initialization."""
-        with patch('app.core.oauth.settings') as mock_settings:
+        with patch("app.core.oauth.settings") as mock_settings:
             mock_settings.GITHUB_CLIENT_ID = "test_client_id"
             mock_settings.GITHUB_CLIENT_SECRET = "test_client_secret"
 
@@ -173,7 +170,7 @@ class TestOAuthProviders:
     @pytest.mark.asyncio
     async def test_google_authorization_url_generation(self) -> None:
         """Test Google authorization URL generation."""
-        with patch('app.core.oauth.settings') as mock_settings:
+        with patch("app.core.oauth.settings") as mock_settings:
             mock_settings.GOOGLE_CLIENT_ID = "test_client_id"
             mock_settings.GOOGLE_CLIENT_SECRET = "test_client_secret"
             mock_settings.OAUTH_REDIRECT_URL = "http://localhost:5210/auth/callback"
@@ -191,7 +188,7 @@ class TestOAuthProviders:
     @pytest.mark.asyncio
     async def test_github_authorization_url_generation(self) -> None:
         """Test GitHub authorization URL generation."""
-        with patch('app.core.oauth.settings') as mock_settings:
+        with patch("app.core.oauth.settings") as mock_settings:
             mock_settings.GITHUB_CLIENT_ID = "test_client_id"
             mock_settings.GITHUB_CLIENT_SECRET = "test_client_secret"
             mock_settings.OAUTH_REDIRECT_URL = "http://localhost:5210/auth/callback"
@@ -222,7 +219,7 @@ class TestUserService:
             name="Test Tenant",
             slug="test-tenant",
             description="Test tenant",
-            is_active=True
+            is_active=True,
         )
         async_db.add(tenant)
         await async_db.commit()
@@ -238,10 +235,7 @@ class TestUserService:
         full_name = "New User"
 
         result = await user_service.register_user(
-            email=email,
-            username=username,
-            password=password,
-            full_name=full_name
+            email=email, username=username, password=password, full_name=full_name
         )
 
         assert "user" in result
@@ -261,7 +255,9 @@ class TestUserService:
         assert tokens["token_type"] == "bearer"
 
     @pytest.mark.asyncio
-    async def test_user_registration_duplicate_email(self, user_service, test_tenant, async_db) -> None:
+    async def test_user_registration_duplicate_email(
+        self, user_service, test_tenant, async_db
+    ) -> None:
         """Test user registration with duplicate email."""
         # Create first user
         user1 = User(
@@ -270,7 +266,7 @@ class TestUserService:
             username="user1",
             full_name="User 1",
             hashed_password="hash1",
-            is_active=True
+            is_active=True,
         )
         async_db.add(user1)
         await async_db.commit()
@@ -281,7 +277,7 @@ class TestUserService:
                 email="duplicate@example.com",
                 username="user2",
                 password="password123",
-                full_name="User 2"
+                full_name="User 2",
             )
 
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
@@ -295,10 +291,7 @@ class TestUserService:
         password = "password123"
 
         await user_service.register_user(
-            email=email,
-            username="authuser",
-            password=password,
-            full_name="Auth User"
+            email=email, username="authuser", password=password, full_name="Auth User"
         )
 
         # Then authenticate
@@ -312,7 +305,9 @@ class TestUserService:
         assert user.is_active is True
 
     @pytest.mark.asyncio
-    async def test_user_authentication_wrong_password(self, user_service, async_db) -> None:
+    async def test_user_authentication_wrong_password(
+        self, user_service, async_db
+    ) -> None:
         """Test user authentication with wrong password."""
         # Register a user
         email = "wrongpass@example.com"
@@ -320,7 +315,7 @@ class TestUserService:
             email=email,
             username="wrongpass",
             password="correctpassword",
-            full_name="Wrong Pass User"
+            full_name="Wrong Pass User",
         )
 
         # Try to authenticate with wrong password
@@ -346,7 +341,7 @@ class TestUserService:
             email="refresh@example.com",
             username="refreshuser",
             password="password123",
-            full_name="Refresh User"
+            full_name="Refresh User",
         )
 
         refresh_token = result["tokens"]["refresh_token"]
@@ -374,24 +369,21 @@ class TestUserService:
             email="changepass@example.com",
             username="changepass",
             password="oldpassword",
-            full_name="Change Pass User"
+            full_name="Change Pass User",
         )
 
         user_id = result["user"].id
 
         # Change password
         success = await user_service.change_password(
-            user_id,
-            "oldpassword",
-            "newpassword123"
+            user_id, "oldpassword", "newpassword123"
         )
 
         assert success is True
 
         # Verify new password works
         auth_result = await user_service.authenticate_user(
-            "changepass@example.com",
-            "newpassword123"
+            "changepass@example.com", "newpassword123"
         )
         assert auth_result["user"].id == user_id
 
@@ -403,7 +395,7 @@ class TestUserService:
             email="wrongcurrent@example.com",
             username="wrongcurrent",
             password="correctpassword",
-            full_name="Wrong Current User"
+            full_name="Wrong Current User",
         )
 
         user_id = result["user"].id
@@ -411,9 +403,7 @@ class TestUserService:
         # Try to change password with wrong current password
         with pytest.raises(HTTPException) as exc_info:
             await user_service.change_password(
-                user_id,
-                "wrongpassword",
-                "newpassword123"
+                user_id, "wrongpassword", "newpassword123"
             )
 
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
@@ -434,7 +424,7 @@ class TestAuthenticationEndpoints:
             "email": "register@example.com",
             "name": "Register User",
             "password": "password123",
-            "confirm_password": "password123"
+            "confirm_password": "password123",
         }
 
         response = client.post("/auth/register", json=user_data)
@@ -455,7 +445,7 @@ class TestAuthenticationEndpoints:
             "email": "mismatch@example.com",
             "name": "Mismatch User",
             "password": "password123",
-            "confirm_password": "different_password"
+            "confirm_password": "different_password",
         }
 
         response = client.post("/auth/register", json=user_data)
@@ -471,15 +461,12 @@ class TestAuthenticationEndpoints:
             "email": "login@example.com",
             "name": "Login User",
             "password": "password123",
-            "confirm_password": "password123"
+            "confirm_password": "password123",
         }
         client.post("/auth/register", json=user_data)
 
         # Then login
-        login_data = {
-            "email": "login@example.com",
-            "password": "password123"
-        }
+        login_data = {"email": "login@example.com", "password": "password123"}
 
         response = client.post("/auth/login", json=login_data)
 
@@ -498,15 +485,12 @@ class TestAuthenticationEndpoints:
             "email": "wrongpass@example.com",
             "name": "Wrong Pass User",
             "password": "correctpassword",
-            "confirm_password": "correctpassword"
+            "confirm_password": "correctpassword",
         }
         client.post("/auth/register", json=user_data)
 
         # Try login with wrong password
-        login_data = {
-            "email": "wrongpass@example.com",
-            "password": "wrongpassword"
-        }
+        login_data = {"email": "wrongpass@example.com", "password": "wrongpassword"}
 
         response = client.post("/auth/login", json=login_data)
 
@@ -521,7 +505,7 @@ class TestAuthenticationEndpoints:
             "email": "refresh@example.com",
             "name": "Refresh User",
             "password": "password123",
-            "confirm_password": "password123"
+            "confirm_password": "password123",
         }
         register_response = client.post("/auth/register", json=user_data)
         refresh_token = register_response.json()["token"]["refresh_token"]
@@ -542,7 +526,7 @@ class TestAuthenticationEndpoints:
             "email": "current@example.com",
             "name": "Current User",
             "password": "password123",
-            "confirm_password": "password123"
+            "confirm_password": "password123",
         }
         register_response = client.post("/auth/register", json=user_data)
         access_token = register_response.json()["token"]["access_token"]
@@ -569,7 +553,7 @@ class TestAuthenticationEndpoints:
             "email": "logout@example.com",
             "name": "Logout User",
             "password": "password123",
-            "confirm_password": "password123"
+            "confirm_password": "password123",
         }
         register_response = client.post("/auth/register", json=user_data)
         access_token = register_response.json()["token"]["access_token"]
@@ -598,7 +582,7 @@ class TestAuthenticationEndpoints:
             "email": "validate@example.com",
             "name": "Validate User",
             "password": "password123",
-            "confirm_password": "password123"
+            "confirm_password": "password123",
         }
         register_response = client.post("/auth/register", json=user_data)
         access_token = register_response.json()["token"]["access_token"]

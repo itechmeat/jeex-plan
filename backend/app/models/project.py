@@ -1,27 +1,32 @@
-"""
-Project model with multi-tenant support.
-"""
+"""Project model with multi-tenant support."""
 
+from __future__ import annotations
+
+import uuid
 from enum import Enum
+from typing import TYPE_CHECKING
 
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import (
-    Column,
     ForeignKeyConstraint,
     String,
     Text,
     UniqueConstraint,
     and_,
 )
-from sqlalchemy import (
-    Enum as SQLEnum,
-)
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import foreign, relationship, remote
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship, remote
 
 from .base import BaseModel
-from .document import Document
-from .tenant import Tenant
-from .user import User
+
+if TYPE_CHECKING:
+    from .agent_execution import AgentExecution
+    from .document import Document
+    from .document_version import DocumentVersion
+    from .export import Export
+    from .rbac import ProjectMember
+    from .tenant import Tenant
+    from .user import User
 
 
 class ProjectStatus(str, Enum):
@@ -38,17 +43,17 @@ class Project(BaseModel):
 
     __tablename__ = "projects"
 
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    status = Column(
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[ProjectStatus] = mapped_column(
         SQLEnum(ProjectStatus, name="projectstatus"),
         default=ProjectStatus.DRAFT,
         nullable=False,
     )
 
     # Owner relationship
-    owner_id = Column(UUID(as_uuid=True), nullable=False)
-    owner = relationship(
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    owner: Mapped[User] = relationship(
         "User",
         back_populates="projects",
         primaryjoin=lambda: and_(
@@ -59,7 +64,7 @@ class Project(BaseModel):
     )
 
     # Tenant relationship
-    tenant = relationship(
+    tenant: Mapped[Tenant] = relationship(
         "Tenant",
         back_populates="projects",
         primaryjoin=lambda: foreign(Project.tenant_id) == remote(Tenant.id),
@@ -67,7 +72,7 @@ class Project(BaseModel):
     )
 
     # Documents relationship
-    documents = relationship(
+    documents: Mapped[list[Document]] = relationship(
         "Document",
         back_populates="project",
         primaryjoin=lambda: and_(
@@ -78,7 +83,7 @@ class Project(BaseModel):
     )
 
     # Document versions relationship
-    document_versions = relationship(
+    document_versions: Mapped[list[DocumentVersion]] = relationship(
         "DocumentVersion",
         back_populates="project",
         cascade="all, delete-orphan",
@@ -86,7 +91,7 @@ class Project(BaseModel):
     )
 
     # Agent executions relationship
-    agent_executions = relationship(
+    agent_executions: Mapped[list[AgentExecution]] = relationship(
         "AgentExecution",
         back_populates="project",
         cascade="all, delete-orphan",
@@ -94,7 +99,7 @@ class Project(BaseModel):
     )
 
     # Exports relationship
-    exports = relationship(
+    exports: Mapped[list[Export]] = relationship(
         "Export",
         back_populates="project",
         cascade="all, delete-orphan",
@@ -102,7 +107,9 @@ class Project(BaseModel):
     )
 
     # RBAC relationships
-    members = relationship("ProjectMember", back_populates="project")
+    members: Mapped[list[ProjectMember]] = relationship(
+        "ProjectMember", back_populates="project"
+    )
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_project_tenant_name"),

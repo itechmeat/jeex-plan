@@ -1,7 +1,6 @@
-"""
-Document repository for document management operations with tenant isolation.
-"""
+"""Document repository for document management operations with tenant isolation."""
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, func, select
@@ -116,7 +115,7 @@ class DocumentRepository(TenantRepository[Document]):
         error_message: str | None = None,
     ) -> Document | None:
         """Update document status."""
-        updates = {"status": status}
+        updates: dict[str, Any] = {"status": status}
         if error_message is not None:
             updates["error_message"] = error_message
 
@@ -186,7 +185,7 @@ class DocumentRepository(TenantRepository[Document]):
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalar() or 0
+        return int(result.scalar() or 0)
 
     async def count_by_type(self, document_type: DocumentType) -> int:
         """Count documents by type within tenant."""
@@ -198,7 +197,7 @@ class DocumentRepository(TenantRepository[Document]):
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalar() or 0
+        return int(result.scalar() or 0)
 
     async def count_by_status(self, status: DocumentStatus) -> int:
         """Count documents by status within tenant."""

@@ -5,6 +5,7 @@ Vault secret rotation policies and management.
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from .vault import vault_client
 
@@ -56,7 +57,7 @@ class SecretRotationManager:
         """Add a new rotation policy."""
         self.policies[policy.path] = policy
         await self._store_policy(policy)
-        logger.info("Added rotation policy", path=policy.path)
+        logger.info("Added rotation policy for %s", policy.path)
 
     async def _store_policy(self, policy: RotationPolicy) -> None:
         """Store rotation policy metadata in Vault."""
@@ -78,7 +79,7 @@ class SecretRotationManager:
         """Get rotation policy for a secret path."""
         return self.policies.get(path)
 
-    async def check_rotation_needed(self, path: str) -> tuple[bool, str | None]:
+    async def check_rotation_needed(self, path: str) -> tuple[bool, str]:
         """Check if a secret needs rotation."""
         policy = await self.get_policy(path)
         if not policy:
@@ -137,7 +138,7 @@ class SecretRotationManager:
                 return False
 
         except Exception as exc:
-            logger.error("Error rotating JWT secret", error=str(exc))
+            logger.error("Error rotating JWT secret: %s", exc)
             return False
 
     async def rotate_database_password(self) -> bool:
@@ -185,12 +186,12 @@ class SecretRotationManager:
                 return False
 
         except Exception as exc:
-            logger.error("Error rotating database password", error=str(exc))
+            logger.error("Error rotating database password: %s", exc)
             return False
 
     async def check_all_secrets(self) -> dict[str, tuple[bool, str]]:
         """Check rotation status for all managed secrets."""
-        results = {}
+        results: dict[str, tuple[bool, str]] = {}
 
         for path in self.policies:
             needs_rotation, reason = await self.check_rotation_needed(path)
@@ -200,7 +201,7 @@ class SecretRotationManager:
 
     async def auto_rotate_eligible_secrets(self) -> dict[str, bool]:
         """Automatically rotate eligible secrets."""
-        results = {}
+        results: dict[str, bool] = {}
 
         for path, policy in self.policies.items():
             if not policy.auto_rotate:
@@ -208,24 +209,20 @@ class SecretRotationManager:
 
             needs_rotation, reason = await self.check_rotation_needed(path)
             if needs_rotation:
-                logger.info(
-                    "Auto-rotating secret", path=path, reason=reason
-                )
+                logger.info("Auto-rotating secret %s because %s", path, reason)
 
                 if path == "auth/jwt":
                     success = await self.rotate_jwt_secret()
                     results[path] = success
                 else:
-                    logger.warning(
-                        "No auto-rotation handler configured", path=path
-                    )
+                    logger.warning("No auto-rotation handler configured for %s", path)
                     results[path] = False
 
         return results
 
-    async def get_rotation_report(self) -> dict[str, dict]:
+    async def get_rotation_report(self) -> dict[str, dict[str, Any]]:
         """Generate rotation status report."""
-        report = {}
+        report: dict[str, dict[str, Any]] = {}
 
         for path, policy in self.policies.items():
             needs_rotation, reason = await self.check_rotation_needed(path)
@@ -260,10 +257,7 @@ async def init_rotation_policies() -> None:
     for policy in rotation_manager.policies.values():
         await rotation_manager._store_policy(policy)
 
-    logger.info(
-        "Initialized rotation policies",
-        policy_count=len(rotation_manager.policies),
-    )
+    logger.info("Initialized %s rotation policies", len(rotation_manager.policies))
 
 
 async def run_rotation_check() -> None:
@@ -276,13 +270,9 @@ async def run_rotation_check() -> None:
     # Log warnings for secrets needing attention
     for path, (needs_rotation, reason) in status_report.items():
         if needs_rotation:
-            logger.warning(
-                "Secret rotation needed", path=path, reason=reason
-            )
+            logger.warning("Secret rotation needed for %s: %s", path, reason)
         elif "will need rotation" in reason:
-            logger.info(
-                "Secret rotation upcoming", path=path, reason=reason
-            )
+            logger.info("Secret rotation upcoming for %s: %s", path, reason)
 
     # Auto-rotate eligible secrets
     auto_rotation_results = await rotation_manager.auto_rotate_eligible_secrets()
@@ -290,8 +280,8 @@ async def run_rotation_check() -> None:
     if auto_rotation_results:
         for path, success in auto_rotation_results.items():
             if success:
-                logger.info("Successfully auto-rotated", path=path)
+                logger.info("Successfully auto-rotated %s", path)
             else:
-                logger.error("Failed to auto-rotate", path=path)
+                logger.error("Failed to auto-rotate %s", path)
 
     logger.info("Scheduled rotation check completed")

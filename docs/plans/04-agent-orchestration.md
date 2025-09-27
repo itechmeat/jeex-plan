@@ -68,11 +68,13 @@
 ## Dependencies
 
 **Incoming**:
+
 - [Epic 02.4.2](02-authentication.md#024) — Permission system для agent authorization
 - [Epic 03.4.3](03-vector-database.md#034) — Context retrieval для informed agent decisions
 - [Epic 01.5.2](01-infrastructure.md#015) — Vault для secure LLM API key storage
 
 **Outgoing**:
+
 - Enables [Epic 05.1.1](05-document-generation.md#051) — Document generation needs working agents
 - Enables [Epic 08.2.1](08-quality-assurance.md#082) — QA validation depends on agent outputs
 - Enables [Epic 09.2.2](09-observability.md#092) — Agent tracing requires orchestration context
@@ -91,9 +93,9 @@
 
 ## Acceptance Evidence
 
-- Все четыре агента успешно выполняют base workflows
-- Agent orchestration обрабатывает failures без system crashes
-- Vector context правильно передается agents для informed decisions
-- Pydantic contracts валидируют все agent inputs/outputs без errors
-- Circuit breakers активируются при LLM API failures
-- Agent execution logs содержат correlation IDs для troubleshooting
+- All four agents successfully execute base workflows
+- Agent orchestration handles failures without system crashes
+- Vector context is properly passed to agents for informed decisions
+- Pydantic contracts validate all agent inputs/outputs without errors
+- Circuit breakers activate during LLM API failures
+- Agent execution logs contain correlation IDs for troubleshooting

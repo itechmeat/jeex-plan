@@ -562,7 +562,7 @@ module.exports = {
   setupFilesAfterEnv: ["<rootDir>/src/test/setup.ts"],
   moduleNameMapping: {
     "^@/(.*)$": "<rootDir>/src/$1",
-    "\\.(css|less|scss|sass)$": "identity-obj-proxy",
+    "\\.(css|less)$": "identity-obj-proxy",
   },
   testTimeout: 10000,
   maxWorkers: "50%",

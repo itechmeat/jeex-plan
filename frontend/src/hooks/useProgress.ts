@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ProgressUpdate, ProcessingStep } from '../types/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../services/api';
+import { ProcessingStep, ProgressUpdate } from '../types/api';
 
 interface UseProgressOptions {
   projectId: string;

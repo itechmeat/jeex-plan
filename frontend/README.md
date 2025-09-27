@@ -1,15 +1,13 @@
-# JEEX Plan Frontend
+# Frontend
 
-React + TypeScript frontend application for the JEEX Plan multi-agent documentation generation system.
+React + TypeScript frontend application.
 
-## Overview
-
-This is a modern React application built with:
+## Tech Stack
 
 - **React 19+** with TypeScript
 - **TanStack Query** for server state management
 - **React Router** for navigation
-- **SCSS Modules** for styling
+- **CSS Modules** with CSS Nesting
 - **Radix UI** for accessible UI components
 - **Vite** for development and build tooling
 
@@ -63,7 +61,7 @@ This is a modern React application built with:
 
 ### Directory Structure
 
-```
+```text
 src/
 ├── components/
 │   ├── ui/                    # Reusable UI components
@@ -85,8 +83,8 @@ src/
 ├── services/
 │   └── api.ts                 # API client and methods
 ├── styles/
-│   ├── variables.scss         # SCSS variables
-│   └── mixins.scss           # SCSS mixins
+│   ├── variables.css         # Global design tokens
+│   └── utility-classes.css   # Shared composition helpers
 └── types/
     └── api.ts                 # TypeScript type definitions
 ```
@@ -174,12 +172,32 @@ pnpm run preview
 
 ### Code Quality
 
+#### Linting and Formatting
+
+This project uses **Biome** for linting and formatting JavaScript/TypeScript, and **Stylelint** for CSS.
+
 ```bash
-pnpm run lint          # ESLint
-pnpm run lint:fix      # Fix ESLint issues
-pnpm run type-check    # TypeScript checking
-pnpm run format        # Prettier formatting
+# JavaScript/TypeScript linting
+pnpm run lint:js        # Check JS/TS with Biome
+pnpm run lint:js:fix    # Fix JS/TS issues automatically
+
+# CSS linting
+pnpm run lint:styles    # Check CSS with Stylelint
+pnpm run lint:styles:fix # Fix CSS issues automatically
+
+# All linting
+pnpm run lint           # Run all linting checks
+pnpm run lint:fix       # Fix all issues automatically
+
+# Type checking and formatting
+pnpm run type-check     # TypeScript type checking
+pnpm run format         # Format all code with Biome
+pnpm run format:check   # Check if code is properly formatted
 ```
+
+#### Pre-commit Hooks
+
+The project uses automated pre-commit hooks. See root README.md for setup instructions.
 
 ## Environment Variables
 
@@ -197,18 +215,20 @@ VITE_BRAND_SUBTITLE=Documentation Generator
 
 ## Styling
 
-### SCSS Modules
+### CSS Modules
 
-All components use SCSS modules for styling:
+All components use CSS modules that consume the shared design tokens:
 
-```scss
-// Component.module.scss
-@import '../../../styles/variables.scss';
-@import '../../../styles/mixins.scss';
+```css
+/* Component.module.css */
+@import url('../../styles/variables.css');
 
 .container {
-  @include flex-center;
-  padding: $spacing-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  gap: var(--spacing-md);
 }
 ```
 
@@ -224,19 +244,19 @@ All components use SCSS modules for styling:
 
 The application supports both light and dark themes with CSS custom properties:
 
-```scss
+```css
 :root {
   --color-primary: #3b82f6;
   --color-background: #ffffff;
   --color-text-primary: #1e293b;
-  // ... more variables
+  /* ... more variables */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --color-background: #0f172a;
     --color-text-primary: #f8fafc;
-    // ... dark mode overrides
+    /* ... dark mode overrides */
   }
 }
 ```

@@ -1,15 +1,15 @@
 import { EventSourcePolyfill } from 'event-source-polyfill';
 import {
   ApiResponse,
-  PaginatedResponse,
-  LoginRequest,
-  LoginResponse,
-  RefreshTokenRequest,
-  User,
-  Project,
   CreateProjectRequest,
   Document,
   HealthStatus,
+  LoginRequest,
+  LoginResponse,
+  PaginatedResponse,
+  Project,
+  RefreshTokenRequest,
+  User,
 } from '../types/api';
 
 const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL;

@@ -9,8 +9,9 @@ import time
 from collections.abc import Awaitable, Callable
 
 import redis.asyncio as redis
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from ..core.config import get_settings
 from ..core.logger import get_logger
@@ -26,7 +27,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app: FastAPI,
+        app: ASGIApp,
         redis_client: redis.Redis | None = None,
         default_requests: int = 100,
         default_window: int = 60,
@@ -43,9 +44,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ]
 
     async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable[[Request], Awaitable[Response]]
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         """Process request with rate limiting checks."""
 

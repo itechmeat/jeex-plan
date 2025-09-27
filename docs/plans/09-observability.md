@@ -64,10 +64,12 @@ Observability критически важна для production readiness мул
 ## Dependencies
 
 **Incoming**:
+
 - [Epic 01.2.3](01-infrastructure.md#012) — API framework для instrumentation
 - [Epic 04.1.4](04-agent-orchestration.md#041) — Agent correlation IDs для tracing
 
 **Outgoing**:
+
 - Enables production readiness для [Epic 10.5.1](10-testing.md#105)
 - Enables performance optimization identification
 - Supports debugging для all other epics
@@ -86,9 +88,9 @@ Observability критически важна для production readiness мул
 
 ## Acceptance Evidence
 
-- Distributed traces видны end-to-end для user request workflows
-- Correlation IDs присутствуют во всех log entries
-- Performance metrics собираются correctly для all key operations
-- Alert system активируется при simulated service failures
-- Monitoring dashboards показывают accurate real-time data
-- Observability не влияет negative на application performance
+- Distributed traces are visible end-to-end for user request workflows
+- Correlation IDs are present in all log entries
+- Performance metrics are collected correctly for all key operations
+- Alert system activates during simulated service failures
+- Monitoring dashboards show accurate real-time data
+- Observability does not negatively impact application performance

@@ -345,6 +345,11 @@ class RBACService:
         updated_membership = await self.member_repo.update(
             membership[0].id, role_id=new_role.id
         )
+        if not updated_membership:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update member role",
+            )
 
         return updated_membership
 
@@ -429,8 +434,8 @@ class RBACService:
 
         return await self.check_permission(
             user_id,
-            Permission.PROJECT_ADMIN,
             project_id,
+            Permission.PROJECT_ADMIN,
         )
 
     async def can_manage_project(
@@ -440,6 +445,6 @@ class RBACService:
 
         return await self.check_permission(
             user_id,
-            Permission.PROJECT_WRITE,
             project_id,
+            Permission.PROJECT_WRITE,
         )

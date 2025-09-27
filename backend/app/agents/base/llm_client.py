@@ -1,14 +1,14 @@
-"""
-LLM client with retry logic and circuit breakers.
-Supports multiple LLM providers with failover.
-"""
+"""LLM client with retry logic and circuit breakers."""
 
+from __future__ import annotations
+
+import logging
 import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from enum import Enum
-from typing import Any
+from typing import Any, Generic, TypeVar, cast
 
 import httpx
 from tenacity import (
@@ -25,15 +25,19 @@ from app.core.logger import get_logger
 from ..contracts.base import LLMError
 
 logger = get_logger()
+retry_logger = logging.getLogger("llm.retry")
 
 
-def _retryable_exc(e: Exception) -> bool:
-    if isinstance(e, httpx.RequestError):
+def _retryable_exc(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.RequestError):
         return True
-    if isinstance(e, httpx.HTTPStatusError):
-        status = e.response.status_code
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
         return status == 429 or 500 <= status < 600
     return False
+
+
+T = TypeVar("T")
 
 
 class LLMProvider(str, Enum):
@@ -51,7 +55,7 @@ class CircuitBreakerState(str, Enum):
     HALF_OPEN = "half_open"
 
 
-class CircuitBreaker:
+class CircuitBreaker(Generic[T]):
     """Circuit breaker implementation for LLM API protection."""
 
     def __init__(
@@ -65,18 +69,19 @@ class CircuitBreaker:
         self.timeout = timeout
         self.failure_count = 0
         self.success_count = 0
-        self.last_failure_time = None
+        self.last_failure_time: float | None = None
         self.state = CircuitBreakerState.CLOSED
 
     async def call(
-        self,
-        func: Callable[..., Awaitable[Any]],
-        *args: Any,
-        **kwargs: Any
-    ) -> Any:
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """Execute function with circuit breaker protection."""
         if self.state == CircuitBreakerState.OPEN:
-            if time.time() - self.last_failure_time < self.timeout:
+            now = time.time()
+            if (
+                self.last_failure_time is not None
+                and now - self.last_failure_time < self.timeout
+            ):
                 raise LLMError(
                     message="Circuit breaker is OPEN",
                     agent_type="llm_client",
@@ -91,7 +96,7 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as _e:
+        except Exception:
             self._on_failure()
             raise
 
@@ -118,11 +123,15 @@ class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
     def __init__(
-        self, provider: LLMProvider, circuit_breaker: CircuitBreaker | None = None
+        self,
+        provider: LLMProvider,
+        circuit_breaker: CircuitBreaker[str] | None = None,
     ) -> None:
         self.provider = provider
-        self.circuit_breaker = circuit_breaker or CircuitBreaker()
-        self.logger = get_logger(f"llm.{provider}")
+        self.circuit_breaker: CircuitBreaker[str] = (
+            circuit_breaker if circuit_breaker is not None else CircuitBreaker[str]()
+        )
+        self.logger = get_logger(f"llm.{provider.value}")
 
     @abstractmethod
     async def generate(
@@ -139,7 +148,7 @@ class LLMClient(ABC):
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=16),
         retry=retry_if_exception(_retryable_exc),
-        before_sleep=before_sleep_log(logger, "WARNING"),
+        before_sleep=before_sleep_log(retry_logger, logging.WARNING),
     )
     async def _make_request(
         self,
@@ -180,7 +189,7 @@ class OpenAIClient(LLMClient):
     def __init__(
         self,
         api_key: str | None = None,
-        circuit_breaker: CircuitBreaker | None = None,
+        circuit_breaker: CircuitBreaker[str] | None = None,
         request_timeout_s: float = 30.0,
     ) -> None:
         super().__init__(LLMProvider.OPENAI, circuit_breaker)
@@ -246,9 +255,10 @@ class OpenAIClient(LLMClient):
                     headers=headers,
                 )
                 response.raise_for_status()
-                data = response.json()
+                data = cast(dict[str, Any], response.json())
 
-                if "choices" not in data or not data["choices"]:
+                choices = data.get("choices")
+                if not isinstance(choices, list) or not choices:
                     raise LLMError(
                         message="No choices in OpenAI response",
                         agent_type="openai_client",
@@ -256,7 +266,32 @@ class OpenAIClient(LLMClient):
                         details={"response": data},
                     )
 
-                content = data["choices"][0]["message"]["content"]
+                first_choice = choices[0]
+                if not isinstance(first_choice, dict):
+                    raise LLMError(
+                        message="Malformed choice in OpenAI response",
+                        agent_type="openai_client",
+                        correlation_id=correlation_id,
+                        details={"response": data},
+                    )
+
+                message_payload = first_choice.get("message")
+                if not isinstance(message_payload, dict):
+                    raise LLMError(
+                        message="OpenAI message payload missing",
+                        agent_type="openai_client",
+                        correlation_id=correlation_id,
+                        details={"response": data},
+                    )
+
+                content = message_payload.get("content")
+                if not isinstance(content, str):
+                    raise LLMError(
+                        message="OpenAI response content missing",
+                        agent_type="openai_client",
+                        correlation_id=correlation_id,
+                        details={"response": data},
+                    )
                 self.logger.info(
                     "OpenAI API call successful",
                     model=model,
@@ -302,7 +337,7 @@ class AnthropicClient(LLMClient):
     def __init__(
         self,
         api_key: str | None = None,
-        circuit_breaker: CircuitBreaker | None = None,
+        circuit_breaker: CircuitBreaker[str] | None = None,
         request_timeout_s: float = 30.0,
     ) -> None:
         super().__init__(LLMProvider.ANTHROPIC, circuit_breaker)
@@ -380,9 +415,10 @@ class AnthropicClient(LLMClient):
                     headers=headers,
                 )
                 response.raise_for_status()
-                data = response.json()
+                data = cast(dict[str, Any], response.json())
 
-                if "content" not in data or not data["content"]:
+                content_block = data.get("content")
+                if not isinstance(content_block, list) or not content_block:
                     raise LLMError(
                         message="No content in Anthropic response",
                         agent_type="anthropic_client",
@@ -390,15 +426,30 @@ class AnthropicClient(LLMClient):
                         details={"response": data},
                     )
 
-                content = data["content"][0]["text"]
+                first_block = content_block[0]
+                if not isinstance(first_block, dict):
+                    raise LLMError(
+                        message="Malformed content block in Anthropic response",
+                        agent_type="anthropic_client",
+                        correlation_id=correlation_id,
+                        details={"response": data},
+                    )
+
+                text_result = first_block.get("text")
+                if not isinstance(text_result, str):
+                    raise LLMError(
+                        message="Anthropic response text missing",
+                        agent_type="anthropic_client",
+                        correlation_id=correlation_id,
+                        details={"response": data},
+                    )
                 self.logger.info(
                     "Anthropic API call successful",
                     model=model,
                     correlation_id=correlation_id,
                     tokens_used=data.get("usage", {}).get("output_tokens", 0),
                 )
-
-                return content
+                return text_result
 
         except httpx.HTTPStatusError as e:
             truncated = (e.response.text or "")[:512]

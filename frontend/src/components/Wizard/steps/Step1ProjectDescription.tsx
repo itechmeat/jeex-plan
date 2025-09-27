@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { WizardStepProps } from '../Wizard';
+import React, { useCallback, useEffect, useState } from 'react';
+import { PROJECT_TYPES, TARGET_AUDIENCES } from '../../../config/wizardOptions';
+import { isWizardStep1Data, WizardStep1Data } from '../../../types/api';
 import { Input } from '../../ui/Input/Input';
 import { Textarea } from '../../ui/Textarea/Textarea';
-import { WizardStep1Data, isWizardStep1Data } from '../../../types/api';
-import { PROJECT_TYPES, TARGET_AUDIENCES } from '../../../config/wizardOptions';
-import styles from './WizardSteps.module.scss';
+import { WizardStepProps } from '../Wizard';
+import styles from './WizardSteps.module.css';
 
 export const Step1ProjectDescription: React.FC<WizardStepProps> = ({
   data,
@@ -101,8 +101,8 @@ export const Step1ProjectDescription: React.FC<WizardStepProps> = ({
     <div className={styles.stepContainer}>
       <div className={styles.fieldsGrid}>
         <Input
-          label="Project Name"
-          placeholder="Enter your project name"
+          label='Project Name'
+          placeholder='Enter your project name'
           value={formData.projectName}
           onChange={e => handleFieldChange('projectName', e.target.value)}
           error={errors.projectName}
@@ -110,8 +110,8 @@ export const Step1ProjectDescription: React.FC<WizardStepProps> = ({
         />
 
         <Textarea
-          label="Project Description"
-          placeholder="Describe your project in detail. What does it do? What problem does it solve? What are the main features?"
+          label='Project Description'
+          placeholder='Describe your project in detail. What does it do? What problem does it solve? What are the main features?'
           value={formData.projectDescription}
           onChange={e => handleFieldChange('projectDescription', e.target.value)}
           error={errors.projectDescription}
@@ -126,8 +126,8 @@ export const Step1ProjectDescription: React.FC<WizardStepProps> = ({
             {PROJECT_TYPES.map(type => (
               <label key={type} className={styles.optionItem}>
                 <input
-                  type="radio"
-                  name="projectType"
+                  type='radio'
+                  name='projectType'
                   value={type}
                   checked={formData.projectType === type}
                   onChange={e => handleFieldChange('projectType', e.target.value)}
@@ -137,7 +137,7 @@ export const Step1ProjectDescription: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.projectType && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.projectType}
             </span>
           )}
@@ -149,8 +149,8 @@ export const Step1ProjectDescription: React.FC<WizardStepProps> = ({
             {TARGET_AUDIENCES.map(audience => (
               <label key={audience} className={styles.optionItem}>
                 <input
-                  type="radio"
-                  name="targetAudience"
+                  type='radio'
+                  name='targetAudience'
                   value={audience}
                   checked={formData.targetAudience === audience}
                   onChange={e => handleFieldChange('targetAudience', e.target.value)}
@@ -160,7 +160,7 @@ export const Step1ProjectDescription: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.targetAudience && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.targetAudience}
             </span>
           )}

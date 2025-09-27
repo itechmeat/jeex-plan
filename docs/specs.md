@@ -31,7 +31,7 @@
 - **Framework:** React.js + Vite — быстрая разработка и hot reload, оптимизированная сборка для production
 - **Language:** TypeScript — статическая типизация для безопасности и maintainability кода
 - **UI Components:** RadixUI — доступные, композитные компоненты с полной кастомизацией стилей
-- **Styling:** CSS Modules (SCSS) — изолированные стили с поддержкой переменных и миксинов
+- **Styling:** CSS Modules с CSS Nesting — изолированные стили с поддержкой переменных и вложенных селекторов
 - **Development Port:** 5200 — настроенный через Vite configuration для локальной разработки
 - **Deployment:** Выполняется локально вне Docker окружения для удобства разработки и hot reload
 
@@ -43,7 +43,7 @@
 - **Reverse Proxy:** Nginx — TLS-терминация, компрессия, load balancing и passthrough для SSE
 - **Observability:** OpenTelemetry stack — распределенная трассировка, метрики и логи для мониторинга производительности
 
-#### Конфигурация портов:
+#### Конфигурация портов
 
 | Сервис | Порт | Описание |
 |--------|------|----------|
@@ -56,7 +56,7 @@
 | OpenTelemetry | 4317, 4318, 8888 | Телеметрия (gRPC, HTTP, metrics) |
 | HashiCorp Vault | 5250 | Управление секретами |
 
-#### Особенности развёртывания:
+#### Особенности развёртывания
 
 - **Frontend:** Запускается локально через `pnpm run dev` для удобства разработки
 - **Backend:** Контейнеризирован через docker-compose для изоляции и воспроизводимости
@@ -726,7 +726,7 @@ class ValidationRules:
 
 Стандартизированная структура экспортируемого архива следует лучшим практикам startup documentation и PRD (Product Requirements Document) методологии:
 
-```
+```text
 project-name/
 ├── README.md                          # Project overview и quick start guide
 └── docs/                             # Основные документы проекта
@@ -789,12 +789,12 @@ project-name/
 
 | Сервис     | Внешний порт | Внутренний порт | URL для доступа       |
 | ---------- | ------------ | --------------- | --------------------- |
-| Frontend   | 5200         | 5200            | http://localhost:5200 |
-| API        | 5210         | 8000            | http://localhost:5210 |
+| Frontend   | 5200         | 5200            | <http://localhost:5200> |
+| API        | 5210         | 8000            | <http://localhost:5210> |
 | PostgreSQL | 5220         | 5432            | localhost:5220        |
-| Qdrant     | 5230         | 6333            | http://localhost:5230 |
+| Qdrant     | 5230         | 6333            | <http://localhost:5230> |
 | Redis      | 5240         | 6379            | localhost:5240        |
-| Vault      | 5250         | 8200            | http://localhost:5250 |
+| Vault      | 5250         | 8200            | <http://localhost:5250> |
 
 **Преимущества схемы:**
 

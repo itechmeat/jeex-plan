@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/useAuth';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button/Button';
 import { Input } from '../../components/ui/Input/Input';
-import styles from './Login.module.scss';
+import { useAuth } from '../../contexts/useAuth';
 import { useLoginFeaturesConfig } from '../../contexts/useLoginFeatures';
+import styles from './Login.module.css';
 
 type FeatureIconProps = {
   icon: string;
@@ -12,7 +12,7 @@ type FeatureIconProps = {
 };
 
 const FeatureIcon: React.FC<FeatureIconProps> = ({ icon, label }) => (
-  <span className={styles.featureIcon} role="img" aria-label={label}>
+  <span className={styles.featureIcon} role='img' aria-label={label}>
     {icon}
   </span>
 );
@@ -125,37 +125,37 @@ export const Login: React.FC = () => {
 
         <form onSubmit={handleSubmit} className={styles.form} noValidate>
           {authError && (
-            <div className={styles.errorBanner} role="alert">
+            <div className={styles.errorBanner} role='alert'>
               {authError}
             </div>
           )}
 
           <Input
-            label="Email Address"
-            type="email"
+            label='Email Address'
+            type='email'
             value={formData.email}
             onChange={handleInputChange('email')}
             error={errors.email}
-            placeholder="Enter your email"
-            autoComplete="email"
+            placeholder='Enter your email'
+            autoComplete='email'
             fullWidth
           />
 
           <Input
-            label="Password"
-            type="password"
+            label='Password'
+            type='password'
             value={formData.password}
             onChange={handleInputChange('password')}
             error={errors.password}
-            placeholder="Enter your password"
-            autoComplete="current-password"
+            placeholder='Enter your password'
+            autoComplete='current-password'
             fullWidth
           />
 
           <Button
-            type="submit"
-            variant="primary"
-            size="lg"
+            type='submit'
+            variant='primary'
+            size='lg'
             isLoading={isLoading}
             fullWidth
           >
@@ -167,7 +167,7 @@ export const Login: React.FC = () => {
           <p className={styles.footerText}>
             Don't have an account?{' '}
             <button
-              type="button"
+              type='button'
               className={styles.linkButton}
               onClick={() => navigate('/register')}
             >
@@ -177,7 +177,7 @@ export const Login: React.FC = () => {
 
           <p className={styles.footerText}>
             <button
-              type="button"
+              type='button'
               className={styles.linkButton}
               onClick={() => navigate('/forgot-password')}
             >

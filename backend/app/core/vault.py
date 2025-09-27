@@ -57,7 +57,7 @@ class VaultClient:
         self._client: httpx.AsyncClient | None = None
 
     @asynccontextmanager
-    async def client(self):
+    async def client(self) -> Any:
         """Async context manager for HTTP client."""
         if self._client is None:
             self._client = httpx.AsyncClient(
@@ -67,7 +67,7 @@ class VaultClient:
         try:
             yield self._client
         except Exception as exc:
-            logger.error("Vault client error", error=str(exc))
+            logger.error("Vault client error: %s", str(exc))
             raise
         # Don't close the client here - reuse it
 
@@ -88,7 +88,7 @@ class VaultClient:
                 response = await client.get(f"{self.vault_url}/v1/sys/health")
                 return response.status_code in [200, 429, 472, 473]
         except Exception as exc:
-            logger.warning("Vault health check failed", error=str(exc))
+            logger.warning("Vault health check failed: %s", str(exc))
             return False
 
     @retry(
@@ -106,21 +106,21 @@ class VaultClient:
                 response = await client.post(url, json=payload)
 
                 if response.status_code in [200, 204]:
-                    logger.info("Successfully stored secret", path=path)
+                    logger.info("Successfully stored secret at path: %s", path)
                     return True
                 else:
                     logger.error(
-                        "Failed to store secret",
-                        path=path,
-                        status_code=response.status_code,
-                        response_text=response.text,
+                        "Failed to store secret at path %s: status=%d, response=%s",
+                        path,
+                        response.status_code,
+                        response.text,
                     )
                     return False
         except Exception as exc:
             logger.error(
-                "Error storing secret",
-                path=path,
-                error=str(exc),
+                "Error storing secret at path %s: %s",
+                path,
+                str(exc),
             )
             return False
 
@@ -139,23 +139,24 @@ class VaultClient:
 
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("data", {}).get("data", {})
+                    result = data.get("data", {}).get("data", {})
+                    return dict(result) if result else None
                 elif response.status_code == 404:
-                    logger.info("Secret not found", path=path)
+                    logger.info("Secret not found at path: %s", path)
                     return None
                 else:
                     logger.error(
-                        "Failed to retrieve secret",
-                        path=path,
-                        status_code=response.status_code,
-                        response_text=response.text,
+                        "Failed to retrieve secret at path %s: status=%d, response=%s",
+                        path,
+                        response.status_code,
+                        response.text,
                     )
                     return None
         except Exception as exc:
             logger.error(
-                "Error retrieving secret",
-                path=path,
-                error=str(exc),
+                "Error retrieving secret at path %s: %s",
+                path,
+                str(exc),
             )
             return None
 
@@ -167,27 +168,27 @@ class VaultClient:
                 response = await client.delete(url)
 
                 if response.status_code in [200, 204]:
-                    logger.info("Successfully deleted secret", path=path)
+                    logger.info("Successfully deleted secret at path: %s", path)
                     return True
                 else:
                     logger.error(
-                        "Failed to delete secret",
-                        path=path,
-                        status_code=response.status_code,
-                        response_text=response.text,
+                        "Failed to delete secret at path %s: status=%d, response=%s",
+                        path,
+                        response.status_code,
+                        response.text,
                     )
                     return False
         except Exception as exc:
             logger.error(
-                "Error deleting secret",
-                path=path,
-                error=str(exc),
+                "Error deleting secret at path %s: %s",
+                path,
+                str(exc),
             )
             return False
 
     async def list_secrets(
         self, path: str = "", mount_point: str = "secret"
-    ) -> list | None:
+    ) -> list[str] | None:
         """List secrets in Vault KV store."""
         try:
             async with self.client() as client:
@@ -196,23 +197,24 @@ class VaultClient:
 
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("data", {}).get("keys", [])
+                    keys = data.get("data", {}).get("keys", [])
+                    return list(keys) if keys else []
                 elif response.status_code == 404:
-                    logger.info("Vault path not found", path=path)
+                    logger.info("Vault path not found: %s", path)
                     return []
                 else:
                     logger.error(
-                        "Failed to list secrets",
-                        path=path,
-                        status_code=response.status_code,
-                        response_text=response.text,
+                        "Failed to list secrets at path %s: status=%d, response=%s",
+                        path,
+                        response.status_code,
+                        response.text,
                     )
                     return None
         except Exception as exc:
             logger.error(
-                "Error listing secrets",
-                path=path,
-                error=str(exc),
+                "Error listing secrets at path %s: %s",
+                path,
+                str(exc),
             )
             return None
 

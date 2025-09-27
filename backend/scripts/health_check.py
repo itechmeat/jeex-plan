@@ -42,7 +42,7 @@ class HealthChecker:
                     "status": "healthy",
                     "component": "database",
                     "details": health_result,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             else:
                 logger.error(
@@ -52,8 +52,8 @@ class HealthChecker:
                 return {
                     "status": "unhealthy",
                     "component": "database",
-                    "error": health_result.get('message', 'Unknown error'),
-                    "timestamp": time.time()
+                    "error": health_result.get("message", "Unknown error"),
+                    "timestamp": time.time(),
                 }
 
         except Exception as exc:
@@ -62,7 +62,7 @@ class HealthChecker:
                 "status": "error",
                 "component": "database",
                 "error": str(exc),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
     async def check_vault(self) -> dict[str, Any]:
@@ -79,15 +79,11 @@ class HealthChecker:
                     "status": "unhealthy",
                     "component": "vault",
                     "error": "Health check failed",
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
 
             # Check access to critical secrets
-            critical_secrets = [
-                "database/postgres",
-                "auth/jwt",
-                "cache/redis"
-            ]
+            critical_secrets = ["database/postgres", "auth/jwt", "cache/redis"]
 
             secret_status = {}
             all_secrets_ok = True
@@ -105,15 +101,17 @@ class HealthChecker:
                     all_secrets_ok = False
 
             if all_secrets_ok:
-                logger.info("✅ Vault is healthy and all critical secrets are accessible")
+                logger.info(
+                    "✅ Vault is healthy and all critical secrets are accessible"
+                )
                 return {
                     "status": "healthy",
                     "component": "vault",
                     "details": {
                         "secrets": secret_status,
-                        "vault_url": vault_client.vault_url
+                        "vault_url": vault_client.vault_url,
                     },
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             else:
                 logger.warning("⚠️  Vault is accessible but some secrets are missing")
@@ -122,9 +120,9 @@ class HealthChecker:
                     "component": "vault",
                     "details": {
                         "secrets": secret_status,
-                        "vault_url": vault_client.vault_url
+                        "vault_url": vault_client.vault_url,
                     },
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
 
         except Exception as exc:
@@ -133,7 +131,7 @@ class HealthChecker:
                 "status": "error",
                 "component": "vault",
                 "error": str(exc),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
     async def check_redis(self) -> dict[str, Any]:
@@ -159,7 +157,7 @@ class HealthChecker:
                 "uptime": info.get("uptime_in_seconds"),
                 "connected_clients": info.get("connected_clients"),
                 "used_memory_human": info.get("used_memory_human"),
-                "total_commands_processed": info.get("total_commands_processed")
+                "total_commands_processed": info.get("total_commands_processed"),
             }
 
             await redis_client.close()
@@ -168,20 +166,19 @@ class HealthChecker:
             return {
                 "status": "healthy",
                 "component": "redis",
-                "details": {
-                    "stats": stats,
-                    "url": self.settings.REDIS_URL
-                },
-                "timestamp": time.time()
+                "details": {"stats": stats, "url": self.settings.REDIS_URL},
+                "timestamp": time.time(),
             }
 
         except ImportError:
-            logger.warning("⚠️  Redis client not available - skipping Redis health check")
+            logger.warning(
+                "⚠️  Redis client not available - skipping Redis health check"
+            )
             return {
                 "status": "skipped",
                 "component": "redis",
                 "reason": "Redis client not installed",
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
         except Exception as exc:
@@ -190,7 +187,7 @@ class HealthChecker:
                 "status": "error",
                 "component": "redis",
                 "error": str(exc),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
     async def check_multi_tenant_operations(self) -> dict[str, Any]:
@@ -223,20 +220,18 @@ class HealthChecker:
                         "operations_tested": operations_tested,
                         "test_tenant_id": str(test_tenant_id),
                         "lookup_result": bool(tenant_lookup),
-                        "active_tenants_sample": len(active_tenants)
+                        "active_tenants_sample": len(active_tenants),
                     },
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
 
         except Exception as exc:
-            logger.error(
-                "❌ Multi-tenant operations test failed", error=str(exc)
-            )
+            logger.error("❌ Multi-tenant operations test failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "multi_tenant",
                 "error": str(exc),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
     async def check_application_config(self) -> dict[str, Any]:
@@ -251,7 +246,7 @@ class HealthChecker:
                 "vault_enabled": self.settings.USE_VAULT,
                 "multi_tenant_enabled": self.settings.ENABLE_TENANT_ISOLATION,
                 "cors_origins": len(self.settings.ALLOWED_ORIGINS),
-                "log_level": self.settings.LOG_LEVEL
+                "log_level": self.settings.LOG_LEVEL,
             }
 
             # Check for potential issues
@@ -260,7 +255,10 @@ class HealthChecker:
             if self.settings.is_production and self.settings.DEBUG:
                 issues.append("Debug mode enabled in production")
 
-            if self.settings.SECRET_KEY == "dev-secret-key" and self.settings.is_production:
+            if (
+                self.settings.SECRET_KEY == "dev-secret-key"
+                and self.settings.is_production
+            ):
                 issues.append("Default secret key in production")
 
             status = "healthy" if not issues else "warning"
@@ -268,27 +266,23 @@ class HealthChecker:
             if status == "healthy":
                 logger.info("✅ Application configuration is healthy")
             else:
-                logger.warning(
-                    "⚠️  Application configuration has issues", issues=issues
-                )
+                logger.warning("⚠️  Application configuration has issues", issues=issues)
 
             return {
                 "status": status,
                 "component": "application_config",
                 "details": config_status,
                 "issues": issues,
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
         except Exception as exc:
-            logger.error(
-                "❌ Application configuration check failed", error=str(exc)
-            )
+            logger.error("❌ Application configuration check failed", error=str(exc))
             return {
                 "status": "error",
                 "component": "application_config",
                 "error": str(exc),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
     async def run_all_checks(self) -> dict[str, Any]:
@@ -304,7 +298,7 @@ class HealthChecker:
             self.check_redis(),
             self.check_multi_tenant_operations(),
             self.check_application_config(),
-            return_exceptions=True
+            return_exceptions=True,
         )
 
         end_time = time.time()
@@ -318,7 +312,7 @@ class HealthChecker:
             "vault",
             "redis",
             "multi_tenant",
-            "application_config"
+            "application_config",
         ]
 
         for i, check_result in enumerate(checks):
@@ -326,29 +320,31 @@ class HealthChecker:
                 results[check_names[i]] = {
                     "status": "error",
                     "error": str(check_result),
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
                 overall_status = "error"
             else:
                 results[check_names[i]] = check_result
                 if check_result["status"] in ["error", "unhealthy"]:
                     overall_status = "error"
-                elif check_result["status"] in ["degraded", "warning"] and overall_status == "healthy":
+                elif (
+                    check_result["status"] in ["degraded", "warning"]
+                    and overall_status == "healthy"
+                ):
                     overall_status = "degraded"
 
         # Summary
         summary = {
             "overall_status": overall_status,
             "total_checks": len(check_names),
-            "healthy_checks": len([r for r in results.values() if r["status"] == "healthy"]),
+            "healthy_checks": len(
+                [r for r in results.values() if r["status"] == "healthy"]
+            ),
             "duration_seconds": round(end_time - start_time, 2),
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
-        return {
-            "summary": summary,
-            "checks": results
-        }
+        return {"summary": summary, "checks": results}
 
     async def cleanup(self) -> None:
         """Cleanup resources."""
@@ -369,13 +365,13 @@ async def main() -> None:
 
         # Print summary
         summary = results["summary"]
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("🏥 JEEX PLAN HEALTH CHECK SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Overall Status: {summary['overall_status'].upper()}")
         print(f"Healthy Checks: {summary['healthy_checks']}/{summary['total_checks']}")
         print(f"Duration: {summary['duration_seconds']}s")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Print detailed results
         for component, result in results["checks"].items():
@@ -385,7 +381,7 @@ async def main() -> None:
                 "warning": "⚠️",
                 "unhealthy": "❌",
                 "error": "❌",
-                "skipped": "⏭️"
+                "skipped": "⏭️",
             }.get(result["status"], "❓")
 
             print(f"{status_emoji} {component.upper()}: {result['status']}")

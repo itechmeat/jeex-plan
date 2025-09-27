@@ -207,7 +207,8 @@ class BaseRepository(ABC, Generic[ModelType]):
                         stmt = stmt.where(column_attr == value)
 
         result = await self.session.execute(stmt)
-        return result.scalar()
+        count_value = result.scalar()
+        return int(count_value or 0)
 
     async def exists(self, entity_id: UUID) -> bool:
         """Check if entity exists."""
@@ -318,7 +319,8 @@ class TenantRepository(BaseRepository[ModelType]):
                         stmt = stmt.where(column_attr == value)
 
         result = await self.session.execute(stmt)
-        return result.scalar()
+        count_value = result.scalar()
+        return int(count_value or 0)
 
     async def get_by_field(
         self, field_name: str, field_value: object

@@ -1,6 +1,6 @@
-import React, { useId } from 'react';
 import classNames from 'classnames';
-import styles from './Textarea.module.scss';
+import React, { useId } from 'react';
+import styles from './Textarea.module.css';
 
 export interface TextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -58,7 +58,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         {(error || helperText) && (
           <div className={styles.helperContainer}>
             {error && (
-              <span className={styles.error} role="alert">
+              <span className={styles.error} role='alert'>
                 {error}
               </span>
             )}

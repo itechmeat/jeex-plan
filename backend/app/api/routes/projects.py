@@ -1,7 +1,6 @@
-"""
-Project management endpoints with multi-tenancy support.
-"""
+"""Project management endpoints with multi-tenancy support."""
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -432,82 +431,201 @@ async def get_project(
         raise HTTPException(status_code=500, detail="Failed to retrieve project")
 
 
-@router.put("/{project_id}", response_model=ProjectResponse)
+@router.put("/projects/{project_id}", response_model=ProjectResponse)
 async def update_project(
-    project_id: str, project_update: ProjectUpdate, db: AsyncSession = Depends(get_db)
+    project_id: UUID,
+    project_update: ProjectUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_dependency),
+    tenant_id: UUID = Depends(get_current_tenant_id),
 ) -> ProjectResponse:
-    """
-    Update project information.
-
-    Updates project metadata and configuration.
-    """
-    logger.info("Updating project", project_id=project_id)
-
-    # NOTE: actual project update
-    # 1. Validate tenant access to project
-    # 2. Update project in database
-    # 3. Update project metadata
-
-    # Mock implementation
-    project = next((p for p in mock_projects if p["id"] == project_id), None)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    # Update allowed fields
-    if project_update.name is not None:
-        project["name"] = project_update.name
-    if project_update.language is not None:
-        project["language"] = project_update.language
-
-    project["updated_at"] = datetime.utcnow()
-
-    response = ProjectResponse(
-        id=project["id"],
-        name=project["name"],
-        status=project["status"],
-        current_step=project["current_step"],
-        language=project["language"],
-        created_at=project["created_at"],
-        updated_at=project["updated_at"],
-        documents=[],
-        steps_completed=[],
+    """Update project metadata within tenant boundaries."""
+    logger.info(
+        "Updating project",
+        project_id=str(project_id),
+        tenant_id=str(tenant_id),
+        user_id=str(current_user.id),
     )
 
-    logger.info("Project updated successfully", project_id=project_id)
+    project_repo = ProjectRepository(db, tenant_id)
+    rbac_service = RBACService(db, tenant_id)
 
-    return response
-
-
-@router.delete("/{project_id}")
-async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)) -> dict:
-    """
-    Delete a project (soft delete).
-
-    Marks project as deleted but preserves data for audit purposes.
-    """
-    logger.info("Deleting project", project_id=project_id)
-
-    # NOTE: actual project deletion
-    # 1. Validate tenant access to project
-    # 2. Soft delete project in database
-    # 3. Clean up project resources
-
-    # Mock implementation
-    project_index = next(
-        (i for i, p in enumerate(mock_projects) if p["id"] == project_id), None
+    can_update_projects = await rbac_service.check_permission(
+        current_user.id, Permission.PROJECT_WRITE, project_id
     )
-    if project_index is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    if not can_update_projects:
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions to update projects"
+        )
 
-    mock_projects[project_index]["status"] = "deleted"
-    mock_projects[project_index]["updated_at"] = datetime.utcnow()
+    try:
+        project = await project_repo.get_by_id(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
 
-    logger.info("Project deleted successfully", project_id=project_id)
+        update_fields: dict[str, Any] = {}
 
-    return {"message": "Project deleted successfully"}
+        if project_update.name is not None:
+            is_available = await project_repo.check_name_availability(
+                project_update.name, exclude_project_id=project_id
+            )
+            if not is_available:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Project name '{project_update.name}' is already taken within tenant"
+                    ),
+                )
+            update_fields["name"] = project_update.name
+
+        if project_update.language is not None:
+            logger.warning(
+                "Project language updates are not yet persisted",
+                project_id=str(project_id),
+                tenant_id=str(tenant_id),
+                user_id=str(current_user.id),
+                requested_language=project_update.language,
+            )
+
+        if not update_fields:
+            logger.info(
+                "No mutable fields supplied for project update",
+                project_id=str(project_id),
+                tenant_id=str(tenant_id),
+                user_id=str(current_user.id),
+            )
+            return _to_project_response(
+                project,
+                language_fallback=project_update.language or _project_language(project),
+            )
+
+        updated_project = await project_repo.update(project_id, **update_fields)
+        await db.commit()
+
+        target_project = updated_project or project
+
+        logger.info(
+            "Project updated successfully",
+            project_id=str(project_id),
+            tenant_id=str(tenant_id),
+            user_id=str(current_user.id),
+        )
+
+        return _to_project_response(
+            target_project,
+            language_fallback=project_update.language
+            or _project_language(target_project),
+        )
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except (ConnectionError, TimeoutError) as e:
+        await db.rollback()
+        logger.error(
+            "Database connection failed while updating project",
+            project_id=str(project_id),
+            error=str(e),
+            tenant_id=str(tenant_id),
+            user_id=str(current_user.id),
+        )
+        raise HTTPException(status_code=500, detail="Failed to update project")
+    except (ValueError, KeyError, TypeError) as e:
+        await db.rollback()
+        logger.error(
+            "Validation error while updating project",
+            project_id=str(project_id),
+            error=str(e),
+            tenant_id=str(tenant_id),
+            user_id=str(current_user.id),
+        )
+        raise HTTPException(status_code=400, detail="Invalid project data")
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            "Failed to update project",
+            project_id=str(project_id),
+            error=str(e),
+            tenant_id=str(tenant_id),
+            user_id=str(current_user.id),
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="Failed to update project")
 
 
-@router.post("/{project_id}/step1")
+@router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_dependency),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+) -> dict[str, str]:
+    """Soft delete a project while preserving tenant isolation."""
+    logger.info(
+        "Deleting project",
+        project_id=str(project_id),
+        tenant_id=str(tenant_id),
+        user_id=str(current_user.id),
+    )
+
+    project_repo = ProjectRepository(db, tenant_id)
+    rbac_service = RBACService(db, tenant_id)
+
+    can_delete_projects = await rbac_service.check_permission(
+        current_user.id, Permission.PROJECT_DELETE, project_id
+    )
+    if not can_delete_projects:
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions to delete projects"
+        )
+
+    try:
+        project = await project_repo.get_by_id(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        deleted = await project_repo.delete(project_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        await db.commit()
+
+        logger.info(
+            "Project deleted successfully",
+            project_id=str(project_id),
+            tenant_id=str(tenant_id),
+            user_id=str(current_user.id),
+        )
+
+        return {"message": "Project deleted successfully"}
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except (ConnectionError, TimeoutError) as e:
+        await db.rollback()
+        logger.error(
+            "Database connection failed while deleting project",
+            project_id=str(project_id),
+            error=str(e),
+            tenant_id=str(tenant_id),
+            user_id=str(current_user.id),
+        )
+        raise HTTPException(status_code=500, detail="Failed to delete project")
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            "Failed to delete project",
+            project_id=str(project_id),
+            error=str(e),
+            tenant_id=str(tenant_id),
+            user_id=str(current_user.id),
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="Failed to delete project")
+
+
+@router.post("/projects/{project_id}/step1")
 async def generate_description_document(
     project_id: str, input_data: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -534,7 +652,7 @@ async def generate_description_document(
     }
 
 
-@router.post("/{project_id}/step2")
+@router.post("/projects/{project_id}/step2")
 async def generate_standards_document(
     project_id: str, input_data: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -561,7 +679,7 @@ async def generate_standards_document(
     }
 
 
-@router.post("/{project_id}/step3")
+@router.post("/projects/{project_id}/step3")
 async def generate_architecture_document(
     project_id: str, input_data: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -588,7 +706,7 @@ async def generate_architecture_document(
     }
 
 
-@router.post("/{project_id}/step4")
+@router.post("/projects/{project_id}/step4")
 async def generate_implementation_plan(
     project_id: str, input_data: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -615,7 +733,7 @@ async def generate_implementation_plan(
     }
 
 
-@router.post("/{project_id}/export")
+@router.post("/projects/{project_id}/export")
 async def export_project_documents(
     project_id: str, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -643,7 +761,7 @@ async def export_project_documents(
     }
 
 
-@router.get("/{project_id}/progress")
+@router.get("/projects/{project_id}/progress")
 async def get_project_progress(
     project_id: str, db: AsyncSession = Depends(get_db)
 ) -> dict:

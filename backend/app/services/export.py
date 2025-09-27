@@ -138,7 +138,7 @@ class ExportService:
                 "id": str(project.id),
                 "name": project.name,
                 "status": project.status.value,
-                "current_step": project.current_step,
+                "current_step": getattr(project, "current_step", None),
                 "language": getattr(project, "language", "en"),
                 "created_at": project.created_at.isoformat(),
                 "updated_at": project.updated_at.isoformat(),
@@ -325,7 +325,7 @@ This is an AI-generated documentation package for {project_info["name"]}.
                 except (ValueError, AttributeError):
                     epic_num = 0
                 filename = f"{epic_num:02d}-{safe_name}.md"
-                epic_title = epic['title']
+                epic_title = epic["title"]
                 link_path = f"docs/plans/{filename}"
                 readme_content += f"- **[{link_path}]({link_path})** - {epic_title}\n"
 
@@ -424,9 +424,7 @@ This is an AI-generated documentation package for {project_info["name"]}.
             await self.export_repo.mark_expired(export_ids)
             await self.session.commit()
 
-        logger.info(
-            "Cleaned up expired export files", deleted_count=deleted_count
-        )
+        logger.info("Cleaned up expired export files", deleted_count=deleted_count)
         return deleted_count
 
     async def get_user_exports(

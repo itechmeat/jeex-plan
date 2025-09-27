@@ -1,5 +1,5 @@
-import { apiClient } from './api';
 import type { HealthCheck, SystemHealthResponse } from '../types/api';
+import { apiClient } from './api';
 
 export const healthService = {
   /**
@@ -13,15 +13,14 @@ export const healthService = {
       const services: HealthCheck[] = healthData.services ?? [];
       const normalizedStatus =
         (healthData.status as 'pass' | 'fail' | 'warn') ?? 'fail';
-      const overall =
-        healthData.overall ?? {
-          status: normalizedStatus,
-          totalServices: services.length,
-          healthyServices: services.filter(s => s.status === 'pass').length,
-          warningServices: services.filter(s => s.status === 'warn').length,
-          failedServices: services.filter(s => s.status === 'fail').length,
-          lastUpdated: new Date().toISOString(),
-        };
+      const overall = healthData.overall ?? {
+        status: normalizedStatus,
+        totalServices: services.length,
+        healthyServices: services.filter(s => s.status === 'pass').length,
+        warningServices: services.filter(s => s.status === 'warn').length,
+        failedServices: services.filter(s => s.status === 'fail').length,
+        lastUpdated: new Date().toISOString(),
+      };
 
       return {
         status: normalizedStatus,

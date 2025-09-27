@@ -37,7 +37,9 @@ class TestVaultClient:
         assert vault_client.timeout == 10
 
     @pytest.mark.asyncio
-    async def test_vault_client_placeholder_token_in_development(self, monkeypatch) -> None:
+    async def test_vault_client_placeholder_token_in_development(
+        self, monkeypatch
+    ) -> None:
         """VaultClient uses placeholder token when missing in development."""
         monkeypatch.setenv("ENVIRONMENT", "development")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
@@ -47,7 +49,9 @@ class TestVaultClient:
         assert client.vault_token == DEV_PLACEHOLDER_TOKEN
 
     @pytest.mark.asyncio
-    async def test_vault_client_requires_token_outside_development(self, monkeypatch) -> None:
+    async def test_vault_client_requires_token_outside_development(
+        self, monkeypatch
+    ) -> None:
         """VaultClient raises when VAULT_TOKEN is absent in non-dev env."""
         monkeypatch.setenv("ENVIRONMENT", "production")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
@@ -56,7 +60,7 @@ class TestVaultClient:
             VaultClient(vault_url="http://vault:8200")
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_health_check_success(self, mock_client, vault_client) -> None:
         """Test successful health check."""
         # Mock the response
@@ -73,7 +77,7 @@ class TestVaultClient:
         assert result is True
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_health_check_failure(self, mock_client, vault_client) -> None:
         """Test failed health check."""
         # Mock the response
@@ -90,7 +94,7 @@ class TestVaultClient:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_put_secret_success(self, mock_client, vault_client) -> None:
         """Test successfully storing a secret."""
         # Mock the response
@@ -110,19 +114,14 @@ class TestVaultClient:
         mock_client_instance.post.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_get_secret_success(self, mock_client, vault_client) -> None:
         """Test successfully retrieving a secret."""
         # Mock the response
         mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "data": {
-                "data": {
-                    "username": "test",
-                    "password": "secret123"
-                }
-            }
+            "data": {"data": {"username": "test", "password": "secret123"}}
         }
 
         mock_client_instance = AsyncMock()
@@ -138,7 +137,7 @@ class TestVaultClient:
         assert result["password"] == "secret123"
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_get_secret_not_found(self, mock_client, vault_client) -> None:
         """Test retrieving a nonexistent secret."""
         # Mock the response
@@ -155,7 +154,7 @@ class TestVaultClient:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_delete_secret_success(self, mock_client, vault_client) -> None:
         """Test successfully deleting a secret."""
         # Mock the response
@@ -172,16 +171,14 @@ class TestVaultClient:
         assert result is True
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_list_secrets_success(self, mock_client, vault_client) -> None:
         """Test successfully listing secrets."""
         # Mock the response
         mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "data": {
-                "keys": ["secret1", "secret2", "secret3"]
-            }
+            "data": {"keys": ["secret1", "secret2", "secret3"]}
         }
 
         mock_client_instance = AsyncMock()
@@ -203,20 +200,20 @@ class TestVaultHelperFunctions:
     """Test Vault helper functions."""
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.get_secret')
+    @patch("app.core.vault.vault_client.get_secret")
     async def test_get_jwt_secret_success(self, mock_get_secret) -> None:
         """Test successfully getting JWT secret."""
         mock_get_secret.return_value = {
             "secret_key": "test-jwt-secret",
             "algorithm": "HS256",
-            "expire_minutes": "1440"
+            "expire_minutes": "1440",
         }
 
         result = await get_jwt_secret()
         assert result == "test-jwt-secret"
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.get_secret')
+    @patch("app.core.vault.vault_client.get_secret")
     async def test_get_jwt_secret_not_found(self, mock_get_secret) -> None:
         """Test getting JWT secret when not found."""
         mock_get_secret.return_value = None
@@ -225,13 +222,13 @@ class TestVaultHelperFunctions:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.get_secret')
+    @patch("app.core.vault.vault_client.get_secret")
     async def test_get_oauth_secrets_success(self, mock_get_secret) -> None:
         """Test successfully getting OAuth secrets."""
         mock_get_secret.return_value = {
             "client_id": "test-client-id",
             "client_secret": "test-client-secret",
-            "redirect_uri": "http://localhost:3000/callback"
+            "redirect_uri": "http://localhost:3000/callback",
         }
 
         result = await get_oauth_secrets("google")
@@ -240,7 +237,7 @@ class TestVaultHelperFunctions:
         assert result["client_secret"] == "test-client-secret"
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.get_secret')
+    @patch("app.core.vault.vault_client.get_secret")
     async def test_get_oauth_secrets_not_found(self, mock_get_secret) -> None:
         """Test getting OAuth secrets when not found."""
         mock_get_secret.return_value = None
@@ -249,14 +246,16 @@ class TestVaultHelperFunctions:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.get_secret')
-    @patch('app.core.vault.vault_client.put_secret')
-    async def test_rotate_jwt_secret_success(self, mock_put_secret, mock_get_secret) -> None:
+    @patch("app.core.vault.vault_client.get_secret")
+    @patch("app.core.vault.vault_client.put_secret")
+    async def test_rotate_jwt_secret_success(
+        self, mock_put_secret, mock_get_secret
+    ) -> None:
         """Test successfully rotating JWT secret."""
         mock_get_secret.return_value = {
             "secret_key": "old-secret",
             "algorithm": "HS256",
-            "expire_minutes": "1440"
+            "expire_minutes": "1440",
         }
         mock_put_secret.return_value = True
 
@@ -269,12 +268,12 @@ class TestVaultHelperFunctions:
             {
                 "secret_key": "new-secret",
                 "algorithm": "HS256",
-                "expire_minutes": "1440"
-            }
+                "expire_minutes": "1440",
+            },
         )
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.get_secret')
+    @patch("app.core.vault.vault_client.get_secret")
     async def test_rotate_jwt_secret_no_existing(self, mock_get_secret) -> None:
         """Test rotating JWT secret when no existing secret."""
         mock_get_secret.return_value = None
@@ -283,7 +282,7 @@ class TestVaultHelperFunctions:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.put_secret')
+    @patch("app.core.vault.vault_client.put_secret")
     async def test_store_oauth_config_success(self, mock_put_secret) -> None:
         """Test successfully storing OAuth configuration."""
         mock_put_secret.return_value = True
@@ -292,7 +291,7 @@ class TestVaultHelperFunctions:
             "google",
             "test-client-id",
             "test-client-secret",
-            {"redirect_uri": "http://localhost:3000/callback"}
+            {"redirect_uri": "http://localhost:3000/callback"},
         )
 
         assert result is True
@@ -301,29 +300,24 @@ class TestVaultHelperFunctions:
             {
                 "client_id": "test-client-id",
                 "client_secret": "test-client-secret",
-                "redirect_uri": "http://localhost:3000/callback"
-            }
+                "redirect_uri": "http://localhost:3000/callback",
+            },
         )
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.put_secret')
+    @patch("app.core.vault.vault_client.put_secret")
     async def test_store_oauth_config_minimal(self, mock_put_secret) -> None:
         """Test storing OAuth configuration with minimal data."""
         mock_put_secret.return_value = True
 
         result = await store_oauth_config(
-            "github",
-            "github-client-id",
-            "github-client-secret"
+            "github", "github-client-id", "github-client-secret"
         )
 
         assert result is True
         mock_put_secret.assert_called_once_with(
             "oauth/github",
-            {
-                "client_id": "github-client-id",
-                "client_secret": "github-client-secret"
-            }
+            {"client_id": "github-client-id", "client_secret": "github-client-secret"},
         )
 
 
@@ -331,7 +325,7 @@ class TestVaultInitialization:
     """Test Vault initialization."""
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.vault_client.put_secret')
+    @patch("app.core.vault.vault_client.put_secret")
     async def test_init_vault_secrets(self, mock_put_secret) -> None:
         """Test initializing Vault secrets."""
         mock_put_secret.return_value = True
@@ -344,15 +338,15 @@ class TestVaultInitialization:
 
         # Check that database secrets were stored
         database_call = next(
-            call for call in mock_put_secret.call_args_list
+            call
+            for call in mock_put_secret.call_args_list
             if call[0][0] == "database/postgres"
         )
         assert database_call is not None
 
         # Check that JWT secrets were stored
         jwt_call = next(
-            call for call in mock_put_secret.call_args_list
-            if call[0][0] == "auth/jwt"
+            call for call in mock_put_secret.call_args_list if call[0][0] == "auth/jwt"
         )
         assert jwt_call is not None
 
@@ -361,9 +355,11 @@ class TestDatabaseSecretSetup:
     """Validate database secret parsing and storage."""
 
     @pytest.mark.asyncio
-    @patch('scripts.init_vault.vault_client.put_secret', new_callable=AsyncMock)
-    @patch('scripts.init_vault.get_settings')
-    async def test_setup_database_secrets_normalizes_asyncpg(self, mock_get_settings, mock_put_secret) -> None:
+    @patch("scripts.init_vault.vault_client.put_secret", new_callable=AsyncMock)
+    @patch("scripts.init_vault.get_settings")
+    async def test_setup_database_secrets_normalizes_asyncpg(
+        self, mock_get_settings, mock_put_secret
+    ) -> None:
         """Ensure asyncpg URLs are parsed and stored correctly."""
         mock_get_settings.return_value = SimpleNamespace(
             DATABASE_URL="postgresql+asyncpg://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
@@ -374,22 +370,27 @@ class TestDatabaseSecretSetup:
 
         mock_put_secret.assert_called_once()
         args, kwargs = mock_put_secret.call_args
-        stored = kwargs.get('secrets', args[1])
+        stored = kwargs.get("secrets", args[1])
 
         assert stored["username"] == "agent"
         assert stored["password"] == "p@ssw0rd"
         assert stored["host"] == "db.example.com"
         assert stored["port"] == "6543"
         assert stored["database"] == "jeex"
-        assert stored["url"] == "postgresql://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
+        assert (
+            stored["url"]
+            == "postgresql://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
+        )
         assert stored["async_url"] == (
             "postgresql+asyncpg://agent:p%40ssw0rd@db.example.com:6543/jeex?sslmode=require"
         )
 
     @pytest.mark.asyncio
-    @patch('scripts.init_vault.vault_client.put_secret', new_callable=AsyncMock)
-    @patch('scripts.init_vault.get_settings')
-    async def test_setup_database_secrets_defaults_when_missing(self, mock_get_settings, mock_put_secret) -> None:
+    @patch("scripts.init_vault.vault_client.put_secret", new_callable=AsyncMock)
+    @patch("scripts.init_vault.get_settings")
+    async def test_setup_database_secrets_defaults_when_missing(
+        self, mock_get_settings, mock_put_secret
+    ) -> None:
         """Fallback to defaults when URL is missing or invalid."""
         mock_get_settings.return_value = SimpleNamespace(DATABASE_URL="")
         mock_put_secret.return_value = True
@@ -398,10 +399,16 @@ class TestDatabaseSecretSetup:
 
         mock_put_secret.assert_called_once()
         args, kwargs = mock_put_secret.call_args
-        stored = kwargs.get('secrets', args[1])
+        stored = kwargs.get("secrets", args[1])
 
-        assert stored["url"] == "postgresql://jeex_user:jeex_password@postgres:5432/jeex_plan"
-        assert stored["async_url"] == "postgresql+asyncpg://jeex_user:jeex_password@postgres:5432/jeex_plan"
+        assert (
+            stored["url"]
+            == "postgresql://jeex_user:jeex_password@postgres:5432/jeex_plan"
+        )
+        assert (
+            stored["async_url"]
+            == "postgresql+asyncpg://jeex_user:jeex_password@postgres:5432/jeex_plan"
+        )
 
 
 class TestVaultSettingsDatabaseUrl:
@@ -418,7 +425,9 @@ class TestVaultSettingsDatabaseUrl:
                 "url": "postgresql://agent:p%40ss@db:5432/jeex",
             }
 
-        monkeypatch.setattr(VaultSettings, "get_vault_secret", fake_get_secret, raising=False)
+        monkeypatch.setattr(
+            VaultSettings, "get_vault_secret", fake_get_secret, raising=False
+        )
 
         result = await vault_settings.get_database_url()
 
@@ -439,7 +448,9 @@ class TestVaultSettingsDatabaseUrl:
                 "database": "jeex",
             }
 
-        monkeypatch.setattr(VaultSettings, "get_vault_secret", fake_get_secret, raising=False)
+        monkeypatch.setattr(
+            VaultSettings, "get_vault_secret", fake_get_secret, raising=False
+        )
 
         result = await vault_settings.get_database_url()
 
@@ -466,7 +477,7 @@ class TestVaultErrorHandling:
         return VaultClient(vault_url="http://test-vault:8200", vault_token="test-token")
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_put_secret_error(self, mock_client, vault_client) -> None:
         """Test error handling when storing a secret fails."""
         # Mock an exception
@@ -480,7 +491,7 @@ class TestVaultErrorHandling:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_get_secret_error(self, mock_client, vault_client) -> None:
         """Test error handling when retrieving a secret fails."""
         # Mock an exception
@@ -494,7 +505,7 @@ class TestVaultErrorHandling:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch('app.core.vault.httpx.AsyncClient')
+    @patch("app.core.vault.httpx.AsyncClient")
     async def test_health_check_exception(self, mock_client, vault_client) -> None:
         """Test health check when an exception occurs."""
         # Mock an exception
@@ -519,7 +530,7 @@ class TestVaultClientLifecycle:
         client = VaultClient()
 
         # Simulate client being used
-        with patch('httpx.AsyncClient') as mock_client_class:
+        with patch("httpx.AsyncClient") as mock_client_class:
             mock_client_instance = AsyncMock()
             mock_client_class.return_value = mock_client_instance
 
@@ -540,7 +551,7 @@ class TestVaultClientLifecycle:
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
         client = VaultClient()
 
-        with patch('httpx.AsyncClient') as mock_client_class:
+        with patch("httpx.AsyncClient") as mock_client_class:
             mock_client_instance = AsyncMock()
             mock_client_class.return_value = mock_client_instance
 

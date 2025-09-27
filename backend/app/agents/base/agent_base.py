@@ -187,7 +187,12 @@ class AgentBase(ABC):
         """Parse CrewAI execution result into typed output."""
 
     def emit_progress(
-        self, context: ProjectContext, step: str, progress: float, message: str
+        self,
+        context: ProjectContext,
+        step: str,
+        progress: float,
+        message: str,
+        details: dict[str, Any] | None = None,
     ) -> ProgressUpdate:
         """Emit progress update for streaming."""
         return ProgressUpdate(
@@ -195,4 +200,5 @@ class AgentBase(ABC):
             step=step,
             progress=progress,
             message=message,
+            details=details,
         )

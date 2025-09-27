@@ -1,7 +1,7 @@
-import React from 'react';
 import * as ProgressPrimitive from '@radix-ui/react-progress';
 import classNames from 'classnames';
-import styles from './Progress.module.scss';
+import React from 'react';
+import styles from './Progress.module.css';
 
 export interface ProgressProps
   extends React.ComponentProps<typeof ProgressPrimitive.Root> {

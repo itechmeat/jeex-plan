@@ -127,7 +127,7 @@ class UserRepository(TenantRepository[User]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is None
 
-    async def get_user_count_by_status(self) -> dict:
+    async def get_user_count_by_status(self) -> dict[str, int]:
         """Get user count statistics by status within tenant."""
         active_count = await self.count({"is_active": True})
         inactive_count = await self.count({"is_active": False})

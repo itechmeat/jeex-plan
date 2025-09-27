@@ -1,6 +1,6 @@
 ---
 name: tech-frontend
-description: React 19+ frontend architect with TanStack DB, TypeScript strict mode, and SCSS modules. Builds production-grade components with performance optimization and comprehensive testing.
+description: React 19+ frontend architect with TanStack DB, TypeScript strict mode, and CSS modules. Builds production-grade components with performance optimization and comprehensive testing.
 tools: Read, Write, Edit, Bash
 color: blue
 model: sonnet
@@ -17,7 +17,7 @@ Build production-grade React applications in the `frontend/` directory using mod
 - **React 19+** with latest features
 - **TypeScript 5.7+** with strict configuration
 - **TanStack DB (Beta)** for ALL state management
-- **SCSS Modules** for ALL styling
+- **CSS Modules с CSS Nesting** for ALL styling
 - **Radix UI** for accessible primitives
 - **pnpm** for package management (NEVER npm)
 - **Vite 6+** with `import.meta.env`
@@ -113,7 +113,7 @@ const createProject = useMutation({
 // CORRECT - component structure
 import React from "react";
 import cn from "classnames";
-import styles from "./Button.module.scss";
+import styles from "./Button.module.css";
 
 export interface ButtonProps {
   variant?: "primary" | "secondary";
@@ -144,10 +144,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 ```
 
-### SCSS Modules Styling
+### CSS Modules Styling
 
-```scss
-/* Button.module.scss */
+```css
+/* Button.module.css */
 .button {
   display: inline-flex;
   align-items: center;
@@ -192,10 +192,10 @@ const WS_URL = import.meta.env.VITE_WS_URL;
 frontend/                    # ONLY allowed frontend location
 ├── src/
 │   ├── components/
-│   │   ├── ui/             # Radix UI + SCSS modules
+│   │   ├── ui/             # Radix UI + CSS modules
 │   │   │   ├── Button/
 │   │   │   │   ├── Button.tsx
-│   │   │   │   └── Button.module.scss
+│   │   │   │   └── Button.module.css
 │   │   └── forms/          # Form components
 │   ├── db/                 # TanStack DB setup
 │   │   ├── index.ts        # Database instance

@@ -1,17 +1,9 @@
-"""
-Password service for password hashing and verification.
-Separated from AuthService to follow Single Responsibility Principle.
-"""
+"""Password service for hashing and verification with Passlib."""
 
 import secrets
 
 from passlib.context import CryptContext
-from passlib.exc import (
-    InvalidHashError,
-    MalformedHashError,
-    PasswordValueError,
-    UnknownHashError,
-)
+from passlib.exc import UnknownHashError
 
 
 class PasswordService:
@@ -29,7 +21,7 @@ class PasswordService:
 
         try:
             return self.pwd_context.verify(plain_password, hashed_password)
-        except (UnknownHashError, InvalidHashError, MalformedHashError, PasswordValueError):
+        except (UnknownHashError, ValueError):
             return False
 
     def get_password_hash(self, password: str) -> str:
@@ -101,9 +93,9 @@ class PasswordService:
         """Check if password meets complexity requirements."""
         try:
             self._validate_password_strength(password)
-            return True
         except ValueError:
             return False
+        return True
 
     def is_hash_valid(self, hashed_password: str) -> bool:
         """Check if a hash is valid and current."""
@@ -113,7 +105,7 @@ class PasswordService:
         try:
             # Check if the hash needs to be updated (deprecated scheme)
             return not self.pwd_context.needs_update(hashed_password)
-        except (UnknownHashError, InvalidHashError, MalformedHashError, PasswordValueError):
+        except (UnknownHashError, ValueError):
             return False
 
     def update_hash_if_needed(
