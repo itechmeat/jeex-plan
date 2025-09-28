@@ -3,7 +3,7 @@ HashiCorp Vault adapter for secrets management.
 """
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import hvac
 from hvac.exceptions import VaultError
@@ -20,7 +20,7 @@ class VaultAdapter(LoggerMixin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.client = None
+        self.client: hvac.Client | None = None
         self._initialize_client()
 
     def _initialize_client(self) -> None:
@@ -87,9 +87,15 @@ class VaultAdapter(LoggerMixin):
                 logger.warning("Vault client not available, returning None")
                 return None
 
-            response = self.client.secrets.kv.v2.read_secret_version(path=path)
+            response = cast(
+                dict[str, Any] | None,
+                self.client.secrets.kv.v2.read_secret_version(path=path),
+            )
             if response and "data" in response:
-                return response["data"]["data"]
+                data = response["data"].get("data")
+                if isinstance(data, dict):
+                    return cast(dict[str, Any], data)
+                return None
             return None
 
         except VaultError as e:
@@ -158,9 +164,15 @@ class VaultAdapter(LoggerMixin):
                 logger.warning("Vault client not available, cannot list secrets")
                 return None
 
-            response = self.client.secrets.kv.v2.list_secrets(path=path)
+            response = cast(
+                dict[str, Any] | None,
+                self.client.secrets.kv.v2.list_secrets(path=path),
+            )
             if response and "data" in response:
-                return response["data"]["keys"]
+                keys = response["data"].get("keys")
+                if isinstance(keys, list):
+                    return [str(key) for key in keys]
+                return []
             return []
 
         except VaultError as e:
@@ -344,7 +356,7 @@ class VaultAdapter(LoggerMixin):
                 return False
 
             # Create initial structure
-            initial_secrets = {
+            initial_secrets: dict[str, dict[str, Any]] = {
                 "development": {
                     "openai_api_key": settings.OPENAI_API_KEY,
                     "anthropic_api_key": settings.ANTHROPIC_API_KEY,

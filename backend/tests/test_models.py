@@ -23,7 +23,7 @@ class TestTenantModel:
             name="Test Company",
             slug="test-company",
             description="A test company",
-            is_active=True
+            is_active=True,
         )
 
         test_session.add(tenant)
@@ -71,7 +71,7 @@ class TestUserModel:
             username="testuser",
             full_name="Test User",
             is_active=True,
-            is_superuser=False
+            is_superuser=False,
         )
 
         test_session.add(user)
@@ -94,7 +94,7 @@ class TestUserModel:
             email="oauth@example.com",
             username="oauthuser",
             oauth_provider="google",
-            oauth_id="google_123456"
+            oauth_id="google_123456",
         )
 
         test_session.add(user)
@@ -108,14 +108,10 @@ class TestUserModel:
     async def test_user_tenant_email_unique(self, test_session, sample_tenant) -> None:
         """Test that email is unique within a tenant."""
         user1 = User(
-            tenant_id=sample_tenant.id,
-            email="same@example.com",
-            username="user1"
+            tenant_id=sample_tenant.id, email="same@example.com", username="user1"
         )
         user2 = User(
-            tenant_id=sample_tenant.id,
-            email="same@example.com",
-            username="user2"
+            tenant_id=sample_tenant.id, email="same@example.com", username="user2"
         )
 
         test_session.add(user1)
@@ -136,11 +132,7 @@ class TestProjectModel:
         await test_session.commit()
         await test_session.refresh(tenant)
 
-        user = User(
-            tenant_id=tenant.id,
-            email="owner@example.com",
-            username="owner"
-        )
+        user = User(tenant_id=tenant.id, email="owner@example.com", username="owner")
         test_session.add(user)
         await test_session.commit()
         await test_session.refresh(user)
@@ -157,7 +149,7 @@ class TestProjectModel:
             name="Test Project",
             description="A test project",
             status=ProjectStatus.DRAFT,
-            owner_id=user.id
+            owner_id=user.id,
         )
 
         test_session.add(project)
@@ -172,7 +164,9 @@ class TestProjectModel:
         assert project.is_deleted is False
 
     @pytest.mark.asyncio
-    async def test_project_status_enum(self, test_session, sample_tenant_and_user) -> None:
+    async def test_project_status_enum(
+        self, test_session, sample_tenant_and_user
+    ) -> None:
         """Test project status enum values."""
         tenant, user = sample_tenant_and_user
 
@@ -181,7 +175,7 @@ class TestProjectModel:
                 tenant_id=tenant.id,
                 name=f"Project {status.value}",
                 status=status,
-                owner_id=user.id
+                owner_id=user.id,
             )
             test_session.add(project)
 
@@ -189,20 +183,14 @@ class TestProjectModel:
         # All should be created successfully
 
     @pytest.mark.asyncio
-    async def test_project_tenant_name_unique(self, test_session, sample_tenant_and_user) -> None:
+    async def test_project_tenant_name_unique(
+        self, test_session, sample_tenant_and_user
+    ) -> None:
         """Test that project names are unique within a tenant."""
         tenant, user = sample_tenant_and_user
 
-        project1 = Project(
-            tenant_id=tenant.id,
-            name="Unique Project",
-            owner_id=user.id
-        )
-        project2 = Project(
-            tenant_id=tenant.id,
-            name="Unique Project",
-            owner_id=user.id
-        )
+        project1 = Project(tenant_id=tenant.id, name="Unique Project", owner_id=user.id)
+        project2 = Project(tenant_id=tenant.id, name="Unique Project", owner_id=user.id)
 
         test_session.add(project1)
         test_session.add(project2)
@@ -222,20 +210,12 @@ class TestDocumentModel:
         await test_session.commit()
         await test_session.refresh(tenant)
 
-        user = User(
-            tenant_id=tenant.id,
-            email="owner@example.com",
-            username="owner"
-        )
+        user = User(tenant_id=tenant.id, email="owner@example.com", username="owner")
         test_session.add(user)
         await test_session.commit()
         await test_session.refresh(user)
 
-        project = Project(
-            tenant_id=tenant.id,
-            name="Test Project",
-            owner_id=user.id
-        )
+        project = Project(tenant_id=tenant.id, name="Test Project", owner_id=user.id)
         test_session.add(project)
         await test_session.commit()
         await test_session.refresh(project)
@@ -255,7 +235,7 @@ class TestDocumentModel:
             status=DocumentStatus.PENDING,
             project_id=project.id,
             generation_step=1,
-            generation_progress=0
+            generation_progress=0,
         )
 
         test_session.add(document)
@@ -283,7 +263,7 @@ class TestDocumentModel:
                 title=f"Document {doc_type.value}",
                 document_type=doc_type,
                 status=DocumentStatus.PENDING,
-                project_id=project.id
+                project_id=project.id,
             )
             test_session.add(document)
 
@@ -291,7 +271,9 @@ class TestDocumentModel:
         # All should be created successfully
 
     @pytest.mark.asyncio
-    async def test_document_status_enum(self, test_session, sample_project_setup) -> None:
+    async def test_document_status_enum(
+        self, test_session, sample_project_setup
+    ) -> None:
         """Test document status enum values."""
         tenant, _user, project = sample_project_setup
 
@@ -301,7 +283,7 @@ class TestDocumentModel:
                 title=f"Document {status.value}",
                 document_type=DocumentType.PLANNING,
                 status=status,
-                project_id=project.id
+                project_id=project.id,
             )
             test_session.add(document)
 
@@ -309,7 +291,9 @@ class TestDocumentModel:
         # All should be created successfully
 
     @pytest.mark.asyncio
-    async def test_document_generation_metadata(self, test_session, sample_project_setup) -> None:
+    async def test_document_generation_metadata(
+        self, test_session, sample_project_setup
+    ) -> None:
         """Test document generation metadata fields."""
         tenant, _user, project = sample_project_setup
 
@@ -321,7 +305,7 @@ class TestDocumentModel:
             project_id=project.id,
             generation_step=3,
             generation_progress=75,
-            error_message="Some error occurred"
+            error_message="Some error occurred",
         )
 
         test_session.add(document)
@@ -344,11 +328,7 @@ class TestModelRelationships:
         await test_session.commit()
         await test_session.refresh(tenant)
 
-        user = User(
-            tenant_id=tenant.id,
-            email="test@example.com",
-            username="testuser"
-        )
+        user = User(tenant_id=tenant.id, email="test@example.com", username="testuser")
         test_session.add(user)
         await test_session.commit()
 
@@ -363,20 +343,12 @@ class TestModelRelationships:
         await test_session.commit()
         await test_session.refresh(tenant)
 
-        user = User(
-            tenant_id=tenant.id,
-            email="owner@example.com",
-            username="owner"
-        )
+        user = User(tenant_id=tenant.id, email="owner@example.com", username="owner")
         test_session.add(user)
         await test_session.commit()
         await test_session.refresh(user)
 
-        project = Project(
-            tenant_id=tenant.id,
-            name="Test Project",
-            owner_id=user.id
-        )
+        project = Project(tenant_id=tenant.id, name="Test Project", owner_id=user.id)
         test_session.add(project)
         await test_session.commit()
 
@@ -390,20 +362,12 @@ class TestModelRelationships:
         await test_session.commit()
         await test_session.refresh(tenant)
 
-        user = User(
-            tenant_id=tenant.id,
-            email="owner@example.com",
-            username="owner"
-        )
+        user = User(tenant_id=tenant.id, email="owner@example.com", username="owner")
         test_session.add(user)
         await test_session.commit()
         await test_session.refresh(user)
 
-        project = Project(
-            tenant_id=tenant.id,
-            name="Test Project",
-            owner_id=user.id
-        )
+        project = Project(tenant_id=tenant.id, name="Test Project", owner_id=user.id)
         test_session.add(project)
         await test_session.commit()
         await test_session.refresh(project)
@@ -413,7 +377,7 @@ class TestModelRelationships:
             title="Test Document",
             document_type=DocumentType.ARCHITECTURE,
             status=DocumentStatus.PENDING,
-            project_id=project.id
+            project_id=project.id,
         )
         test_session.add(document)
         await test_session.commit()
@@ -433,9 +397,7 @@ class TestSoftDelete:
         await test_session.refresh(tenant)
 
         user = User(
-            tenant_id=tenant.id,
-            email="delete@example.com",
-            username="deleteuser"
+            tenant_id=tenant.id, email="delete@example.com", username="deleteuser"
         )
         test_session.add(user)
         await test_session.commit()
@@ -457,20 +419,12 @@ class TestSoftDelete:
         await test_session.commit()
         await test_session.refresh(tenant)
 
-        user = User(
-            tenant_id=tenant.id,
-            email="owner@example.com",
-            username="owner"
-        )
+        user = User(tenant_id=tenant.id, email="owner@example.com", username="owner")
         test_session.add(user)
         await test_session.commit()
         await test_session.refresh(user)
 
-        project = Project(
-            tenant_id=tenant.id,
-            name="Delete Project",
-            owner_id=user.id
-        )
+        project = Project(tenant_id=tenant.id, name="Delete Project", owner_id=user.id)
         test_session.add(project)
         await test_session.commit()
         await test_session.refresh(project)

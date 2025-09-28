@@ -123,9 +123,9 @@ print("Hello, World!")
 ```
 """
         result = await md_validator.validate(test_content)
-        assert (
-            result.score > 0.3
-        ), f"Markdown validation should pass (got score: {result.score})"
+        assert result.score > 0.3, (
+            f"Markdown validation should pass (got score: {result.score})"
+        )
         print("✅ Markdown validation works")
 
         # Test readability validation

@@ -25,6 +25,7 @@ def qdrant_adapter():
     """Initialize Qdrant adapter for testing"""
     return QdrantAdapter()
 
+
 class TestTenantIsolation:
     """Test suite for strict tenant isolation"""
 
@@ -36,16 +37,16 @@ class TestTenantIsolation:
                 "id": "test_tenant_001",
                 "projects": {
                     "project1": "test_project_001",
-                    "project2": "test_project_002"
-                }
+                    "project2": "test_project_002",
+                },
             },
             "tenant2": {
                 "id": "test_tenant_002",
                 "projects": {
                     "project1": "test_project_003",
-                    "project2": "test_project_004"
-                }
-            }
+                    "project2": "test_project_004",
+                },
+            },
         }
 
     @pytest.fixture
@@ -55,23 +56,23 @@ class TestTenantIsolation:
             "tenant1_project1": [
                 "This is a confidential document for tenant 1 project 1.",
                 "Project 1 involves machine learning and data analysis.",
-                "Security is a top priority for this project."
+                "Security is a top priority for this project.",
             ],
             "tenant1_project2": [
                 "This document belongs to tenant 1 project 2.",
                 "Project 2 focuses on web development and APIs.",
-                "Performance optimization is key here."
+                "Performance optimization is key here.",
             ],
             "tenant2_project1": [
                 "Tenant 2 project 1 deals with mobile applications.",
                 "iOS and Android development are required.",
-                "User experience design is important."
+                "User experience design is important.",
             ],
             "tenant2_project2": [
                 "This is sensitive data for tenant 2 project 2.",
                 "Project 2 handles financial transactions.",
-                "Compliance and regulations must be followed."
-            ]
+                "Compliance and regulations must be followed.",
+            ],
         }
 
     @pytest.mark.asyncio
@@ -92,7 +93,7 @@ class TestTenantIsolation:
                     tenant_id=tenant_data["id"],
                     project_id=project_id,
                     vectors=embeddings,
-                    payloads=payloads
+                    payloads=payloads,
                 )
 
         # Test tenant 1 can only access their own data
@@ -102,26 +103,32 @@ class TestTenantIsolation:
             tenant_id=test_tenants["tenant1"]["id"],
             project_id=test_tenants["tenant1"]["projects"]["project1"],
             query_vector=query_vector,
-            limit=10
+            limit=10,
         )
 
         # Verify all results belong to tenant 1
         for result in tenant1_results:
             assert result["payload"]["tenant_id"] == test_tenants["tenant1"]["id"]
-            assert result["payload"]["project_id"] in test_tenants["tenant1"]["projects"].values()
+            assert (
+                result["payload"]["project_id"]
+                in test_tenants["tenant1"]["projects"].values()
+            )
 
         # Test tenant 2 can only access their own data
         tenant2_results = await qdrant_adapter.search(
             tenant_id=test_tenants["tenant2"]["id"],
             project_id=test_tenants["tenant2"]["projects"]["project1"],
             query_vector=query_vector,
-            limit=10
+            limit=10,
         )
 
         # Verify all results belong to tenant 2
         for result in tenant2_results:
             assert result["payload"]["tenant_id"] == test_tenants["tenant2"]["id"]
-            assert result["payload"]["project_id"] in test_tenants["tenant2"]["projects"].values()
+            assert (
+                result["payload"]["project_id"]
+                in test_tenants["tenant2"]["projects"].values()
+            )
 
         # Verify no overlap between tenant results
         tenant1_ids = {r["id"] for r in tenant1_results}
@@ -152,7 +159,7 @@ class TestTenantIsolation:
                 tenant_id=tenant_id,
                 project_id=project_id,
                 vectors=embeddings,
-                payloads=payloads
+                payloads=payloads,
             )
 
         query_vector = [0.1] * 1536
@@ -162,7 +169,7 @@ class TestTenantIsolation:
             tenant_id=tenant_id,
             project_id=project1_id,
             query_vector=query_vector,
-            limit=10
+            limit=10,
         )
 
         # Search project 2
@@ -170,7 +177,7 @@ class TestTenantIsolation:
             tenant_id=tenant_id,
             project_id=project2_id,
             query_vector=query_vector,
-            limit=10
+            limit=10,
         )
 
         # Verify results are project-specific
@@ -202,13 +209,13 @@ class TestTenantIsolation:
                     tenant_id=tenant_data["id"],
                     project_id=project_id,
                     vectors=embeddings,
-                    payloads=payloads
+                    payloads=payloads,
                 )
 
         # Delete tenant 1 data
         await qdrant_adapter.delete_points(
             tenant_id=test_tenants["tenant1"]["id"],
-            project_id=test_tenants["tenant1"]["projects"]["project1"]
+            project_id=test_tenants["tenant1"]["projects"]["project1"],
         )
 
         query_vector = [0.1] * 1536
@@ -218,7 +225,7 @@ class TestTenantIsolation:
             tenant_id=test_tenants["tenant1"]["id"],
             project_id=test_tenants["tenant1"]["projects"]["project1"],
             query_vector=query_vector,
-            limit=10
+            limit=10,
         )
         assert len(tenant1_results) == 0, "Tenant 1 data not properly deleted"
 
@@ -227,9 +234,11 @@ class TestTenantIsolation:
             tenant_id=test_tenants["tenant2"]["id"],
             project_id=test_tenants["tenant2"]["projects"]["project1"],
             query_vector=query_vector,
-            limit=10
+            limit=10,
         )
-        assert len(tenant2_results) > 0, "Tenant 2 data was affected by tenant 1 deletion"
+        assert len(tenant2_results) > 0, (
+            "Tenant 2 data was affected by tenant 1 deletion"
+        )
 
 
 class TestSearchRelevance:
@@ -247,18 +256,18 @@ class TestSearchRelevance:
             "ml_algorithms": [
                 "Machine learning algorithms include supervised learning, unsupervised learning, and reinforcement learning.",
                 "Neural networks are a type of machine learning algorithm inspired by the human brain.",
-                "Deep learning uses neural networks with multiple layers to extract higher-level features."
+                "Deep learning uses neural networks with multiple layers to extract higher-level features.",
             ],
             "web_development": [
                 "Web development involves creating websites and web applications using HTML, CSS, and JavaScript.",
                 "Frontend development focuses on user interfaces and user experience design.",
-                "Backend development handles server-side logic, databases, and APIs."
+                "Backend development handles server-side logic, databases, and APIs.",
             ],
             "data_science": [
                 "Data science combines statistics, programming, and domain knowledge to extract insights from data.",
                 "Data visualization helps communicate insights through charts, graphs, and interactive dashboards.",
-                "Statistical analysis is fundamental to validating hypotheses and making data-driven decisions."
-            ]
+                "Statistical analysis is fundamental to validating hypotheses and making data-driven decisions.",
+            ],
         }
 
     @pytest.mark.asyncio
@@ -274,8 +283,7 @@ class TestSearchRelevance:
             for doc in documents:
                 # Process document through embedding pipeline
                 result = await embedding_service.process_document(
-                    text=doc,
-                    metadata={"category": category}
+                    text=doc, metadata={"category": category}
                 )
 
                 # Store vectors
@@ -283,7 +291,9 @@ class TestSearchRelevance:
                     tenant_id=tenant_id,
                     project_id=project_id,
                     vectors=result.embeddings,
-                    payloads=[{"text": doc, "category": category} for _ in result.chunks]
+                    payloads=[
+                        {"text": doc, "category": category} for _ in result.chunks
+                    ],
                 )
 
         # Test queries with expected categories
@@ -292,13 +302,15 @@ class TestSearchRelevance:
             ("websites and user interfaces", "web_development"),
             ("statistics and data analysis", "data_science"),
             ("machine learning models", "ml_algorithms"),
-            ("frontend and backend development", "web_development")
+            ("frontend and backend development", "web_development"),
         ]
 
         for query, expected_category in test_queries:
             # Generate query embedding
             query_result = await embedding_service.process_document(text=query)
-            query_embedding = query_result.embeddings[0] if query_result.embeddings else [0.1] * 1536
+            query_embedding = (
+                query_result.embeddings[0] if query_result.embeddings else [0.1] * 1536
+            )
 
             # Perform search
             search_results = await qdrant_adapter.search(
@@ -306,7 +318,7 @@ class TestSearchRelevance:
                 project_id=project_id,
                 query_vector=query_embedding,
                 limit=5,
-                score_threshold=0.5
+                score_threshold=0.5,
             )
 
             # Verify relevance
@@ -314,13 +326,16 @@ class TestSearchRelevance:
 
             # Check if top results match expected category
             relevant_results = [
-                r for r in search_results
+                r
+                for r in search_results
                 if r["payload"].get("category") == expected_category
             ]
 
             # At least 50% of results should be relevant
             relevance_ratio = len(relevant_results) / len(search_results)
-            assert relevance_ratio >= 0.5, f"Low relevance ({relevance_ratio:.2f}) for query: {query}"
+            assert relevance_ratio >= 0.5, (
+                f"Low relevance ({relevance_ratio:.2f}) for query: {query}"
+            )
 
     @pytest.mark.asyncio
     async def test_filter_effectiveness(
@@ -333,7 +348,9 @@ class TestSearchRelevance:
         # Store test corpus with different visibility levels
         for category, documents in test_corpus.items():
             for i, doc in enumerate(documents):
-                visibility = VisibilityLevel.PUBLIC if i == 0 else VisibilityLevel.PRIVATE
+                visibility = (
+                    VisibilityLevel.PUBLIC if i == 0 else VisibilityLevel.PRIVATE
+                )
 
                 result = await embedding_service.process_document(text=doc)
 
@@ -341,12 +358,15 @@ class TestSearchRelevance:
                     tenant_id=tenant_id,
                     project_id=project_id,
                     vectors=result.embeddings,
-                    payloads=[{
-                        "text": doc,
-                        "category": category,
-                        "visibility": visibility.value
-                    } for _ in result.chunks],
-                    visibility=visibility.value
+                    payloads=[
+                        {
+                            "text": doc,
+                            "category": category,
+                            "visibility": visibility.value,
+                        }
+                        for _ in result.chunks
+                    ],
+                    visibility=visibility.value,
                 )
 
         query_embedding = [0.1] * 1536
@@ -357,7 +377,7 @@ class TestSearchRelevance:
             project_id=project_id,
             query_vector=query_embedding,
             limit=10,
-            filters={"visibility": "public"}
+            filters={"visibility": "public"},
         )
 
         # Verify all results are public
@@ -370,12 +390,14 @@ class TestSearchRelevance:
             project_id=project_id,
             query_vector=query_embedding,
             limit=10,
-            filters={"category": "ml_algorithms"}
+            filters={"category": "ml_algorithms"},
         )
 
         # Verify all results are ML-related
         for result in ml_results:
-            assert result["payload"]["category"] == "ml_algorithms", "Category filter failed"
+            assert result["payload"]["category"] == "ml_algorithms", (
+                "Category filter failed"
+            )
 
 
 class TestPerformanceAndScalability:
@@ -392,7 +414,7 @@ class TestPerformanceAndScalability:
             "This is a test document for performance testing.",
             "Performance testing measures system response times.",
             "Latency should be within acceptable limits.",
-            "Scalability testing ensures the system handles load."
+            "Scalability testing ensures the system handles load.",
         ] * 50  # Multiply to create more data
 
         embeddings = [[0.1] * 1536 for _ in test_documents]
@@ -402,7 +424,7 @@ class TestPerformanceAndScalability:
             tenant_id=tenant_id,
             project_id=project_id,
             vectors=embeddings,
-            payloads=payloads
+            payloads=payloads,
         )
 
         query_vector = [0.1] * 1536
@@ -416,7 +438,7 @@ class TestPerformanceAndScalability:
                 tenant_id=tenant_id,
                 project_id=project_id,
                 query_vector=query_vector,
-                limit=10
+                limit=10,
             )
 
             latency_ms = (time.time() - start_time) * 1000
@@ -445,7 +467,7 @@ class TestPerformanceAndScalability:
             tenant_id=tenant_id,
             project_id=project_id,
             vectors=embeddings,
-            payloads=payloads
+            payloads=payloads,
         )
 
         query_vector = [0.1] * 1536
@@ -457,10 +479,14 @@ class TestPerformanceAndScalability:
                 tenant_id=tenant_id,
                 project_id=project_id,
                 query_vector=query_vector,
-                limit=10
+                limit=10,
             )
             latency = (time.time() - start_time) * 1000
-            return {"task_id": task_id, "results_count": len(results), "latency_ms": latency}
+            return {
+                "task_id": task_id,
+                "results_count": len(results),
+                "latency_ms": latency,
+            }
 
         # Run 50 concurrent searches
         tasks = [search_task(i) for i in range(50)]
@@ -468,12 +494,16 @@ class TestPerformanceAndScalability:
 
         # Verify all operations succeeded
         successful_results = [r for r in results if not isinstance(r, Exception)]
-        assert len(successful_results) == 50, f"Only {len(successful_results)}/50 concurrent operations succeeded"
+        assert len(successful_results) == 50, (
+            f"Only {len(successful_results)}/50 concurrent operations succeeded"
+        )
 
         # Check latencies
         latencies = [r["latency_ms"] for r in successful_results]
         max_latency = max(latencies)
-        assert max_latency < 500, f"Max latency {max_latency:.2f}ms too high for concurrent operations"
+        assert max_latency < 500, (
+            f"Max latency {max_latency:.2f}ms too high for concurrent operations"
+        )
 
 
 class TestHNSWConfiguration:
@@ -489,12 +519,15 @@ class TestHNSWConfiguration:
                 config = configurator.configure_for_workload(workload, dataset_size)
 
                 # Validate configuration
-                assert configurator.validate_configuration(config), \
+                assert configurator.validate_configuration(config), (
                     f"Invalid configuration for {workload} + {dataset_size}"
+                )
 
                 # Check multi-tenant specific settings
                 assert config["m"] >= 2, "HNSW degree m must be >= 2"
-                assert config["payload_m"] >= 8, "Payload connections should be sufficient"
+                assert config["payload_m"] >= 8, (
+                    "Payload connections should be sufficient"
+                )
 
     def test_memory_estimation(self) -> None:
         """Test memory usage estimation"""
@@ -534,7 +567,7 @@ class TestErrorHandlingAndResilience:
         valid_payload = {
             "tenant_id": "test_tenant",
             "project_id": "test_project",
-            "content": "Test content"
+            "content": "Test content",
         }
         assert filter_builder.validate_payload_integrity(valid_payload)
 
@@ -551,7 +584,7 @@ class TestErrorHandlingAndResilience:
             "project_id": "test_project",
             "content": "Test content",
             "cross_tenant_ref": "malicious_data",
-            "bypass_isolation": "true"
+            "bypass_isolation": "true",
         }
 
         sanitized = filter_builder.sanitize_payload(dangerous_payload)
@@ -593,7 +626,7 @@ async def test_full_integration_workflow() -> None:
         payloads=[
             {"text": chunk.text, "source": "integration_test"}
             for chunk in embedding_result.chunks
-        ]
+        ],
     )
     assert upsert_result["status"] == "success", "Vector storage failed"
 
@@ -603,7 +636,7 @@ async def test_full_integration_workflow() -> None:
         tenant_id=tenant_id,
         project_id=project_id,
         query_vector=query_embedding,
-        limit=5
+        limit=5,
     )
     assert len(search_results) > 0, "Search returned no results"
 

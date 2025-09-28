@@ -210,7 +210,7 @@ class ExportRepository(TenantRepository[Export]):
         from sqlalchemy import func
 
         # Count by status
-        stmt = (
+        status_stmt = (
             select(self.model.status, func.count(self.model.id).label("count"))
             .where(
                 and_(
@@ -221,12 +221,12 @@ class ExportRepository(TenantRepository[Export]):
             .group_by(self.model.status)
         )
 
-        result = await self.session.execute(stmt)
-        status_counts = {row.status: row.count for row in result}
+        status_result = await self.session.execute(status_stmt)
+        status_counts = {row.status: row.count for row in status_result.fetchall()}
 
         # Count exports in last 30 days
         thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
-        stmt = select(func.count(self.model.id)).where(
+        recent_stmt = select(func.count(self.model.id)).where(
             and_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.created_at >= thirty_days_ago,
@@ -234,7 +234,7 @@ class ExportRepository(TenantRepository[Export]):
             )
         )
 
-        result = await self.session.execute(stmt)
-        recent_count = result.scalar() or 0
+        recent_result = await self.session.execute(recent_stmt)
+        recent_count = int(recent_result.scalar() or 0)
 
         return {"status_counts": status_counts, "recent_exports_30d": recent_count}

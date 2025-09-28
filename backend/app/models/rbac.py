@@ -1,8 +1,11 @@
-"""
-Role-Based Access Control (RBAC) models for project-level permissions.
-"""
+"""Role-Based Access Control (RBAC) models for project-level permissions."""
 
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -17,11 +20,13 @@ from sqlalchemy import (
     and_,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import foreign, relationship
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from .base import Base, BaseModel
-from .project import Project
-from .user import User
+
+if TYPE_CHECKING:
+    from .project import Project
+    from .user import User
 
 
 class ProjectRole(str, Enum):
@@ -88,16 +93,16 @@ class Role(BaseModel):
 
     __tablename__ = "roles"
 
-    name = Column(String(100), nullable=False)
-    display_name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    is_system = Column(
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_system: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )  # System roles cannot be deleted
-    is_active = Column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
-    permissions = relationship(
+    permissions: Mapped[list[PermissionModel]] = relationship(
         "PermissionModel",
         secondary=role_permissions,
         back_populates="roles",
@@ -115,7 +120,7 @@ class Role(BaseModel):
             role_permissions.c.tenant_id,
         ],
     )
-    project_members = relationship(
+    project_members: Mapped[list[ProjectMember]] = relationship(
         "ProjectMember",
         back_populates="role",
         primaryjoin=lambda: and_(
@@ -135,17 +140,21 @@ class PermissionModel(BaseModel):
 
     __tablename__ = "permissions"
 
-    name = Column(String(100), nullable=False)
-    display_name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    resource_type = Column(String(50), nullable=False)  # project, document, agent, etc.
-    action = Column(String(50), nullable=False)  # read, write, delete, admin, execute
-    is_system = Column(
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resource_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # project, document, agent, etc.
+    action: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # read, write, delete, admin, execute
+    is_system: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )  # System permissions cannot be deleted
 
     # Relationships
-    roles = relationship(
+    roles: Mapped[list[Role]] = relationship(
         "Role",
         secondary=role_permissions,
         back_populates="permissions",
@@ -174,16 +183,22 @@ class ProjectMember(BaseModel):
 
     __tablename__ = "project_members"
 
-    project_id = Column(UUID(as_uuid=True), nullable=False)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
-    role_id = Column(UUID(as_uuid=True), nullable=False)
-    invited_by_id = Column(UUID(as_uuid=True), nullable=True)
-    invited_at = Column(DateTime(timezone=True), nullable=True)
-    joined_at = Column(DateTime(timezone=True), nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    role_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    invited_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    invited_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    joined_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
-    project = relationship(
+    project: Mapped[Project] = relationship(
         "Project",
         back_populates="members",
         primaryjoin=lambda: and_(
@@ -192,7 +207,7 @@ class ProjectMember(BaseModel):
         ),
         foreign_keys=lambda: [ProjectMember.project_id, ProjectMember.tenant_id],
     )
-    user = relationship(
+    user: Mapped[User] = relationship(
         "User",
         foreign_keys=lambda: [ProjectMember.user_id, ProjectMember.tenant_id],
         back_populates="project_memberships",
@@ -201,7 +216,7 @@ class ProjectMember(BaseModel):
             foreign(ProjectMember.tenant_id) == User.tenant_id,
         ),
     )
-    role = relationship(
+    role: Mapped[Role] = relationship(
         "Role",
         back_populates="project_members",
         primaryjoin=lambda: and_(
@@ -210,7 +225,7 @@ class ProjectMember(BaseModel):
         ),
         foreign_keys=lambda: [ProjectMember.role_id, ProjectMember.tenant_id],
     )
-    invited_by = relationship(
+    invited_by: Mapped[User | None] = relationship(
         "User",
         foreign_keys=lambda: [ProjectMember.invited_by_id, ProjectMember.tenant_id],
         primaryjoin=lambda: and_(

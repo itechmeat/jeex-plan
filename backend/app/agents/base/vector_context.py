@@ -1,20 +1,23 @@
-"""
-Vector context retrieval for agents.
-Integrates with Qdrant for project-specific knowledge retrieval.
-"""
+"""Vector context retrieval for agents using Qdrant."""
+
+from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchValue
 
-# Lazy import of EmbeddingService to avoid initialization issues
 from app.adapters.qdrant import QdrantAdapter
 from app.core.config import settings
 from app.core.logger import get_logger
+from app.schemas.vector import DocumentType as VectorDocumentType
+from app.schemas.vector import VisibilityLevel
 
 from ..contracts.base import ContextRetrievalError, ProjectContext
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.services.embedding import EmbeddingService
 
 logger = get_logger()
 
@@ -26,7 +29,7 @@ class VectorContextRetriever:
         self.client: AsyncQdrantClient | None = None
         self.collection_name = settings.QDRANT_COLLECTION
         self.logger = get_logger("vector_context")
-        self._embedding_service = None
+        self._embedding_service: EmbeddingService | None = None
         self._qdrant_adapter: QdrantAdapter | None = None
 
     async def initialize(self) -> None:
@@ -38,14 +41,10 @@ class VectorContextRetriever:
             )
             self.logger.info("Vector context retriever initialized")
         except (ConnectionError, TimeoutError) as exc:
-            self.logger.error(
-                "Failed to connect to Qdrant", error=str(exc)
-            )
+            self.logger.error("Failed to connect to Qdrant", error=str(exc))
             raise
         except (ValueError, TypeError) as exc:
-            self.logger.error(
-                "Invalid Qdrant configuration", error=str(exc)
-            )
+            self.logger.error("Invalid Qdrant configuration", error=str(exc))
             raise
         except Exception as exc:
             self.logger.exception(
@@ -64,6 +63,18 @@ class VectorContextRetriever:
         if not self.client:
             await self.initialize()
 
+        client = self.client
+        if client is None:
+            raise ContextRetrievalError(
+                message="Vector client not initialized",
+                agent_type="vector_context",
+                correlation_id=context.correlation_id,
+                details={
+                    "tenant_id": context.tenant_id,
+                    "project_id": context.project_id,
+                },
+            )
+
         try:
             # Create filter for tenant and project isolation
             search_filter = Filter(
@@ -78,32 +89,35 @@ class VectorContextRetriever:
             )
 
             # Perform text-based query search
-            search_results = await self.client.query(
+            search_results_raw = await client.query(
                 collection_name=self.collection_name,
                 query_text=query,
                 query_filter=search_filter,
                 limit=limit,
                 score_threshold=score_threshold,
             )
+            search_results = cast(list[Any], search_results_raw)
 
             # Extract and organize results
-            context_data = {
-                "query": query,
-                "total_results": len(search_results),
-                "documents": [],
-                "knowledge_facts": [],
-                "memories": [],
-            }
+            documents: list[dict[str, Any]] = []
+            knowledge_facts: list[dict[str, Any]] = []
+            memories: list[dict[str, Any]] = []
 
             for result in search_results:
-                payload = result.get("payload", {}) if isinstance(result, dict) else {}
+                if isinstance(result, dict):
+                    payload = cast(dict[str, Any], result.get("payload", {}))
+                    score = float(result.get("score", 0.0))
+                else:
+                    payload = getattr(result, "payload", {}) or {}
+                    if not isinstance(payload, dict):
+                        payload = {}
+                    score = float(getattr(result, "score", 0.0))
+
                 document_data = {
-                    "content": payload.get("text", ""),
+                    "content": str(payload.get("text", payload.get("content", ""))),
                     "type": payload.get("type", "unknown"),
                     "version": payload.get("version", "1"),
-                    "score": (
-                        result.get("score", 0.0) if isinstance(result, dict) else 0.0
-                    ),
+                    "score": score,
                     "metadata": {
                         k: v
                         for k, v in payload.items()
@@ -112,13 +126,13 @@ class VectorContextRetriever:
                     },
                 }
 
-                context_data["documents"].append(document_data)
+                documents.append(document_data)
 
                 # Categorize by type
                 if payload.get("type") == "knowledge":
-                    context_data["knowledge_facts"].append(document_data)
+                    knowledge_facts.append(document_data)
                 elif payload.get("type") == "memory":
-                    context_data["memories"].append(document_data)
+                    memories.append(document_data)
 
             self.logger.info(
                 "Retrieved project context",
@@ -126,10 +140,16 @@ class VectorContextRetriever:
                 project_id=context.project_id,
                 correlation_id=context.correlation_id,
                 query_length=len(query),
-                results_count=len(search_results),
+                results_count=len(documents),
             )
 
-            return context_data
+            return {
+                "query": query,
+                "total_results": len(documents),
+                "documents": documents,
+                "knowledge_facts": knowledge_facts,
+                "memories": memories,
+            }
 
         except (ConnectionError, TimeoutError) as e:
             self.logger.error(
@@ -231,18 +251,20 @@ class VectorContextRetriever:
             }
 
             # Initialize embedding service lazily
-            if self._embedding_service is None:
+            embedding_service = self._embedding_service
+            if embedding_service is None:
                 from app.services.embedding import EmbeddingService
 
-                self._embedding_service = EmbeddingService()
+                embedding_service = EmbeddingService()
+                self._embedding_service = embedding_service
 
-            embedding_result = await self._embedding_service.process_document(
+            embedding_result = await embedding_service.process_document(
                 text=content, doc_type="memory", metadata=embedding_metadata
             )
 
             # Prepare payloads for each chunk
-            payloads = []
-            vectors = []
+            payloads: list[dict[str, Any]] = []
+            vectors: list[list[float]] = []
 
             for chunk, embedding in zip(
                 embedding_result.chunks, embedding_result.embeddings, strict=False
@@ -261,17 +283,19 @@ class VectorContextRetriever:
                 vectors.append(embedding)
 
             # Initialize Qdrant adapter lazily
-            if self._qdrant_adapter is None:
-                self._qdrant_adapter = QdrantAdapter()
+            adapter = self._qdrant_adapter
+            if adapter is None:
+                adapter = QdrantAdapter()
+                self._qdrant_adapter = adapter
 
-            result = await self._qdrant_adapter.upsert_points(
+            result = await adapter.upsert_points(
                 tenant_id=context.tenant_id,
                 project_id=context.project_id,
                 vectors=vectors,
                 payloads=payloads,
-                doc_type="memory",
-                visibility="private",
-                version="1",
+                doc_type=VectorDocumentType.MEMORY,
+                visibility=VisibilityLevel.PRIVATE,
+                version="1.0",
                 lang=context.language,
             )
 
@@ -333,7 +357,15 @@ class VectorContextRetriever:
             if not self.client:
                 await self.initialize()
 
-            collections = await self.client.get_collections()
+            client = self.client
+            if client is None:
+                return {
+                    "status": "unhealthy",
+                    "collection_name": self.collection_name,
+                    "error": "client_not_initialized",
+                }
+
+            collections = await client.get_collections()
             collection_exists = any(
                 collection.name == self.collection_name
                 for collection in collections.collections

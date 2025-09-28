@@ -1,0 +1,41 @@
+# Hadolint configuration for JEEX Plan
+# https://github.com/hadolint/hadolint
+
+# Ignore some rules that conflict with our setup
+ignored:
+  # DL3008: Pin versions in apt get install (we use lock files)
+  - DL3008
+  # DL3009: Delete the apt-get lists after installing something
+  - DL3009
+  # DL3013: Pin versions in pip (we use requirements.txt)
+  - DL3013
+  # DL3015: Avoid additional packages by specifying --no-install-recommends
+  - DL3015
+  # DL3042: Avoid use of cache directory with pip (simple containers may need it)
+  - DL3042
+  # DL3059: Multiple consecutive RUN instructions (sometimes needed for layer optimization)
+  - DL3059
+
+# Override default severity for some rules
+override:
+  error:
+    - DL3002  # Last USER should not be root
+    - DL3020  # Use COPY instead of ADD for files and folders
+    - DL3025  # Use arguments JSON notation for CMD and ENTRYPOINT
+  warning:
+    - DL3008  # Pin versions in apt get install
+    - DL3009  # Delete the apt-get lists after installing something
+  info:
+    - DL3059  # Multiple consecutive RUN instructions
+  style:
+    - DL3015  # Avoid additional packages by specifying --no-install-recommends
+
+# Format output
+format: tty
+no-color: false
+
+# Trust specific registries
+trusted-registries:
+  - docker.io
+  - ghcr.io
+  - registry.hub.docker.com

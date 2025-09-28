@@ -1,6 +1,11 @@
 import { useContext } from 'react';
+import {
+  documentsCollection,
+  healthStatusCollection,
+  projectsCollection,
+  systemMetricsCollection,
+} from './collections';
 import { DBContext } from './context';
-import { healthStatusCollection, systemMetricsCollection } from './collections';
 
 export const useCollections = () => {
   const context = useContext(DBContext);
@@ -10,4 +15,9 @@ export const useCollections = () => {
   return context;
 };
 
-export { healthStatusCollection, systemMetricsCollection };
+export {
+  healthStatusCollection,
+  systemMetricsCollection,
+  projectsCollection,
+  documentsCollection,
+};

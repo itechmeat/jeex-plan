@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
 import classNames from 'classnames';
+import React, { useCallback, useState } from 'react';
 import { Button } from '../ui/Button/Button';
 import { Progress } from '../ui/Progress/Progress';
-import styles from './Wizard.module.scss';
+import styles from './Wizard.module.css';
 
 export interface WizardStep {
   id: string;
@@ -96,7 +96,7 @@ export const Wizard: React.FC<WizardProps> = ({
         <div className={styles.progressSection}>
           <Progress
             value={progress}
-            size="md"
+            size='md'
             label={`Step ${currentStepIndex + 1} of ${steps.length}`}
             showValue={false}
           />
@@ -107,7 +107,7 @@ export const Wizard: React.FC<WizardProps> = ({
           {steps.map((step, index) => (
             <button
               key={step.id}
-              type="button"
+              type='button'
               className={classNames(styles.stepNavItem, {
                 [styles.active]: index === currentStepIndex,
                 [styles.completed]: index < currentStepIndex,
@@ -158,21 +158,21 @@ export const Wizard: React.FC<WizardProps> = ({
       <div className={styles.footer}>
         <div className={styles.navigationButtons}>
           {onCancel && (
-            <Button variant="ghost" onClick={onCancel}>
+            <Button variant='ghost' onClick={onCancel}>
               Cancel
             </Button>
           )}
 
           <div className={styles.rightButtons}>
             {!isFirstStep && (
-              <Button variant="outline" onClick={goToPreviousStep}>
+              <Button variant='outline' onClick={goToPreviousStep}>
                 Previous
               </Button>
             )}
 
             {!isLastStep && (
               <Button
-                variant="primary"
+                variant='primary'
                 onClick={goToNextStep}
                 disabled={!isCurrentStepValid()}
               >
@@ -182,7 +182,7 @@ export const Wizard: React.FC<WizardProps> = ({
 
             {isLastStep && (
               <Button
-                variant="primary"
+                variant='primary'
                 onClick={handleComplete}
                 disabled={!isCurrentStepValid()}
               >

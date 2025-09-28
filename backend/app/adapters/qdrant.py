@@ -1,19 +1,24 @@
-"""
-Qdrant vector database adapter with multi-tenancy support.
-"""
+"""Qdrant vector database adapter with multi-tenancy support."""
+
+from __future__ import annotations
 
 import asyncio
 from datetime import UTC
-from typing import Any, Union
+from typing import Any, cast
 
 import requests
 from qdrant_client import QdrantClient
 from qdrant_client.http import exceptions as qdrant_exceptions
 from qdrant_client.http.models import (
+    Condition,
     Distance,
     FieldCondition,
     Filter,
+    FilterSelector,
+    KeywordIndexParams,
+    KeywordIndexType,
     MatchValue,
+    PointIdsList,
     PointStruct,
     VectorParams,
 )
@@ -30,18 +35,18 @@ class QdrantAdapter(LoggerMixin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.client = None
         self.collection_name = settings.QDRANT_COLLECTION
-        self._initialize_client()
+        self.client: QdrantClient = self._initialize_client()
 
-    def _initialize_client(self) -> None:
+    def _initialize_client(self) -> QdrantClient:
         """Initialize Qdrant client connection"""
-        self.client = QdrantClient(
+        client = QdrantClient(
             url=settings.QDRANT_URL,
             api_key=settings.QDRANT_API_KEY,
             timeout=30,
         )
         logger.info("Qdrant client initialized", url=settings.QDRANT_URL)
+        return client
 
     async def health_check(self) -> dict[str, Any]:
         """Check Qdrant service health"""
@@ -56,7 +61,10 @@ class QdrantAdapter(LoggerMixin):
                 "message": "Qdrant API responded with an error",
                 "details": {"error": str(exc)},
             }
-        except (qdrant_exceptions.UnexpectedResponse, requests.exceptions.RequestException) as exc:
+        except (
+            qdrant_exceptions.UnexpectedResponse,
+            requests.exceptions.RequestException,
+        ) as exc:
             logger.error("Qdrant connectivity health check failed", error=str(exc))
             return {
                 "status": "unhealthy",
@@ -65,13 +73,13 @@ class QdrantAdapter(LoggerMixin):
             }
 
         return {
-                "status": "healthy",
-                "message": "Qdrant connection successful",
-                "details": {
-                    "url": settings.QDRANT_URL,
-                    "collection_count": len(collections.collections),
-                },
-            }
+            "status": "healthy",
+            "message": "Qdrant connection successful",
+            "details": {
+                "url": settings.QDRANT_URL,
+                "collection_count": len(collections.collections),
+            },
+        }
 
     async def ensure_collection_exists(self) -> None:
         """Ensure the collection exists with proper configuration"""
@@ -123,21 +131,22 @@ class QdrantAdapter(LoggerMixin):
             )
 
             # Create payload indexes for multi-tenant filtering
+            keyword_schema = KeywordIndexParams(type=KeywordIndexType.KEYWORD)
             payload_fields = [
-                ("tenant_id", "keyword"),
-                ("project_id", "keyword"),
-                ("type", "keyword"),
-                ("visibility", "keyword"),
-                ("lang", "keyword"),
-                ("version", "keyword"),
+                "tenant_id",
+                "project_id",
+                "type",
+                "visibility",
+                "lang",
+                "version",
             ]
 
-            for field_name, field_schema in payload_fields:
+            for field_name in payload_fields:
                 try:
                     self.client.create_payload_index(
                         collection_name=self.collection_name,
                         field_name=field_name,
-                        field_schema=field_schema,
+                        field_schema=keyword_schema,
                     )
                     logger.info("Created payload index", field=field_name)
                 except qdrant_exceptions.ApiException as exc:
@@ -165,8 +174,8 @@ class QdrantAdapter(LoggerMixin):
         project_id: str,
         vectors: list[list[float]],
         payloads: list[dict[str, Any]],
-        doc_type: Union[str, "DocumentType"] = "knowledge",
-        visibility: Union[str, "VisibilityLevel"] = "private",
+        doc_type: str | DocumentType = "knowledge",
+        visibility: str | VisibilityLevel = "private",
         version: str | None = "1.0",
         lang: str | None = "en",
     ) -> dict[str, Any]:
@@ -191,11 +200,13 @@ class QdrantAdapter(LoggerMixin):
             enriched_payloads: list[dict[str, Any]] = []
             for i, (_vector, payload) in enumerate(zip(vectors, payloads, strict=True)):
                 doc_type_str = (
-                    doc_type.value if hasattr(doc_type, "value") else str(doc_type)
+                    doc_type.value
+                    if isinstance(doc_type, DocumentType)
+                    else str(doc_type)
                 )
                 visibility_str = (
                     visibility.value
-                    if hasattr(visibility, "value")
+                    if isinstance(visibility, VisibilityLevel)
                     else str(visibility)
                 )
                 version_str = str(version) if version is not None else version
@@ -218,16 +229,16 @@ class QdrantAdapter(LoggerMixin):
 
             points = [
                 PointStruct(id=str(uuid.uuid4()), vector=vector, payload=payload)
-                for i, (vector, payload) in enumerate(
-                    zip(vectors, enriched_payloads, strict=True)
-                )
+                for vector, payload in zip(vectors, enriched_payloads, strict=True)
             ]
 
             loop = asyncio.get_running_loop()
             operation_info = await loop.run_in_executor(
                 None,
                 lambda: self.client.upsert(
-                    collection_name=self.collection_name, points=points, wait=True
+                    collection_name=self.collection_name,
+                    points=points,
+                    wait=True,
                 ),
             )
 
@@ -242,9 +253,9 @@ class QdrantAdapter(LoggerMixin):
             return {
                 "status": "success",
                 "points_count": len(points),
-                "operation_id": operation_info.operation_id,
-                "doc_type": doc_type,
-                "visibility": visibility,
+                "operation_id": getattr(operation_info, "operation_id", None),
+                "doc_type": doc_type_str,
+                "visibility": visibility_str,
             }
 
         except qdrant_exceptions.ApiException as exc:
@@ -255,7 +266,10 @@ class QdrantAdapter(LoggerMixin):
                 project_id=project_id,
             )
             raise
-        except (qdrant_exceptions.UnexpectedResponse, requests.exceptions.RequestException) as exc:
+        except (
+            qdrant_exceptions.UnexpectedResponse,
+            requests.exceptions.RequestException,
+        ) as exc:
             logger.error(
                 "Qdrant connectivity error while upserting points",
                 error=str(exc),
@@ -288,29 +302,43 @@ class QdrantAdapter(LoggerMixin):
             await self.ensure_collection_exists()
 
             # Build mandatory tenant and project filter
-            must_conditions = [
-                FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
-                FieldCondition(key="project_id", match=MatchValue(value=project_id)),
+            must_conditions: list[Condition] = [
+                cast(
+                    Condition,
+                    FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
+                ),
+                cast(
+                    Condition,
+                    FieldCondition(
+                        key="project_id", match=MatchValue(value=project_id)
+                    ),
+                ),
             ]
 
             # Add additional filters if provided
             if filters:
                 for field, value in filters.items():
                     must_conditions.append(
-                        FieldCondition(key=field, match=MatchValue(value=value))
+                        cast(
+                            Condition,
+                            FieldCondition(key=field, match=MatchValue(value=value)),
+                        )
                     )
 
             search_filter = Filter(must=must_conditions)
 
-            # Perform search
-            search_result = self.client.search(
-                collection_name=self.collection_name,
-                query_vector=query_vector,
-                limit=limit,
-                query_filter=search_filter,
-                score_threshold=score_threshold,
-                with_payload=True,
-                with_vectors=False,
+            loop = asyncio.get_running_loop()
+            search_result = await loop.run_in_executor(
+                None,
+                lambda: self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_vector,
+                    limit=limit,
+                    query_filter=search_filter,
+                    score_threshold=score_threshold,
+                    with_payload=True,
+                    with_vectors=False,
+                ),
             )
 
             # Format results
@@ -356,12 +384,20 @@ class QdrantAdapter(LoggerMixin):
         try:
             await self.ensure_collection_exists()
 
+            loop = asyncio.get_running_loop()
+
             if point_ids:
                 # Delete specific points
-                self.client.delete(
-                    collection_name=self.collection_name,
-                    points_selector=point_ids,
-                    wait=True,
+                point_selector = PointIdsList(
+                    points=[cast(int | str, pid) for pid in point_ids]
+                )
+                await loop.run_in_executor(
+                    None,
+                    lambda: self.client.delete(
+                        collection_name=self.collection_name,
+                        points_selector=point_selector,
+                        wait=True,
+                    ),
                 )
                 logger.info(
                     "Specific points deleted",
@@ -373,19 +409,28 @@ class QdrantAdapter(LoggerMixin):
                 # Delete all points for tenant/project
                 delete_filter = Filter(
                     must=[
-                        FieldCondition(
-                            key="tenant_id", match=MatchValue(value=tenant_id)
+                        cast(
+                            Condition,
+                            FieldCondition(
+                                key="tenant_id", match=MatchValue(value=tenant_id)
+                            ),
                         ),
-                        FieldCondition(
-                            key="project_id", match=MatchValue(value=project_id)
+                        cast(
+                            Condition,
+                            FieldCondition(
+                                key="project_id", match=MatchValue(value=project_id)
+                            ),
                         ),
                     ]
                 )
 
-                self.client.delete(
-                    collection_name=self.collection_name,
-                    filter=delete_filter,
-                    wait=True,
+                await loop.run_in_executor(
+                    None,
+                    lambda: self.client.delete(
+                        collection_name=self.collection_name,
+                        points_selector=FilterSelector(filter=delete_filter),
+                        wait=True,
+                    ),
                 )
                 logger.info(
                     "All project points deleted",
@@ -411,30 +456,46 @@ class QdrantAdapter(LoggerMixin):
         try:
             collection_info = self.client.get_collection(self.collection_name)
 
-            base_stats = {
+            vectors_config = collection_info.config.params.vectors
+            if isinstance(vectors_config, dict):
+                first_vector = next(iter(vectors_config.values()), None)
+            else:
+                first_vector = vectors_config
+
+            vector_size = getattr(first_vector, "size", None)
+            vector_distance = getattr(first_vector, "distance", None)
+
+            base_stats: dict[str, Any] = {
                 "vectors_count": collection_info.points_count,
                 "indexed_vectors_count": collection_info.indexed_vectors_count,
                 "collection_status": collection_info.status,
                 "collection_config": {
-                    "vector_size": collection_info.config.params.vectors.size,
-                    "distance": collection_info.config.params.vectors.distance,
+                    "vector_size": vector_size,
+                    "distance": vector_distance,
                 },
             }
 
             if tenant_id and project_id:
                 # Get filtered stats for specific tenant/project
-                filter_stats = self.client.count(
-                    collection_name=self.collection_name,
-                    filter=Filter(
-                        must=[
+                count_filter = Filter(
+                    must=[
+                        cast(
+                            Condition,
                             FieldCondition(
                                 key="tenant_id", match=MatchValue(value=tenant_id)
                             ),
+                        ),
+                        cast(
+                            Condition,
                             FieldCondition(
                                 key="project_id", match=MatchValue(value=project_id)
                             ),
-                        ]
-                    ),
+                        ),
+                    ]
+                )
+                filter_stats = self.client.count(
+                    collection_name=self.collection_name,
+                    filter=count_filter,
                 )
                 base_stats["tenant_project_points"] = filter_stats.count
 

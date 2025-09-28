@@ -64,12 +64,14 @@
 ## Dependencies
 
 **Incoming**:
+
 - [Epic 08.5.2](08-quality-assurance.md#085) — Quality feedback для integration testing
 - [Epic 07.3.3](07-export-system.md#073) — Export functionality для E2E tests
 - [Epic 06.1.2](06-frontend-implementation.md#061) — Frontend routing для security tests
 - [Epic 09.4.1](09-observability.md#094) — Performance metrics для load testing
 
 **Outgoing**:
+
 - Enables production deployment confidence
 - Provides quality gates для release process
 - Validates all previous epic implementations

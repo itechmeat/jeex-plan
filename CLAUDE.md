@@ -166,7 +166,7 @@ npm run test
 - `backend/app/core/database.py` - Database configuration
 - `backend/app/core/vault.py` - Vault client and secret management
 
-### Testing
+### Testing Resources
 
 - `backend/tests/` - Backend test suite
 - `backend/tests/conftest.py` - Test configuration and fixtures
@@ -246,6 +246,15 @@ When dependency conflicts occur, resolve by:
 - **User handles all git operations manually**
 - Claude Code should focus only on code implementation, never version control
 
+### Editor Settings (ABSOLUTE)
+
+- **NEVER create or modify .vscode/settings.json files in subfolders** (frontend/.vscode/, backend/.vscode/, etc.)
+- **NEVER create or modify .editorconfig files in subfolders** (frontend/.editorconfig, backend/.editorconfig, etc.)
+- **ONLY modify editor settings in the ROOT .vscode/settings.json file**
+- **ONLY modify .editorconfig in the ROOT of the project**
+- **All editor configuration must be centralized in the project root**
+- **Subfolders MUST NOT contain ANY editor-specific configuration files**
+
 ### Production Code Requirements (ABSOLUTE)
 
 - **NEVER use hardcoded values, mocks, stubs, or placeholders in production code**
@@ -282,3 +291,13 @@ When dependency conflicts occur, resolve by:
 - **Use general patterns and rules, not specific case examples**
 - **Design prompts that adapt to different contexts and inputs**
 - **Avoid embedding specific domain knowledge in prompt templates**
+
+### Documentation Standards (STRICT)
+
+- **ALL main documentation MUST be in the root README.md** - project overview, setup, commands, architecture
+- **Subdirectory README files are ONLY for subdirectory-specific details** - not project-wide information
+- **frontend/README.md** - Only frontend-specific setup and development (no backend, Docker, or project overview)
+- **backend/README.md** - Only backend-specific details (if needed)
+- **.github/hooks/README.md** - Only git hooks technical details (no project overview or general commands)
+- **NEVER duplicate project-wide information** across multiple README files
+- **Root README.md is the single source of truth** for project documentation

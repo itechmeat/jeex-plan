@@ -1,0 +1,28 @@
+# Checkov configuration for JEEX Plan
+# https://www.checkov.io/2.Basics/CLI%20Command%20Reference.html
+
+# Frameworks to scan
+framework:
+  - dockerfile
+  - docker_compose
+
+# Skip specific checks that are not relevant or too strict for development
+skip-check:
+  # Docker checks that might be too strict for development
+
+# Output format
+output: cli
+
+# Enable quiet mode to reduce noise
+quiet: false
+
+# Compact output
+compact: false
+
+# Download external modules
+download-external-modules: false
+
+# Hard fail on critical and high severity issues
+hard-fail-on:
+  - CRITICAL
+  - HIGH

@@ -3,11 +3,11 @@ Document generation API routes.
 Handles the four-stage document generation workflow with SSE streaming.
 """
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,9 +59,9 @@ class ImplementationPlanningRequest(BaseModel):
 class EngineeringStandardsRequest(BaseModel):
     """Request for engineering standards step."""
 
-    technology_stack: list[str] = Field(
-        ..., min_items=1, description="Technology stack"
-    )
+    technology_stack: Annotated[
+        list[str], Field(min_items=1, description="Technology stack")
+    ]
     language: str = Field(default="en", description="Target language for documents")
     team_experience_level: str | None = Field(None, description="Team experience level")
 
@@ -139,7 +139,7 @@ async def execute_business_analysis(
     streaming: StreamingService = Depends(get_streaming_service),
     user: User = Depends(get_current_user_dependency),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> DocumentGenerationResponse:
     """Execute Step 1: Business Analysis - About Document."""
     try:
         # Publish step start event
@@ -192,7 +192,7 @@ async def execute_business_analysis(
             step_name="Business Analysis",
             error_message="Internal server error",
         )
-        logger.exception("Business analysis failed", project_id=str(project_id))
+        logger.exception("Business analysis failed for project %s", project_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Business analysis failed",
@@ -207,7 +207,7 @@ async def execute_engineering_standards(
     streaming: StreamingService = Depends(get_streaming_service),
     user: User = Depends(get_current_user_dependency),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> DocumentGenerationResponse:
     """Execute Step 2: Engineering Standards - Specs Document."""
     try:
         await streaming.publish_step_start(
@@ -256,7 +256,7 @@ async def execute_engineering_standards(
             step_name="Engineering Standards",
             error_message="Internal server error",
         )
-        logger.exception("Engineering standards failed", project_id=str(project_id))
+        logger.exception("Engineering standards failed for project %s", project_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Engineering standards failed",
@@ -271,7 +271,7 @@ async def execute_architecture_design(
     streaming: StreamingService = Depends(get_streaming_service),
     user: User = Depends(get_current_user_dependency),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> DocumentGenerationResponse:
     """Execute Step 3: Architecture Design - Architecture Document."""
     try:
         await streaming.publish_step_start(
@@ -319,7 +319,7 @@ async def execute_architecture_design(
             step_name="Architecture Design",
             error_message="Internal server error",
         )
-        logger.exception("Architecture design failed", project_id=str(project_id))
+        logger.exception("Architecture design failed for project %s", project_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Architecture design failed",
@@ -334,7 +334,7 @@ async def execute_implementation_planning(
     streaming: StreamingService = Depends(get_streaming_service),
     user: User = Depends(get_current_user_dependency),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> DocumentGenerationResponse:
     """Execute Step 4: Implementation Planning - Plans Documents."""
     try:
         await streaming.publish_step_start(
@@ -389,7 +389,7 @@ async def execute_implementation_planning(
             step_name="Implementation Planning",
             error_message="Internal server error",
         )
-        logger.exception("Implementation planning failed", project_id=str(project_id))
+        logger.exception("Implementation planning failed for project %s", project_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Implementation planning failed",
@@ -400,7 +400,7 @@ async def execute_implementation_planning(
 async def get_project_progress(
     project_id: UUID,
     service: DocumentGenerationService = Depends(get_document_generation_service),
-):
+) -> ProgressResponse:
     """Get current project progress and status."""
     try:
         progress = await service.get_project_progress(project_id)
@@ -411,7 +411,7 @@ async def get_project_progress(
             status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
         ) from e
     except Exception as e:
-        logger.exception("Failed to get project progress", project_id=str(project_id))
+        logger.exception("Failed to get project %s progress", project_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get progress",
@@ -423,7 +423,7 @@ async def stream_project_events(
     project_id: UUID,
     streaming: StreamingService = Depends(get_streaming_service),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> StreamingResponse:
     """Stream real-time project events via SSE."""
     return StreamingResponse(
         streaming.stream_project_events(
@@ -444,7 +444,7 @@ async def stream_progress_updates(
     project_id: UUID,
     streaming: StreamingService = Depends(get_streaming_service),
     tenant_id: UUID = Depends(get_current_tenant_id),
-):
+) -> StreamingResponse:
     """Stream real-time progress updates via SSE."""
     return StreamingResponse(
         streaming.stream_progress_updates(
@@ -467,7 +467,7 @@ async def create_project_export(
     background_tasks: BackgroundTasks,
     export_service: ExportService = Depends(get_export_service),
     user: User = Depends(get_current_user_dependency),
-):
+) -> ExportResponse:
     """Create ZIP export of project documents."""
     try:
         # Create export record
@@ -491,12 +491,12 @@ async def create_project_export(
         )
 
     except ValueError as e:
-        logger.exception("Invalid export request", project_id=str(project_id))
+        logger.exception("Invalid export request for project %s", project_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid export parameters"
         ) from e
     except Exception as e:
-        logger.exception("Failed to create export", project_id=str(project_id))
+        logger.exception("Failed to create export for project %s", project_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create export",
@@ -506,7 +506,7 @@ async def create_project_export(
 @router.get("/exports/{export_id}")
 async def download_export(
     export_id: UUID, export_service: ExportService = Depends(get_export_service)
-):
+) -> FileResponse:
     """Download project export ZIP file."""
     try:
         file_path = await export_service.get_export_file_path(export_id)
@@ -518,8 +518,6 @@ async def download_export(
             )
 
         # Return file for download
-        from fastapi.responses import FileResponse
-
         return FileResponse(
             path=file_path,
             media_type="application/zip",
@@ -529,12 +527,12 @@ async def download_export(
     except HTTPException:
         raise
     except ValueError as e:
-        logger.exception("Invalid export ID", export_id=str(export_id))
+        logger.exception("Invalid export ID %s", export_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Export not found"
         ) from e
     except Exception as e:
-        logger.exception("Failed to download export", export_id=str(export_id))
+        logger.exception("Failed to download export %s", export_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to download export",
@@ -547,25 +545,25 @@ async def _generate_export_background(
     """Background task to generate export file."""
     try:
         await export_service.generate_export(export_id)
-        logger.info("Export generated successfully", export_id=str(export_id))
+        logger.info("Export %s generated successfully", export_id)
 
     except (ConnectionError, TimeoutError) as exc:
         logger.error(
-            "Connection failed during export generation",
-            export_id=str(export_id),
-            error=str(exc),
+            "Connection failed during export generation for export %s: %s",
+            export_id,
+            exc,
         )
     except (ValueError, KeyError, TypeError) as exc:
         logger.error(
-            "Validation error during export generation",
-            export_id=str(export_id),
-            error=str(exc),
+            "Validation error during export generation for export %s: %s",
+            export_id,
+            exc,
         )
     except Exception as exc:
         logger.error(
-            "Failed to generate export",
-            export_id=str(export_id),
-            error=str(exc),
+            "Failed to generate export %s: %s",
+            export_id,
+            exc,
             exc_info=True,
         )
 
@@ -574,7 +572,7 @@ async def _generate_export_background(
 async def get_project_documents(
     project_id: UUID,
     service: DocumentGenerationService = Depends(get_document_generation_service),
-):
+) -> dict[str, Any]:
     """Get all document versions for a project."""
     try:
         documents = await service.doc_repo.get_project_documents(project_id)
@@ -598,12 +596,12 @@ async def get_project_documents(
         }
 
     except ValueError as e:
-        logger.exception("Invalid project ID", project_id=str(project_id))
+        logger.exception("Invalid project ID %s", project_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
         ) from e
     except Exception as e:
-        logger.exception("Failed to get project documents", project_id=str(project_id))
+        logger.exception("Failed to get project %s documents", project_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get documents",
@@ -615,7 +613,7 @@ async def get_document_content(
     project_id: UUID,
     document_id: UUID,
     service: DocumentGenerationService = Depends(get_document_generation_service),
-):
+) -> dict[str, Any]:
     """Get content of a specific document version."""
     try:
         document = await service.doc_repo.get_by_id(document_id)
@@ -640,12 +638,12 @@ async def get_document_content(
     except HTTPException:
         raise
     except ValueError as e:
-        logger.exception("Invalid document ID", document_id=str(document_id))
+        logger.exception("Invalid document ID %s", document_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         ) from e
     except Exception as e:
-        logger.exception("Failed to get document content", document_id=str(document_id))
+        logger.exception("Failed to get document content for %s", document_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get document",

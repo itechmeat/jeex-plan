@@ -1,5 +1,7 @@
 import { createCollection } from '@tanstack/react-db';
+import { apiClient } from '../services/api';
 import { healthService } from '../services/healthService';
+import { Document, Project } from '../types/api';
 
 // Health Status collection record type
 export interface HealthStatusRecord {
@@ -124,8 +126,89 @@ export const systemMetricsCollection = createCollection<SystemMetricsRecord>({
   },
 });
 
+// Create projects collection with REST API sync
+export const projectsCollection = createCollection<Project>({
+  id: 'projects',
+  getKey: record => record.id,
+  sync: {
+    sync: async ({ begin, write, commit, markReady, truncate }) => {
+      try {
+        begin();
+
+        // Fetch projects data from API
+        const projectsResponse = await apiClient.getProjects();
+
+        // Clear existing data and insert new records
+        truncate();
+
+        // Write all project records
+        projectsResponse.data.forEach(project => {
+          write({
+            type: 'insert',
+            value: project,
+          });
+        });
+
+        commit();
+        markReady();
+      } catch (error) {
+        console.error('Projects sync error:', error);
+        throw error;
+      }
+    },
+  },
+});
+
+// Create documents collection with REST API sync
+export const documentsCollection = createCollection<Document & { projectId: string }>({
+  id: 'documents',
+  getKey: record => record.id,
+  sync: {
+    sync: async ({ begin, write, commit, markReady, truncate }) => {
+      try {
+        begin();
+
+        // For documents, we need to fetch all projects first to get their documents
+        const projectsResponse = await apiClient.getProjects();
+
+        // Clear existing data
+        truncate();
+
+        // Fetch documents for each project
+        for (const project of projectsResponse.data) {
+          try {
+            const projectDocuments = await apiClient.getProjectDocuments(project.id);
+
+            // Write all document records with projectId for filtering
+            projectDocuments.forEach(document => {
+              write({
+                type: 'insert',
+                value: {
+                  ...document,
+                  projectId: project.id,
+                },
+              });
+            });
+          } catch (error) {
+            console.warn(`Failed to fetch documents for project ${project.id}:`, error);
+            // Continue with other projects even if one fails
+          }
+        }
+
+        commit();
+        markReady();
+      } catch (error) {
+        console.error('Documents sync error:', error);
+        throw error;
+      }
+    },
+  },
+});
+
 // Collections registry for easy access
 export const collections = {
   healthStatus: healthStatusCollection,
   systemMetrics: systemMetricsCollection,
+  projects: projectsCollection,
+  documents: documentsCollection,
 } as const;

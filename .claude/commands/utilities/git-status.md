@@ -2,7 +2,7 @@
 
 Show detailed git repository status
 
-_Command originally created by IndyDevDan (YouTube: https://www.youtube.com/@indydevdan) / DislerH (GitHub: https://github.com/disler)_
+_Command originally created by IndyDevDan (YouTube: <https://www.youtube.com/@indydevdan>) / DislerH (GitHub: <https://github.com/disler>)_
 
 ## Instructions
 

@@ -64,10 +64,12 @@
 ## Dependencies
 
 **Incoming**:
+
 - [Epic 05.6.1](05-document-generation.md#056) — Document versions для archive assembly
 - [Epic 06.4.1](06-frontend-implementation.md#064) — Frontend integration для export triggers
 
 **Outgoing**:
+
 - Enables complete user journey completion
 - Enables [Epic 10.3.1](10-testing.md#103) — Integration testing requires working exports
 - Enables user feedback collection on final deliverables

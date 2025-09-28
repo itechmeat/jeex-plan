@@ -1,12 +1,12 @@
+import classNames from 'classnames';
 import React, { useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/useAuth';
 import { appConfig } from '../../config/appConfig';
 import { ROUTES } from '../../config/routes';
+import { useAuth } from '../../contexts/useAuth';
 import { Button } from '../ui/Button/Button';
-import classNames from 'classnames';
-import buttonStyles from '../ui/Button/Button.module.scss';
-import styles from './Layout.module.scss';
+import buttonStyles from '../ui/Button/Button.module.css';
+import styles from './Layout.module.css';
 
 type LayoutProps = {
   appName?: string;
@@ -129,8 +129,8 @@ export const Layout: React.FC<LayoutProps> = ({
                   <span className={styles.userEmail}>{user.email}</span>
                 </div>
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant='outline'
+                  size='sm'
                   onClick={handleLogout}
                   isLoading={isLoggingOut}
                   disabled={isLoggingOut}

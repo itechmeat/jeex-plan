@@ -21,16 +21,10 @@ from app.models import Base
 # Test database setup
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-test_engine = create_async_engine(
-    TEST_DATABASE_URL,
-    echo=False,
-    future=True
-)
+test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
 
 TestSessionLocal = sessionmaker(
-    test_engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+    test_engine, class_=AsyncSession, expire_on_commit=False
 )
 
 
@@ -60,6 +54,7 @@ async def async_db(test_session):
 @pytest.fixture
 def test_client(test_session):
     """Create test client with test database"""
+
     def override_get_db():
         yield test_session
 
@@ -89,10 +84,7 @@ def mock_settings():
 @pytest.fixture
 def sample_project_data():
     """Sample project data for testing"""
-    return {
-        "name": "Test Project",
-        "language": "en"
-    }
+    return {"name": "Test Project", "language": "en"}
 
 
 @pytest.fixture
@@ -102,7 +94,7 @@ def sample_user_data():
         "email": "test@example.com",
         "name": "Test User",
         "password": "testpassword123",
-        "confirm_password": "testpassword123"
+        "confirm_password": "testpassword123",
     }
 
 
@@ -116,8 +108,8 @@ def auth_headers(test_client):
             "email": "auth@test.com",
             "name": "Auth User",
             "password": "authpassword123",
-            "confirm_password": "authpassword123"
-        }
+            "confirm_password": "authpassword123",
+        },
     )
 
     if response.status_code == 200:
@@ -140,15 +132,9 @@ async def async_test_client():
 # Pytest configuration
 def pytest_configure(config) -> None:
     """Configure pytest"""
-    config.addinivalue_line(
-        "markers", "asyncio: mark test as async"
-    )
-    config.addinivalue_line(
-        "markers", "integration: mark test as integration test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "asyncio: mark test as async")
+    config.addinivalue_line("markers", "integration: mark test as integration test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 def pytest_collection_modifyitems(config, items) -> None:

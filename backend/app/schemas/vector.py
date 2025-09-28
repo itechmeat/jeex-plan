@@ -186,7 +186,7 @@ class DeleteRequest(BaseModel):
 
     def get_filter_conditions(self) -> dict[str, Any]:
         """Build filter conditions for deletion"""
-        conditions = {
+        conditions: dict[str, Any] = {
             "must": [
                 {"key": "tenant_id", "match": {"value": self.tenant_id}},
                 {"key": "project_id", "match": {"value": self.project_id}},
@@ -194,12 +194,11 @@ class DeleteRequest(BaseModel):
         }
 
         if self.doc_types:
-            conditions["must"].append({
-                "should": [
-                    {"key": "type", "match": {"value": doc_type.value}}
-                    for doc_type in self.doc_types
-                ]
-            })
+            should_clauses: list[dict[str, Any]] = [
+                {"key": "type", "match": {"value": doc_type.value}}
+                for doc_type in self.doc_types
+            ]
+            conditions["must"].append({"should": should_clauses})
 
         if self.version:
             conditions["must"].append(

@@ -12,7 +12,7 @@ import unicodedata
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from tenacity import (
     retry,
@@ -27,6 +27,9 @@ from app.core.logger import LoggerMixin, get_logger
 from app.schemas.vector import DocumentType
 
 logger = get_logger(__name__)
+
+if TYPE_CHECKING:  # pragma: no cover - import for type checking only
+    from openai import AsyncOpenAI
 
 
 class ChunkingStrategy(str, Enum):
@@ -84,7 +87,7 @@ class EmbeddingService(LoggerMixin):
         self.batch_size = settings.EMBEDDING_BATCH_SIZE
 
         # Initialize embedding client
-        self._embedding_client = None
+        self._embedding_client: AsyncOpenAI | None = None
         self._initialize_client()
 
     def _initialize_client(self) -> None:
@@ -221,14 +224,18 @@ class EmbeddingService(LoggerMixin):
         # Normalize Unicode punctuation (quotes, dashes, ellipsis)
         text = unicodedata.normalize("NFKC", text)
         # Curly quotes -> straight quotes
-        text = text.translate({
-            0x2018: 0x27,
-            0x2019: 0x27,
-            0x201C: 0x22,
-            0x201D: 0x22,
-        })
+        text = text.translate(
+            {
+                0x2018: 0x27,
+                0x2019: 0x27,
+                0x201C: 0x22,
+                0x201D: 0x22,
+            }
+        )
         # Dashes and ellipsis
-        text = text.replace("\u2013", "-").replace("\u2014", "--").replace("\u2026", "...")
+        text = (
+            text.replace("\u2013", "-").replace("\u2014", "--").replace("\u2026", "...")
+        )
 
         # Remove special characters that might interfere with embeddings
         text = re.sub(
@@ -450,8 +457,8 @@ class EmbeddingService(LoggerMixin):
         Returns:
             Tuple of (unique_chunks, deduplication_stats)
         """
-        seen_hashes = set()
-        unique_chunks = []
+        seen_hashes: set[str] = set()
+        unique_chunks: list[TextChunk] = []
         duplicates_count = 0
         near_duplicates = 0
 
@@ -527,7 +534,7 @@ class EmbeddingService(LoggerMixin):
         if not chunks:
             return []
 
-        all_embeddings = []
+        all_embeddings: list[list[float]] = []
 
         # Process in batches
         for i in range(0, len(chunks), self.batch_size):
@@ -537,6 +544,8 @@ class EmbeddingService(LoggerMixin):
             try:
                 # Compute embeddings for batch (with timeout)
                 client = self._embedding_client
+                if client is None:
+                    raise RuntimeError("Embedding client is not initialized")
                 # Prefer per-call timeout if supported; otherwise configure via client options
                 response = await client.with_options(
                     timeout=getattr(settings, "EMBEDDING_REQUEST_TIMEOUT", None),
@@ -545,7 +554,9 @@ class EmbeddingService(LoggerMixin):
                     input=batch_texts,
                 )
 
-                batch_embeddings = [item.embedding for item in response.data]
+                batch_embeddings: list[list[float]] = [
+                    item.embedding for item in response.data
+                ]
                 all_embeddings.extend(batch_embeddings)
 
                 logger.debug(
@@ -640,7 +651,7 @@ class EmbeddingService(LoggerMixin):
 _embedding_service_instance = None
 
 
-def get_embedding_service() -> 'EmbeddingService':
+def get_embedding_service() -> "EmbeddingService":
     """Get or create the embedding service instance."""
     global _embedding_service_instance
     if _embedding_service_instance is None:

@@ -40,12 +40,7 @@ async def verify_secrets():
     """Verify that all required secrets are accessible."""
     logger.info("Verifying secrets...")
 
-    required_secrets = [
-        "database/postgres",
-        "cache/redis",
-        "auth/jwt",
-        "ai/openai"
-    ]
+    required_secrets = ["database/postgres", "cache/redis", "auth/jwt", "ai/openai"]
 
     all_present = True
 
@@ -171,7 +166,7 @@ async def setup_enhanced_secrets():
         "secret_key": "jeex-plan-jwt-secret-key-production-change-this",
         "algorithm": "HS256",
         "access_token_expire_minutes": "30",
-        "refresh_token_expire_days": "7"
+        "refresh_token_expire_days": "7",
     }
 
     # Enhanced Redis secrets
@@ -180,7 +175,7 @@ async def setup_enhanced_secrets():
         "port": "6379",
         "password": "",  # No password in dev
         "url": "redis://redis:6379/0",
-        "max_connections": "20"
+        "max_connections": "20",
     }
 
     # AI/LLM secrets (placeholders)
@@ -188,7 +183,7 @@ async def setup_enhanced_secrets():
         "api_key": "sk-placeholder-openai-api-key-replace-in-production",
         "default_model": "gpt-4",
         "max_tokens": "4000",
-        "temperature": "0.7"
+        "temperature": "0.7",
     }
 
     anthropic_secrets = {
@@ -200,7 +195,7 @@ async def setup_enhanced_secrets():
         "secret_key": "jeex-plan-app-secret-key-production-change-this",
         "encryption_key": "jeex-plan-encryption-key-32-chars",
         "cors_origins": "http://localhost:3000,http://localhost:5200",
-        "environment": "development"
+        "environment": "development",
     }
 
     secrets_to_setup = [
@@ -208,7 +203,7 @@ async def setup_enhanced_secrets():
         ("cache/redis", redis_secrets),
         ("ai/openai", openai_secrets),
         ("ai/anthropic", anthropic_secrets),
-        ("app/config", app_secrets)
+        ("app/config", app_secrets),
     ]
 
     all_success = True
@@ -268,7 +263,7 @@ if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Run the async main function

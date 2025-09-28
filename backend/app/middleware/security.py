@@ -1,13 +1,19 @@
-"""
-Security middleware for headers, CSRF protection, and other security measures.
-"""
+"""Security middleware for headers, CSRF protection, and related helpers."""
+
+from __future__ import annotations
 
 import hashlib
+import os
+import os.path
+import re
 import secrets
+from collections.abc import Awaitable, Callable
 from datetime import UTC
+from typing import Any
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from ..core.config import get_settings
 
@@ -17,10 +23,12 @@ settings = get_settings()
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Middleware to add security headers to all responses."""
 
-    def __init__(self, app) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Add security headers to response."""
 
         response = await call_next(request)
@@ -73,9 +81,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     """CSRF protection middleware for state-changing operations."""
 
-    def __init__(self, app, exempt_paths: list | None = None) -> None:
+    def __init__(self, app: ASGIApp, exempt_paths: list[str] | None = None) -> None:
         super().__init__(app)
-        self.exempt_paths = exempt_paths or [
+        self.exempt_paths: list[str] = exempt_paths or [
             "/docs",
             "/redoc",
             "/openapi.json",
@@ -88,9 +96,11 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             "/auth/change-password",
             # Note: /auth/oauth/callback excluded because it sets cookies
         ]
-        self.state_changing_methods = {"POST", "PUT", "PATCH", "DELETE"}
+        self.state_changing_methods: set[str] = {"POST", "PUT", "PATCH", "DELETE"}
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Check CSRF protection for state-changing requests."""
 
         # Skip CSRF protection for exempt paths
@@ -151,7 +161,7 @@ class SecurityService:
         return secrets.token_urlsafe(32)
 
     @staticmethod
-    def hash_password(password: str, salt: str | None = None) -> tuple:
+    def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
         """Hash password with salt (additional security layer)."""
         if not salt:
             salt = secrets.token_hex(32)
@@ -195,9 +205,6 @@ class SecurityService:
     @staticmethod
     def sanitize_filename(filename: str) -> str:
         """Sanitize filename to prevent path traversal."""
-        import os.path
-        import re
-
         # Remove path components
         filename = os.path.basename(filename)
 
@@ -234,7 +241,7 @@ class SecurityService:
         return re.match(pattern, email) is not None
 
     @staticmethod
-    def check_password_strength(password: str) -> dict:
+    def check_password_strength(password: str) -> dict[str, Any]:
         """Check password strength and return recommendations."""
         issues = []
         score = 0
@@ -285,10 +292,10 @@ class SecurityService:
         user_id: str | None,
         action: str,
         resource: str,
-        details: dict | None = None,
+        details: dict[str, Any] | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Generate standardized audit log entry."""
         from datetime import datetime
 
@@ -307,11 +314,13 @@ class SecurityService:
 class RequestSizeMiddleware(BaseHTTPMiddleware):
     """Middleware to limit request size for DoS protection."""
 
-    def __init__(self, app, max_size: int = 10 * 1024 * 1024) -> None:  # 10MB default
+    def __init__(self, app: ASGIApp, max_size: int = 10 * 1024 * 1024) -> None:
         super().__init__(app)
         self.max_size = max_size
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Check request size limits."""
 
         # Check Content-Length header
@@ -329,10 +338,10 @@ class RequestSizeMiddleware(BaseHTTPMiddleware):
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                         detail=f"Request size exceeds maximum allowed size of {self.max_size} bytes",
                     )
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as exc:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid Content-Length header: must be a valid integer",
-                )
+                ) from exc
 
         return await call_next(request)

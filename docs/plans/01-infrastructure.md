@@ -66,6 +66,7 @@
 **Incoming**: None — это фундаментальный эпик
 
 **Outgoing**:
+
 - Enables [Epic 02.1.1](02-authentication.md#021) — OAuth2 integration requires API framework
 - Enables [Epic 03.1.1](03-vector-database.md#031) — Qdrant setup requires infrastructure foundation
 - Enables [Epic 09.1.1](09-observability.md#091) — OpenTelemetry requires running services
@@ -87,13 +88,14 @@
 - Успешный `docker-compose up` запускает все сервисы без ошибок
 - Health endpoints возвращают 200 OK для всех сервисов
 - Database migrations выполняются без ошибок
-- Swagger UI доступен на http://localhost:5210/docs
+- Swagger UI доступен на <http://localhost:5210/docs>
 - Connection tests проходят для всех external services
 - Log files содержат structured entries с correlation IDs
 
 ## Выполненная работа
 
 ### Мультитенантная база данных (01.3.4)
+
 - Реализованы базовые миксины (TenantMixin, TimestampMixin, SoftDeleteMixin) в `app/models/base.py`
 - Созданы модели Tenant, User, Project, Document с полной изоляцией по tenant_id
 - Добавлены уникальные ограничения в рамках тенанта (email, username per tenant)
@@ -102,6 +104,7 @@
 - Настроены CASCADE удаления для поддержания целостности данных
 
 ### Интеграция Vault (01.5.2, 01.5.3)
+
 - Реализован VaultClient в `app/core/vault.py` с retry логикой
 - Добавлены функции управления секретами (get/put/delete/list)
 - Настроена ротация JWT токенов через `rotate_jwt_secret()`
@@ -109,17 +112,20 @@
 - Добавлена автоматическая инициализация dev секретов при запуске
 
 ### Миграции базы данных
+
 - Настроен Alembic с поддержкой async SQLAlchemy
 - Создано 3 миграции: базовая схема, частичные индексы, constraints
 - Настроена конфигурация alembic.ini для PostgreSQL
 - Все миграции успешно применены (текущая версия: 002)
 
 ### Health checks и мониторинг
+
 - Настроены Docker health checks для всех сервисов
 - Добавлены PostgreSQL и Redis в system status endpoint
 - Все сервисы проходят health проверки (API, PostgreSQL, Redis, Qdrant, Vault)
 
 ### Установка зависимостей
+
 - Установлены все Python пакеты последних версий
 - Redis клиент 6.4.0
 - FastAPI 0.117.1
@@ -127,6 +133,7 @@
 - Проверена совместимость всех компонентов
 
 ### Тестирование и верификация
+
 - Проведена полная верификация функционирования всех компонентов
 - Протестированы мультитенантные операции (isolation, unique constraints, cascade deletion)
 - Подтверждена работоспособность health endpoints

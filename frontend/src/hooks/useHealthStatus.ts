@@ -1,8 +1,8 @@
-import React from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
-import { useCollections } from '../providers/useCollections';
-import { type SystemHealthResponse, type HealthCheck } from '../services/healthService';
+import React from 'react';
 import { t } from '../localization';
+import { useCollections } from '../providers/useCollections';
+import { type HealthCheck, type SystemHealthResponse } from '../services/healthService';
 
 export const HEALTH_REFRESH_INTERVAL = 30000; // 30 seconds
 

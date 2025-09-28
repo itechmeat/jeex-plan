@@ -3,8 +3,9 @@ Project management API schemas.
 """
 
 from datetime import datetime
+from typing import Any, ClassVar
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProjectBase(BaseModel):
@@ -27,11 +28,11 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     """Project creation schema"""
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [{"name": "My Awesome Project", "language": "en"}]
         }
-    }
+    )
 
 
 class ProjectUpdate(BaseModel):
@@ -50,11 +51,11 @@ class ProjectUpdate(BaseModel):
             raise ValueError("Language code must be 2 characters (ISO 639-1)")
         return v.lower() if v else None
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [{"name": "Updated Project Name", "language": "en"}]
         }
-    }
+    )
 
 
 class DocumentInfo(BaseModel):
@@ -79,8 +80,8 @@ class StepProgress(BaseModel):
     document_id: str | None = Field(None, description="Associated document ID")
     error_message: str | None = Field(None, description="Error message if failed")
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "step": 1,
@@ -90,7 +91,7 @@ class StepProgress(BaseModel):
                 }
             ]
         }
-    }
+    )
 
 
 class ProjectResponse(ProjectBase):
@@ -104,8 +105,8 @@ class ProjectResponse(ProjectBase):
     documents: list[DocumentInfo] = Field(default=[], description="Project documents")
     steps_completed: list[int] = Field(default=[], description="Completed step numbers")
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "id": "project_123",
@@ -129,7 +130,7 @@ class ProjectResponse(ProjectBase):
                 }
             ]
         }
-    }
+    )
 
 
 class ProjectListResponse(BaseModel):
@@ -143,8 +144,8 @@ class ProjectListResponse(BaseModel):
     created_at: datetime = Field(..., description="Project creation timestamp")
     updated_at: datetime = Field(..., description="Project last update timestamp")
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "id": "project_123",
@@ -157,7 +158,7 @@ class ProjectListResponse(BaseModel):
                 }
             ]
         }
-    }
+    )
 
 
 class ProjectProgress(BaseModel):
@@ -165,13 +166,13 @@ class ProjectProgress(BaseModel):
 
     project_id: str = Field(..., description="Project identifier")
     current_step: int = Field(..., ge=1, le=4, description="Current step number")
-    steps: dict = Field(..., description="Step progress information")
+    steps: dict[str, Any] = Field(..., description="Step progress information")
     overall_progress: int = Field(
         ..., ge=0, le=100, description="Overall progress percentage"
     )
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "project_id": "project_123",
@@ -202,7 +203,7 @@ class ProjectProgress(BaseModel):
                 }
             ]
         }
-    }
+    )
 
 
 class ExportResponse(BaseModel):
@@ -215,8 +216,8 @@ class ExportResponse(BaseModel):
     expires_at: datetime | None = Field(None, description="Export expiration time")
     created_at: datetime = Field(..., description="Export creation timestamp")
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "export_id": "export_123",
@@ -228,20 +229,24 @@ class ExportResponse(BaseModel):
                 }
             ]
         }
-    }
+    )
 
 
 class StepInput(BaseModel):
     """Step input data schema"""
 
     idea_description: str | None = Field(None, description="Initial idea description")
-    user_clarifications: dict | None = Field(None, description="User clarifications")
+    user_clarifications: dict[str, Any] | None = Field(
+        None, description="User clarifications"
+    )
     target_audience: str | None = Field(None, description="Target audience")
-    requirements: dict | None = Field(None, description="Project requirements")
-    constraints: dict | None = Field(None, description="Project constraints")
+    requirements: dict[str, Any] | None = Field(
+        None, description="Project requirements"
+    )
+    constraints: dict[str, Any] | None = Field(None, description="Project constraints")
 
-    model_config = {
-        "json_schema_extra": {
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "idea_description": "A mobile app for tracking fitness goals",
@@ -257,4 +262,4 @@ class StepInput(BaseModel):
                 }
             ]
         }
-    }
+    )

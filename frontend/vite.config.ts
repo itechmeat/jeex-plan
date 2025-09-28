@@ -1,5 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import postcssNesting from 'postcss-nesting';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -12,5 +13,8 @@ export default defineConfig({
     modules: {
       localsConvention: 'camelCaseOnly',
     },
+    postcss: {
+      plugins: [postcssNesting],
+    },
   },
-})
+});

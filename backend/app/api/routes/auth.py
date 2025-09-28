@@ -263,11 +263,19 @@ async def oauth_init(
             if redis_client:
                 await redis_client.setex(f"oauth_state:{state}", 300, "1")
         except (ConnectionError, TimeoutError) as e:
-            logger.warning("Redis connection failed during OAuth state persistence", error=str(e))
+            logger.warning(
+                "Redis connection failed during OAuth state persistence", error=str(e)
+            )
         except (AttributeError, TypeError, ValueError) as e:
-            logger.warning("Redis configuration error during OAuth state persistence", error=str(e))
+            logger.warning(
+                "Redis configuration error during OAuth state persistence", error=str(e)
+            )
         except Exception as e:
-            logger.error("Unexpected error during OAuth state persistence", error=str(e), exc_info=True)
+            logger.error(
+                "Unexpected error during OAuth state persistence",
+                error=str(e),
+                exc_info=True,
+            )
 
         return {
             "authorization_url": auth_url,
@@ -278,13 +286,20 @@ async def oauth_init(
     except HTTPException:
         raise
     except (ValueError, KeyError, TypeError) as e:
-        logger.error("OAuth init validation error", provider=oauth_data.provider, error=str(e))
+        logger.error(
+            "OAuth init validation error", provider=oauth_data.provider, error=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid OAuth configuration for provider {oauth_data.provider}",
         )
     except Exception as e:
-        logger.error("OAuth init failed", provider=oauth_data.provider, error=str(e), exc_info=True)
+        logger.error(
+            "OAuth init failed",
+            provider=oauth_data.provider,
+            error=str(e),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"OAuth initialization failed for provider {oauth_data.provider}",
@@ -377,7 +392,9 @@ async def oauth_callback(
         error_url = f"{frontend_url}/auth/error?error=oauth_validation_failed"
         return RedirectResponse(url=error_url)
     except Exception as e:
-        logger.error("OAuth callback failed", provider=provider, error=str(e), exc_info=True)
+        logger.error(
+            "OAuth callback failed", provider=provider, error=str(e), exc_info=True
+        )
         # Redirect to frontend with error
         frontend_url = (
             settings.ALLOWED_ORIGINS[0]
@@ -449,7 +466,9 @@ async def oauth_callback_post(
         raise
     except (ValueError, KeyError, TypeError) as e:
         logger.error(
-            "OAuth callback POST validation error", provider=callback_data.provider, error=str(e)
+            "OAuth callback POST validation error",
+            provider=callback_data.provider,
+            error=str(e),
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -457,7 +476,10 @@ async def oauth_callback_post(
         )
     except Exception as e:
         logger.error(
-            "OAuth callback POST failed", provider=callback_data.provider, error=str(e), exc_info=True
+            "OAuth callback POST failed",
+            provider=callback_data.provider,
+            error=str(e),
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -507,7 +529,9 @@ async def change_password(
         raise
     except (ValueError, TypeError, KeyError) as e:
         logger.error(
-            "Password change validation error", user_id=str(current_user.id), error=str(e)
+            "Password change validation error",
+            user_id=str(current_user.id),
+            error=str(e),
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -515,7 +539,10 @@ async def change_password(
         )
     except Exception as e:
         logger.error(
-            "Password change failed", user_id=str(current_user.id), error=str(e), exc_info=True
+            "Password change failed",
+            user_id=str(current_user.id),
+            error=str(e),
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

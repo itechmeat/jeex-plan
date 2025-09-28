@@ -1,13 +1,13 @@
-"""
-Document versioning model with multi-tenant support.
-Handles document versions for the four-stage generation workflow.
-"""
+"""Document versioning model with multi-tenant support."""
 
+from __future__ import annotations
+
+import uuid
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
-    Column,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -17,10 +17,12 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import foreign, relationship, remote
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship, remote
 
 from .base import BaseModel
-from .project import Project
+
+if TYPE_CHECKING:
+    from .project import Project
 
 
 class DocumentType(str, Enum):
@@ -39,21 +41,23 @@ class DocumentVersion(BaseModel):
     __tablename__ = "document_versions"
 
     # Basic document info
-    document_type = Column(String(50), nullable=False, index=True)
-    version = Column(Integer, default=1, nullable=False)
-    title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=False)
+    document_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Epic-specific fields for plan documents
-    epic_number = Column(Integer, nullable=True)  # For PLAN_EPIC documents
-    epic_name = Column(String(255), nullable=True)  # For PLAN_EPIC documents
+    epic_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    epic_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Generation metadata (stored in "metadata" column)
-    document_metadata = Column("metadata", JSON, default=dict, nullable=False)
+    document_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON, default=dict, nullable=False
+    )
 
     # Project relationship
-    project_id = Column(UUID(as_uuid=True), nullable=False)
-    project = relationship(
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    project: Mapped[Project] = relationship(
         "Project",
         back_populates="document_versions",
         primaryjoin=lambda: and_(
@@ -64,7 +68,7 @@ class DocumentVersion(BaseModel):
     )
 
     # Created by user
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     __table_args__ = (
         # Tenant-scoped FK constraint

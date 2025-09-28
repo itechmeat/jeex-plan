@@ -1,14 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { WizardStepProps } from '../Wizard';
-import { Input } from '../../ui/Input/Input';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  PlanningConfiguration,
   DevelopmentMethodology,
-  TimeUnit,
   isPlanningConfiguration,
   isTimelinePreferences,
+  PlanningConfiguration,
+  TimeUnit,
 } from '../../../types/api';
-import styles from './WizardSteps.module.scss';
+import { Input } from '../../ui/Input/Input';
+import { WizardStepProps } from '../Wizard';
+import styles from './WizardSteps.module.css';
 
 const methodologies = [
   {
@@ -226,8 +226,8 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
             {methodologies.map(({ methodology, name, description }) => (
               <label key={methodology} className={styles.optionItem}>
                 <input
-                  type="radio"
-                  name="methodology"
+                  type='radio'
+                  name='methodology'
                   value={methodology}
                   checked={formData.methodology === methodology}
                   onChange={() => handleMethodologyChange(methodology)}
@@ -240,7 +240,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.methodology && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.methodology}
             </span>
           )}
@@ -256,7 +256,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
             {developmentPhases.map(({ id, name, description }) => (
               <label key={id} className={styles.checkboxItem}>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={formData.phases.includes(id)}
                   onChange={() => handlePhaseToggle(id)}
                 />
@@ -268,7 +268,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.phases && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.phases}
             </span>
           )}
@@ -284,7 +284,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
             {deliverableTypes.map(({ id, name, description }) => (
               <label key={id} className={styles.checkboxItem}>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={formData.deliverables.includes(id)}
                   onChange={() => handleDeliverableToggle(id)}
                 />
@@ -296,7 +296,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.deliverables && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.deliverables}
             </span>
           )}
@@ -307,9 +307,9 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
           <label className={styles.selectLabel}>Project Timeline</label>
           <div className={styles.inputGroup}>
             <Input
-              label="Duration"
-              type="number"
-              min="1"
+              label='Duration'
+              type='number'
+              min='1'
               value={formData.timeline.duration.toString()}
               onChange={e =>
                 handleTimelineChange('duration', parseInt(e.target.value) || 0)
@@ -322,8 +322,8 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
                 {timeUnits.map(({ unit, name, description }) => (
                   <label key={unit} className={styles.optionItem}>
                     <input
-                      type="radio"
-                      name="timeUnit"
+                      type='radio'
+                      name='timeUnit'
                       value={unit}
                       checked={formData.timeline.unit === unit}
                       onChange={() => handleTimelineChange('unit', unit)}
@@ -336,7 +336,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
                 ))}
               </div>
               {errors.unit && (
-                <span className={styles.error} role="alert">
+                <span className={styles.error} role='alert'>
                   {errors.unit}
                 </span>
               )}
@@ -361,7 +361,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
                 />
                 {formData.timeline.milestones.length > 1 && (
                   <button
-                    type="button"
+                    type='button'
                     onClick={() => removeMilestone(index)}
                     className={styles.removeMilestone}
                   >
@@ -371,7 +371,7 @@ export const Step3PlanningConfiguration: React.FC<WizardStepProps> = ({
               </div>
             ))}
             <button
-              type="button"
+              type='button'
               onClick={addMilestone}
               className={styles.addMilestone}
             >

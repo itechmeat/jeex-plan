@@ -5,13 +5,14 @@ Revises: 5fde290802d2
 Create Date: 2025-09-22 12:00:00.000000
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'cbe2ed1ce948'
-down_revision: str | Sequence[str] | None = '5fde290802d2'
+revision: str = "cbe2ed1ce948"
+down_revision: str | Sequence[str] | None = "5fde290802d2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -144,15 +145,27 @@ def downgrade() -> None:
     """Remove authentication constraints and indexes."""
 
     # Drop check constraints
-    op.execute("ALTER TABLE projects DROP CONSTRAINT IF EXISTS ck_projects_status_valid")
-    op.execute("ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_type_valid")
-    op.execute("ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_status_valid")
+    op.execute(
+        "ALTER TABLE projects DROP CONSTRAINT IF EXISTS ck_projects_status_valid"
+    )
+    op.execute(
+        "ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_type_valid"
+    )
+    op.execute(
+        "ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_status_valid"
+    )
     op.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_oauth_complete")
-    op.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_oauth_provider_valid")
+    op.execute(
+        "ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_oauth_provider_valid"
+    )
     op.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_email_format")
     op.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_username_length")
-    op.execute("ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_generation_progress")
-    op.execute("ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_generation_step")
+    op.execute(
+        "ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_generation_progress"
+    )
+    op.execute(
+        "ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_generation_step"
+    )
 
     # Drop authentication indexes
     op.execute("DROP INDEX IF EXISTS ix_users_oauth_provider_id")

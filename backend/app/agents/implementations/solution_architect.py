@@ -165,7 +165,7 @@ component design, and scalability considerations."""
 
     def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
-        pattern = rf"#{1,2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1,2}|\Z)"
+        pattern = rf"#{1, 2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1, 2}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -180,7 +180,7 @@ component design, and scalability considerations."""
 
     def _extract_text_section(self, content: str, section_name: str) -> str:
         """Extract text content from a markdown section (non-bullet format)."""
-        pattern = rf"#{1,2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1,2}|\Z)"
+        pattern = rf"#{1, 2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1, 2}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:

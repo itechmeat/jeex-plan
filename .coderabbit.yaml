@@ -25,8 +25,13 @@ reviews:
     ruff:
       enabled: true
 
+    sqlfluff:
+      enabled: true
+
     # ⚡ Frontend code quality
     eslint:
+      enabled: true
+    biome:
       enabled: true
 
     # 🔐 Security scanning
@@ -36,9 +41,13 @@ reviews:
     # 🐳 Docker best practices
     hadolint:
       enabled: true
+    checkov:
+      enabled: true
 
     # 🖥️ Shell script validation
     shellcheck:
+      enabled: true
+    markdownlint:
       enabled: true
 
     # 🔄 GitHub Actions linting

@@ -1,21 +1,25 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { WizardStepProps } from '../Wizard';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArchitecturePreferences,
   ArchitectureStyle,
-  ScalabilityLevel,
   isArchitecturePreferences,
+  ScalabilityLevel,
 } from '../../../types/api';
-import styles from './WizardSteps.module.scss';
+import { WizardStepProps } from '../Wizard';
+import styles from './WizardSteps.module.css';
 
 const isValidArchitectureStyle = (value: unknown): value is ArchitectureStyle =>
-  typeof value === 'string' && Object.values(ArchitectureStyle).includes(value as ArchitectureStyle);
+  typeof value === 'string' &&
+  Object.values(ArchitectureStyle).includes(value as ArchitectureStyle);
 
 const isValidScalabilityLevel = (value: unknown): value is ScalabilityLevel =>
-  typeof value === 'string' && Object.values(ScalabilityLevel).includes(value as ScalabilityLevel);
+  typeof value === 'string' &&
+  Object.values(ScalabilityLevel).includes(value as ScalabilityLevel);
 
 const toStringArray = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 
 const architectureStyles = [
   {
@@ -239,8 +243,8 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
             {architectureStyles.map(({ style, name, description }) => (
               <label key={style} className={styles.optionItem}>
                 <input
-                  type="radio"
-                  name="architectureStyle"
+                  type='radio'
+                  name='architectureStyle'
                   value={style}
                   checked={formData.style === style}
                   onChange={() => handleStyleChange(style)}
@@ -253,7 +257,7 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.style && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.style}
             </span>
           )}
@@ -269,7 +273,7 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
             {architecturePatterns.map(({ id, name, description }) => (
               <label key={id} className={styles.checkboxItem}>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={formData.patterns.includes(id)}
                   onChange={() => handlePatternToggle(id)}
                 />
@@ -281,7 +285,7 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.patterns && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.patterns}
             </span>
           )}
@@ -300,7 +304,7 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
                 {items.map(tech => (
                   <label key={tech} className={styles.checkboxItem}>
                     <input
-                      type="checkbox"
+                      type='checkbox'
                       checked={formData.technologies.includes(tech)}
                       onChange={() => handleTechnologyToggle(tech)}
                     />
@@ -313,7 +317,7 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
             </div>
           ))}
           {errors.technologies && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.technologies}
             </span>
           )}
@@ -326,8 +330,8 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
             {scalabilityLevels.map(({ level, name, description, users }) => (
               <label key={level} className={styles.optionItem}>
                 <input
-                  type="radio"
-                  name="scalability"
+                  type='radio'
+                  name='scalability'
                   value={level}
                   checked={formData.scalability === level}
                   onChange={() => handleScalabilityChange(level)}
@@ -341,7 +345,7 @@ export const Step2ArchitecturePreferences: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.scalability && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.scalability}
             </span>
           )}

@@ -1,6 +1,6 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { User, LoginRequest } from '../types/api';
+import React, { createContext, useCallback, useEffect, useState } from 'react';
 import { apiClient, handleApiError } from '../services/api';
+import { LoginRequest, User } from '../types/api';
 
 export interface AuthContextType {
   user: User | null;

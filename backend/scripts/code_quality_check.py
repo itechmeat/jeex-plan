@@ -18,7 +18,7 @@ class CodeQualityChecker:
 
     def check_file(self, file_path: Path) -> None:
         """Check a single Python file for quality issues."""
-        with open(file_path, encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         try:
@@ -36,21 +36,29 @@ class CodeQualityChecker:
 
     def _check_content(self, content: str, file_path: Path) -> None:
         """Check content for pattern-based issues."""
-        lines = content.split('\n')
+        lines = content.split("\n")
 
         for line_num, line in enumerate(lines, 1):
             # Check for hardcoded secrets (basic patterns)
             if self._contains_hardcoded_secret(line):
-                self.issues.append(f"{file_path}:{line_num}: Potential hardcoded secret")
+                self.issues.append(
+                    f"{file_path}:{line_num}: Potential hardcoded secret"
+                )
 
             # Check for TODO/FIXME comments in production code
-            if any(keyword in line.upper() for keyword in ['TODO', 'FIXME', 'HACK', 'BUG']):
-                if 'tests' not in str(file_path):  # Allow in tests
-                    self.issues.append(f"{file_path}:{line_num}: TODO/FIXME comment in production code")
+            if any(
+                keyword in line.upper() for keyword in ["TODO", "FIXME", "HACK", "BUG"]
+            ):
+                if "tests" not in str(file_path):  # Allow in tests
+                    self.issues.append(
+                        f"{file_path}:{line_num}: TODO/FIXME comment in production code"
+                    )
 
             # Check for print statements (should use logging)
-            if re.search(r'\bprint\s*\(', line) and 'test' not in str(file_path):
-                self.issues.append(f"{file_path}:{line_num}: Using print() instead of logging")
+            if re.search(r"\bprint\s*\(", line) and "test" not in str(file_path):
+                self.issues.append(
+                    f"{file_path}:{line_num}: Using print() instead of logging"
+                )
 
     def _contains_hardcoded_secret(self, line: str) -> bool:
         """Check if line contains potential hardcoded secrets."""
@@ -66,7 +74,10 @@ class CodeQualityChecker:
         for pattern in secret_patterns:
             if re.search(pattern, line_lower):
                 # Allow some common test/example values
-                if any(safe in line_lower for safe in ['test', 'example', 'dummy', 'mock', 'fake']):
+                if any(
+                    safe in line_lower
+                    for safe in ["test", "example", "dummy", "mock", "fake"]
+                ):
                     continue
                 return True
 
@@ -109,17 +120,17 @@ class QualityVisitor(ast.NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Visit function definitions."""
         # Check for missing type hints
-        if not self._has_return_annotation(node) and not node.name.startswith('_'):
+        if not self._has_return_annotation(node) and not node.name.startswith("_"):
             # Skip test functions and special methods
-            if 'test' not in str(self.file_path) and not node.name.startswith('test_'):
+            if "test" not in str(self.file_path) and not node.name.startswith("test_"):
                 self.issues.append(
                     f"{self.file_path}:{node.lineno}: Function '{node.name}' missing return type hint"
                 )
 
         # Check for missing parameter type hints
         for arg in node.args.args:
-            if not arg.annotation and arg.arg != 'self':
-                if 'test' not in str(self.file_path):
+            if not arg.annotation and arg.arg != "self":
+                if "test" not in str(self.file_path):
                     self.issues.append(
                         f"{self.file_path}:{node.lineno}: Parameter '{arg.arg}' in '{node.name}' missing type hint"
                     )
@@ -129,15 +140,15 @@ class QualityVisitor(ast.NodeVisitor):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         """Visit async function definitions."""
         # Same checks as regular functions
-        if not self._has_return_annotation(node) and not node.name.startswith('_'):
-            if 'test' not in str(self.file_path) and not node.name.startswith('test_'):
+        if not self._has_return_annotation(node) and not node.name.startswith("_"):
+            if "test" not in str(self.file_path) and not node.name.startswith("test_"):
                 self.issues.append(
                     f"{self.file_path}:{node.lineno}: Async function '{node.name}' missing return type hint"
                 )
 
         for arg in node.args.args:
-            if not arg.annotation and arg.arg != 'self':
-                if 'test' not in str(self.file_path):
+            if not arg.annotation and arg.arg != "self":
+                if "test" not in str(self.file_path):
                     self.issues.append(
                         f"{self.file_path}:{node.lineno}: Parameter '{arg.arg}' in '{node.name}' missing type hint"
                     )
@@ -147,8 +158,8 @@ class QualityVisitor(ast.NodeVisitor):
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         """Visit class definitions."""
         # Check for missing docstrings
-        if not self._has_docstring(node) and not node.name.startswith('_'):
-            if 'test' not in str(self.file_path):
+        if not self._has_docstring(node) and not node.name.startswith("_"):
+            if "test" not in str(self.file_path):
                 self.issues.append(
                     f"{self.file_path}:{node.lineno}: Class '{node.name}' missing docstring"
                 )

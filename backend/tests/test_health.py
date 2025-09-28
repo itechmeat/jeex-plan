@@ -36,29 +36,25 @@ class TestHealthEndpoints:
         assert data["status"] == "healthy"
         assert "timestamp" in data
 
-    @patch('app.api.routes.health.DatabaseManager.health_check')
-    @patch('app.api.routes.health.RedisAdapter')
-    @patch('app.api.routes.health.QdrantAdapter')
+    @patch("app.api.routes.health.DatabaseManager.health_check")
+    @patch("app.api.routes.health.RedisAdapter")
+    @patch("app.api.routes.health.QdrantAdapter")
     def test_comprehensive_health_check_healthy(
-        self,
-        mock_qdrant_adapter,
-        mock_redis_adapter,
-        mock_db_health_check,
-        client
+        self, mock_qdrant_adapter, mock_redis_adapter, mock_db_health_check, client
     ) -> None:
         """Test comprehensive health check when all services are healthy"""
         # Mock healthy responses
         mock_db_health_check.return_value = {
             "status": "healthy",
             "message": "Database connection successful",
-            "details": {}
+            "details": {},
         }
 
         mock_redis_instance = AsyncMock()
         mock_redis_instance.health_check.return_value = {
             "status": "healthy",
             "message": "Redis connection successful",
-            "details": {}
+            "details": {},
         }
         mock_redis_adapter.return_value = mock_redis_instance
 
@@ -66,7 +62,7 @@ class TestHealthEndpoints:
         mock_qdrant_instance.health_check.return_value = {
             "status": "healthy",
             "message": "Qdrant connection successful",
-            "details": {}
+            "details": {},
         }
         mock_qdrant_adapter.return_value = mock_qdrant_instance
 
@@ -79,18 +75,16 @@ class TestHealthEndpoints:
         assert data["components"]["redis"]["status"] == "healthy"
         assert data["components"]["qdrant"]["status"] == "healthy"
 
-    @patch('app.api.routes.health.DatabaseManager.health_check')
+    @patch("app.api.routes.health.DatabaseManager.health_check")
     def test_comprehensive_health_check_unhealthy_database(
-        self,
-        mock_db_health_check,
-        client
+        self, mock_db_health_check, client
     ) -> None:
         """Test comprehensive health check when database is unhealthy"""
         # Mock unhealthy database response
         mock_db_health_check.return_value = {
             "status": "unhealthy",
             "message": "Database connection failed",
-            "details": {"error": "Connection timeout"}
+            "details": {"error": "Connection timeout"},
         }
 
         response = client.get("/api/v1/health")

@@ -83,6 +83,7 @@ graph TB
 ## Technical Requirements
 
 **Минимальные версии компонентов (обязательно к соблюдению):**
+
 - FastAPI 0.116.2+ — современные возможности async и dependency injection
 - CrewAI 0.186.1+ — улучшенная оркестрация мультиагентных систем
 - Pydantic AI 1.0.8+ — стабильный API для контрактов агентов
@@ -92,6 +93,7 @@ graph TB
 - OpenTelemetry 1.27+ — автоинструментация FastAPI и distributed tracing
 
 **Архитектурные ограничения:**
+
 - Strict isolation: все запросы должны включать (tenant_id, project_id) фильтры
 - Мультитенантная Qdrant коллекция с payload-фильтрацией
 - SSE для real-time обновлений прогресса генерации
@@ -102,8 +104,8 @@ graph TB
 
 | Question/Risk | Owner | Impact | Required By |
 |---------------|-------|--------|-------------|
-| Выбор LLM провайдера для MVP (OpenAI vs Claude vs multi-provider) | Tech Lead | Medium | Epic 04 start |
-| Стратегия обработки long-running генераций (timeout handling) | Backend Developer | High | Epic 05 start |
-| Детали интеграции с внешними OAuth провайдерами (Google, GitHub) | Backend Developer | Medium | Epic 02 start |
-| Конфигурация HNSW параметров для оптимальной мультитенантности | Backend Developer | Medium | Epic 03 start |
-| Стратегия migration existing data при обновлениях схемы | Backend Developer | Low | Epic 01 completion |
+| LLM provider selection for MVP (OpenAI vs Claude vs multi-provider) | Tech Lead | Medium | Epic 04 start |
+| Strategy for handling long-running generations (timeout handling) | Backend Developer | High | Epic 05 start |
+| External OAuth provider integration details (Google, GitHub) | Backend Developer | Medium | Epic 02 start |
+| HNSW parameters configuration for optimal multi-tenancy | Backend Developer | Medium | Epic 03 start |
+| Strategy for migrating existing data during schema updates | Backend Developer | Low | Epic 01 completion |

@@ -1,4 +1,4 @@
-.PHONY: up down restart logs status health clean dev prod rebuild
+.PHONY: up down restart logs status health clean dev prod rebuild lint lint-fix format check pre-commit docker-lint security-scan sql-lint sql-fix markdown-lint markdown-fix frontend-lint backend-lint frontend-fix backend-fix
 
 # Development commands
 dev:
@@ -60,3 +60,94 @@ redis-cli:
 
 vault-status:
 	docker-compose exec vault vault status
+
+# Linting and formatting commands for entire project
+lint:
+	@echo "🔍 Running all linting checks..."
+	@$(MAKE) frontend-lint
+	@echo "📋 Checking markdown..."
+	npx markdownlint-cli2
+	@$(MAKE) backend-lint
+	@echo "✅ All lint checks completed"
+
+frontend-lint:
+	@echo "📝 Checking frontend (JS/TS + CSS)..."
+	cd frontend && pnpm run lint
+
+frontend-fix:
+	@echo "📝 Fixing frontend..."
+	cd frontend && pnpm run lint:fix
+
+backend-fix:
+	@echo "🗃️ Fixing backend SQL..."
+	docker-compose exec api python -m sqlfluff fix .
+	@echo "🐍 Fixing backend Python..."
+	docker-compose exec api python -m ruff check app --fix --extend-ignore E501,B904,BLE001,G201,ANN001,ANN002,ANN003,ANN201,ANN202,ANN205,RUF012,S101,S104,S105,S107,SIM102,SIM103,UP038,C901,RUF001
+
+backend-lint:
+	@echo "🗃️ Checking backend SQL..."
+	docker-compose exec api python -m sqlfluff lint .
+	@echo "🐍 Checking backend (Python)..."
+	docker-compose exec api python -m ruff check app --extend-ignore E501,B904,BLE001,G201,ANN001,ANN002,ANN003,ANN201,ANN202,ANN205,RUF012,S101,S104,S105,S107,SIM102,SIM103,UP038,C901,RUF001
+
+lint-fix:
+	@echo "🔧 Fixing all linting issues..."
+	@$(MAKE) frontend-fix
+	@echo "📋 Fixing markdown..."
+	npx markdownlint-cli2 --fix
+	@$(MAKE) backend-fix
+
+format:
+	@echo "✨ Formatting all code..."
+	@echo "📝 Formatting frontend..."
+	cd frontend && pnpm run format
+	@echo "🐍 Formatting backend..."
+	docker-compose exec api ruff format .
+
+check:
+	@echo "🔍 Running type checks..."
+	@echo "📝 TypeScript checking..."
+	cd frontend && pnpm run type-check
+	@echo "🐍 Python type checking..."
+	docker-compose exec api mypy app/
+
+# Docker linting commands
+docker-lint:
+	@echo "🐳 Running Docker file linting..."
+	@echo "  • Checking backend/Dockerfile..."
+	docker run --rm -v $(PWD)/.hadolint.yaml:/.config/hadolint.yaml -i hadolint/hadolint < backend/Dockerfile
+	@echo "  • Checking backend/Dockerfile.simple..."
+	docker run --rm -v $(PWD)/.hadolint.yaml:/.config/hadolint.yaml -i hadolint/hadolint < backend/Dockerfile.simple
+	@echo "✅ Docker linting completed!"
+
+# Security scanning with Checkov
+security-scan:
+	@echo "🔒 Running security scan with Checkov..."
+	docker run --rm -v $(PWD):/tf bridgecrew/checkov -d /tf --framework dockerfile --quiet
+	@echo "✅ Security scan completed!"
+
+# SQL linting commands
+sql-lint:
+	@echo "🗃️ Running SQL linting..."
+	docker-compose exec api python -m sqlfluff lint .
+	@echo "✅ SQL linting completed!"
+
+sql-fix:
+	@echo "🗃️ Fixing SQL issues..."
+	docker-compose exec api python -m sqlfluff fix .
+	@echo "✅ SQL fixes completed!"
+
+# Markdown linting commands
+markdown-lint:
+	@echo "📋 Running markdown linting..."
+	npx markdownlint-cli2
+	@echo "✅ Markdown linting completed!"
+
+markdown-fix:
+	@echo "📋 Fixing markdown issues..."
+	npx markdownlint-cli2 --fix
+	@echo "✅ Markdown fixes completed!"
+
+# Pre-commit checks for entire project
+pre-commit:
+	@bash .github/hooks/pre-commit

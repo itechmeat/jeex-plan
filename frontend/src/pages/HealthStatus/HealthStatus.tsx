@@ -1,21 +1,21 @@
-import React from 'react';
 import {
   Activity,
-  Database,
-  Server,
-  Layers,
-  Globe,
   AlertCircle,
-  CheckCircle2,
   AlertTriangle,
-  XCircle,
-  RefreshCw,
+  CheckCircle2,
   Clock,
+  Database,
+  Globe,
+  Layers,
+  RefreshCw,
+  Server,
+  XCircle,
   Zap,
 } from 'lucide-react';
-import { useHealthStatus, healthUtils } from '../../hooks/useHealthStatus';
+import React from 'react';
+import { healthUtils, useHealthStatus } from '../../hooks/useHealthStatus';
 import type { HealthCheck } from '../../services/healthService';
-import styles from './HealthStatus.module.scss';
+import styles from './HealthStatus.module.css';
 
 const ICON_MAP = {
   api: Activity,
@@ -187,7 +187,7 @@ interface ErrorStateProps {
 
 function ErrorState({ error, onRetry }: ErrorStateProps) {
   return (
-    <div className={styles.error}>
+    <div className={styles.errorState}>
       <AlertCircle className={styles.errorIcon} />
       <div>
         <h3>Failed to load system health</h3>
@@ -198,7 +198,7 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
         <button
           className={styles.refreshButton}
           onClick={onRetry}
-          aria-label="Retry loading health status"
+          aria-label='Retry loading health status'
         >
           <RefreshCw size={20} />
         </button>
@@ -289,7 +289,7 @@ export default function HealthStatus() {
             ))}
           </div>
         ) : (
-          <div className={styles.error}>
+          <div className={styles.errorState}>
             <Server className={styles.errorIcon} />
             <div>
               <h3>No services found</h3>
@@ -304,8 +304,8 @@ export default function HealthStatus() {
           className={styles.refreshButton}
           onClick={handleRefresh}
           disabled={isFetching}
-          title="Refresh health status (Ctrl/Cmd + R)"
-          aria-label="Refresh system health status"
+          title='Refresh health status (Ctrl/Cmd + R)'
+          aria-label='Refresh system health status'
         >
           <RefreshCw
             className={`${styles.refreshIcon} ${isFetching ? styles.spinning : ''}`}

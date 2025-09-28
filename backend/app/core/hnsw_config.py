@@ -127,7 +127,7 @@ class HNSWConfigurator:
 
         # Apply other workload settings
         config["ef"] = workload_config["ef"]
-        config["full_scan_threshold"] = size_adjustments["full_scan_threshold"]
+        config["full_scan_threshold"] = int(size_adjustments["full_scan_threshold"])
 
         # Apply custom overrides
         if custom_params:
@@ -230,7 +230,7 @@ class HNSWConfigurator:
             Memory usage estimates in MB
         """
         # Base estimates (simplified)
-        vector_size_mb = (
+        vector_size_mb: float = (
             vector_count * 1536 * 4 / (1024 * 1024)
         )  # 1536 dimensions, float32
 
@@ -239,12 +239,12 @@ class HNSWConfigurator:
         payload_m = config.get("payload_m", 16)
         if payload_m is None:
             payload_m = 0
-        graph_connections = (
+        graph_connections: float = (
             vector_count * (m + payload_m) * 8 / (1024 * 1024)
         )  # 64-bit pointers
 
         # Index overhead
-        index_overhead = vector_count * 0.1  # 10% overhead estimate
+        index_overhead: float = float(vector_count) * 0.1  # 10% overhead estimate
 
         return {
             "vectors_mb": vector_size_mb,

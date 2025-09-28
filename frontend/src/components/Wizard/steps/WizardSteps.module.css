@@ -1,0 +1,332 @@
+.stepContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  height: 100%;
+}
+
+.fieldsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  flex: 1;
+}
+
+.selectGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.selectLabel,
+.rangeLabel,
+.checkboxLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.selectDescription {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+@media (width <= 639px) {
+  .optionGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.optionLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  flex: 1;
+  text-align: center;
+}
+
+.optionItem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background-color: var(--color-background);
+}
+
+.optionItem:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.optionItem:focus-visible,
+.optionItem:focus-within {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.optionItem:has(input:checked) {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.optionItem input[type='radio'] {
+  margin: 0;
+}
+
+.optionItem input[type='radio']:checked + .optionLabel {
+  font-weight: var(--font-weight-medium);
+}
+
+.optionContent {
+  flex: 1;
+  text-align: left;
+}
+
+.optionDescription {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+}
+
+.optionMeta {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+  margin-top: var(--spacing-xs);
+}
+
+.categoryLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+}
+
+.categoryLabel:first-child {
+  margin-top: 0;
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.checkboxItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.checkboxItem:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.checkboxItem:focus-visible,
+.checkboxItem:has(input:focus-visible) {
+  border-color: var(--color-primary);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.checkboxItem:has(input:checked) {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.checkboxItem input[type='checkbox'] {
+  margin: 2px 0 0;
+}
+
+.checkboxContent {
+  flex: 1;
+}
+
+.checkboxLabel {
+  margin-bottom: var(--spacing-xs);
+}
+
+.checkboxDescription {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.summary {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-lg);
+}
+
+.summary h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.summary p {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-sm);
+  line-height: var(--line-height-normal);
+}
+
+.summary p:last-child {
+  margin-bottom: 0;
+}
+
+.summary p strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+}
+
+.rangeGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.rangeInput {
+  width: 100%;
+  height: 8px;
+  background: var(--color-surface);
+  border-radius: var(--border-radius-md);
+  outline: none;
+  appearance: none;
+}
+
+.rangeInput::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  border: 2px solid var(--color-background);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+}
+
+.rangeInput::-webkit-slider-thumb:hover {
+  background: var(--color-primary-hover);
+}
+
+.rangeInput::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  border: 2px solid var(--color-background);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+}
+
+.rangeInput::-moz-range-thumb:hover {
+  background: var(--color-primary-hover);
+}
+
+.rangeValue {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin-top: var(--spacing-xs);
+}
+
+.inputGroup {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+@media (width <= 639px) {
+  .inputGroup {
+    flex-direction: column;
+  }
+}
+
+.milestonesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.milestoneItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.removeMilestone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-error);
+  background-color: transparent;
+  color: var(--color-error);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-top: 8px;
+}
+
+.removeMilestone:hover {
+  background-color: var(--color-error);
+  color: #fff;
+}
+
+.addMilestone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-primary);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  align-self: flex-start;
+}
+
+.addMilestone:hover {
+  background-color: var(--color-primary-light);
+}
+
+.addMilestone:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.addMilestone:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

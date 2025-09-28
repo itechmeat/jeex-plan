@@ -19,9 +19,7 @@ class TestTenantRepository:
         repo = TenantRepository(test_session)
 
         tenant = await repo.create_tenant(
-            name="Test Company",
-            slug="test-company",
-            description="A test company"
+            name="Test Company", slug="test-company", description="A test company"
         )
 
         assert tenant.id is not None
@@ -35,10 +33,7 @@ class TestTenantRepository:
         repo = TenantRepository(test_session)
 
         # Create tenant
-        created_tenant = await repo.create_tenant(
-            name="Slug Test",
-            slug="slug-test"
-        )
+        created_tenant = await repo.create_tenant(name="Slug Test", slug="slug-test")
 
         # Get by slug
         found_tenant = await repo.get_by_slug("slug-test")
@@ -91,7 +86,12 @@ class TestTenantRepository:
         # Check availability
         assert await repo.check_slug_availability("taken-slug") is False
         assert await repo.check_slug_availability("available-slug") is True
-        assert await repo.check_slug_availability("taken-slug", exclude_tenant_id=tenant.id) is True
+        assert (
+            await repo.check_slug_availability(
+                "taken-slug", exclude_tenant_id=tenant.id
+            )
+            is True
+        )
 
     @pytest.mark.asyncio
     async def test_update_limits(self, test_session) -> None:
@@ -101,9 +101,7 @@ class TestTenantRepository:
         tenant = await repo.create_tenant(name="Limits", slug="limits")
 
         updated_tenant = await repo.update_limits(
-            tenant.id,
-            max_projects=10,
-            max_storage_mb=1000
+            tenant.id, max_projects=10, max_storage_mb=1000
         )
 
         assert updated_tenant is not None
@@ -126,9 +124,7 @@ class TestUserRepository:
         repo = UserRepository(test_session, sample_tenant.id)
 
         user = await repo.create_user(
-            email="test@example.com",
-            username="testuser",
-            full_name="Test User"
+            email="test@example.com", username="testuser", full_name="Test User"
         )
 
         assert user.id is not None
@@ -146,8 +142,7 @@ class TestUserRepository:
 
         # Create user
         created_user = await repo.create_user(
-            email="email@example.com",
-            username="emailuser"
+            email="email@example.com", username="emailuser"
         )
 
         # Get by email
@@ -164,8 +159,7 @@ class TestUserRepository:
 
         # Create user
         created_user = await repo.create_user(
-            email="username@example.com",
-            username="uniqueuser"
+            email="username@example.com", username="uniqueuser"
         )
 
         # Get by username
@@ -186,7 +180,7 @@ class TestUserRepository:
             username="oauthuser",
             full_name="OAuth User",
             oauth_provider="google",
-            oauth_id="google_123456"
+            oauth_id="google_123456",
         )
 
         # Get by OAuth
@@ -241,10 +235,17 @@ class TestUserRepository:
         # Check availability
         assert await repo.check_email_availability("taken@example.com") is False
         assert await repo.check_email_availability("available@example.com") is True
-        assert await repo.check_email_availability("taken@example.com", exclude_user_id=user.id) is True
+        assert (
+            await repo.check_email_availability(
+                "taken@example.com", exclude_user_id=user.id
+            )
+            is True
+        )
 
     @pytest.mark.asyncio
-    async def test_check_username_availability(self, test_session, sample_tenant) -> None:
+    async def test_check_username_availability(
+        self, test_session, sample_tenant
+    ) -> None:
         """Test checking username availability."""
         repo = UserRepository(test_session, sample_tenant.id)
 
@@ -254,7 +255,10 @@ class TestUserRepository:
         # Check availability
         assert await repo.check_username_availability("takenuser") is False
         assert await repo.check_username_availability("availableuser") is True
-        assert await repo.check_username_availability("takenuser", exclude_user_id=user.id) is True
+        assert (
+            await repo.check_username_availability("takenuser", exclude_user_id=user.id)
+            is True
+        )
 
     @pytest.mark.asyncio
     async def test_check_oauth_availability(self, test_session, sample_tenant) -> None:
@@ -267,14 +271,19 @@ class TestUserRepository:
             username="oauthuser",
             full_name="OAuth User",
             oauth_provider="google",
-            oauth_id="google_123456"
+            oauth_id="google_123456",
         )
 
         # Check availability
         assert await repo.check_oauth_availability("google", "google_123456") is False
         assert await repo.check_oauth_availability("google", "google_789012") is True
         assert await repo.check_oauth_availability("github", "google_123456") is True
-        assert await repo.check_oauth_availability("google", "google_123456", exclude_user_id=oauth_user.id) is True
+        assert (
+            await repo.check_oauth_availability(
+                "google", "google_123456", exclude_user_id=oauth_user.id
+            )
+            is True
+        )
 
     @pytest.mark.asyncio
     async def test_link_unlink_oauth(self, test_session, sample_tenant) -> None:
@@ -302,10 +311,7 @@ class TestUserRepository:
         repo = UserRepository(test_session, sample_tenant.id)
 
         # Create user
-        user = await repo.create_user(
-            email="login@example.com",
-            username="loginuser"
-        )
+        user = await repo.create_user(email="login@example.com", username="loginuser")
 
         # Find by email
         found_by_email = await repo.find_user_for_login("login@example.com")
@@ -327,10 +333,14 @@ class TestUserRepository:
         repo = UserRepository(test_session, sample_tenant.id)
 
         # Create active user
-        active_user = await repo.create_user(email="active@example.com", username="active")
+        active_user = await repo.create_user(
+            email="active@example.com", username="active"
+        )
 
         # Create and deactivate user
-        inactive_user = await repo.create_user(email="inactive@example.com", username="inactive")
+        inactive_user = await repo.create_user(
+            email="inactive@example.com", username="inactive"
+        )
         await repo.deactivate_user(inactive_user.id)
 
         # Get active users
@@ -346,13 +356,13 @@ class TestUserRepository:
         repo = UserRepository(test_session, sample_tenant.id)
 
         # Create regular user
-        regular_user = await repo.create_user(email="regular@example.com", username="regular")
+        regular_user = await repo.create_user(
+            email="regular@example.com", username="regular"
+        )
 
         # Create superuser
         superuser = await repo.create_user(
-            email="super@example.com",
-            username="super",
-            is_superuser=True
+            email="super@example.com", username="super", is_superuser=True
         )
 
         # Get superusers
@@ -368,9 +378,15 @@ class TestUserRepository:
         repo = UserRepository(test_session, sample_tenant.id)
 
         # Create users
-        await repo.create_user(email="john.doe@example.com", username="johndoe", full_name="John Doe")
-        await repo.create_user(email="jane.smith@example.com", username="janesmith", full_name="Jane Smith")
-        await repo.create_user(email="bob.jones@example.com", username="bobjones", full_name="Bob Jones")
+        await repo.create_user(
+            email="john.doe@example.com", username="johndoe", full_name="John Doe"
+        )
+        await repo.create_user(
+            email="jane.smith@example.com", username="janesmith", full_name="Jane Smith"
+        )
+        await repo.create_user(
+            email="bob.jones@example.com", username="bobjones", full_name="Bob Jones"
+        )
 
         # Search by first name
         john_results = await repo.search_users("John")
@@ -392,21 +408,29 @@ class TestUserRepository:
         repo = UserRepository(test_session, sample_tenant.id)
 
         # Create users with different statuses
-        await repo.create_user(email="active1@example.com", username="active1", is_active=True)
-        await repo.create_user(email="active2@example.com", username="active2", is_active=True)
+        await repo.create_user(
+            email="active1@example.com", username="active1", is_active=True
+        )
+        await repo.create_user(
+            email="active2@example.com", username="active2", is_active=True
+        )
 
-        inactive_user = await repo.create_user(email="inactive@example.com", username="inactive")
+        inactive_user = await repo.create_user(
+            email="inactive@example.com", username="inactive"
+        )
         await repo.deactivate_user(inactive_user.id)
 
-        await repo.create_user(email="super@example.com", username="super", is_superuser=True)
+        await repo.create_user(
+            email="super@example.com", username="super", is_superuser=True
+        )
 
         # Get counts
         counts = await repo.get_user_count_by_status()
 
-        assert counts['active'] >= 2  # At least 2 active users
-        assert counts['inactive'] >= 1  # At least 1 inactive user
-        assert counts['superusers'] >= 1  # At least 1 superuser
-        assert counts['total'] >= 4  # At least 4 total users
+        assert counts["active"] >= 2  # At least 2 active users
+        assert counts["inactive"] >= 1  # At least 1 inactive user
+        assert counts["superusers"] >= 1  # At least 1 superuser
+        assert counts["total"] >= 4  # At least 4 total users
 
 
 class TestRepositorySoftDelete:
@@ -443,7 +467,9 @@ class TestRepositorySoftDelete:
         repo = UserRepository(test_session, sample_tenant.id)
 
         # Create user
-        user = await repo.create_user(email="harddelete@example.com", username="harddeleteuser")
+        user = await repo.create_user(
+            email="harddelete@example.com", username="harddeleteuser"
+        )
         user_id = user.id
 
         # Hard delete

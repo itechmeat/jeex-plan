@@ -1,14 +1,19 @@
-"""
-Tenant model for multi-tenancy support.
-"""
+"""Tenant model for multi-tenancy support."""
+
+from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, Integer, String, Text
+from sqlalchemy import Boolean, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from .project import Project
+    from .user import User
 
 
 class Tenant(Base, TimestampMixin):
@@ -16,16 +21,20 @@ class Tenant(Base, TimestampMixin):
 
     __tablename__ = "tenants"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    name = Column(String(255), nullable=False)
-    slug = Column(String(100), nullable=False, unique=True, index=True)
-    description = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Configuration
-    max_projects = Column(Integer, nullable=True)  # None = unlimited
-    max_storage_mb = Column(Integer, nullable=True)  # None = unlimited
+    max_projects: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_storage_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Relationships
-    users = relationship("User", back_populates="tenant")
-    projects = relationship("Project", back_populates="tenant")
+    users: Mapped[list[User]] = relationship("User", back_populates="tenant")
+    projects: Mapped[list[Project]] = relationship("Project", back_populates="tenant")
