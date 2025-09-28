@@ -353,11 +353,20 @@ async def generate_progress_stream(
         except HTTPException:
             raise
         except (ValueError, KeyError, TypeError) as e:
-            logger.error("Business analysis validation error", error=str(e), correlation_id=context.correlation_id)
+            logger.error(
+                "Business analysis validation error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': f'Business analysis validation failed: {e!s}', 'correlation_id': context.correlation_id})}\n\n"
             return
         except Exception as e:
-            logger.error("Business analysis unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            logger.error(
+                "Business analysis unexpected error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+                exc_info=True,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 1, 'message': 'Business analysis failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 
@@ -383,11 +392,20 @@ async def generate_progress_stream(
         except HTTPException:
             raise
         except (ValueError, KeyError, TypeError) as e:
-            logger.error("Engineering standards validation error", error=str(e), correlation_id=context.correlation_id)
+            logger.error(
+                "Engineering standards validation error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': f'Engineering standards validation failed: {e!s}', 'correlation_id': context.correlation_id})}\n\n"
             return
         except Exception as e:
-            logger.error("Engineering standards unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            logger.error(
+                "Engineering standards unexpected error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+                exc_info=True,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 2, 'message': 'Engineering standards failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 
@@ -407,10 +425,19 @@ async def generate_progress_stream(
         except HTTPException:
             raise
         except (ValueError, KeyError, TypeError) as e:
-            logger.error("Architecture design validation error", error=str(e), correlation_id=context.correlation_id)
+            logger.error(
+                "Architecture design validation error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': f'Architecture design validation failed: {e!s}', 'correlation_id': context.correlation_id})}\n\n"
         except Exception as e:
-            logger.error("Architecture design unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            logger.error(
+                "Architecture design unexpected error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+                exc_info=True,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 3, 'message': 'Architecture design failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 
@@ -431,11 +458,20 @@ async def generate_progress_stream(
         except HTTPException:
             raise
         except (ValueError, KeyError, TypeError) as e:
-            logger.error("Implementation planning validation error", error=str(e), correlation_id=context.correlation_id)
+            logger.error(
+                "Implementation planning validation error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': f'Implementation planning validation failed: {e!s}', 'correlation_id': context.correlation_id})}\n\n"
             return
         except Exception as e:
-            logger.error("Implementation planning unexpected error", error=str(e), correlation_id=context.correlation_id, exc_info=True)
+            logger.error(
+                "Implementation planning unexpected error",
+                error=str(e),
+                correlation_id=context.correlation_id,
+                exc_info=True,
+            )
             yield f"data: {json.dumps({'type': 'step_error', 'step': 4, 'message': 'Implementation planning failed due to system error', 'correlation_id': context.correlation_id})}\n\n"
             return
 

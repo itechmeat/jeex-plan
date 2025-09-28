@@ -7,7 +7,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import redis.asyncio as redis
 from redis.asyncio import ConnectionError as RedisConnectionError
@@ -407,7 +407,9 @@ class StreamingService:
 
             status_data = await redis_client.get(cache_key)
             if status_data:
-                return json.loads(status_data)
+                parsed = json.loads(status_data)
+                if isinstance(parsed, dict):
+                    return cast(dict[str, Any], parsed)
 
             return {"project_id": project_id, "status": "unknown", "last_updated": None}
 

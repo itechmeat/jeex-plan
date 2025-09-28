@@ -1,0 +1,48 @@
+{
+  // CLI-specific configuration for markdownlint-cli2
+  // Handles file selection, ignoring, and CLI behavior
+
+  // Configuration file to extend
+  "config": ".markdownlint.jsonc",
+
+  // Files and directories to ignore
+  "ignores": [
+    "node_modules/**",
+    "**/node_modules/**",
+    "frontend/node_modules/**",
+    "backend/**",
+    "docs/node_modules/**",
+    ".git/**",
+    "**/.git/**",
+    "**/.next/**",
+    "**/.nuxt/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.coverage/**",
+    "**/.pytest_cache/**",
+    "**/__pycache__/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/.env*",
+    "**/*.log",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/.vscode/**",
+    "**/.idea/**",
+    "**/vendor/**",
+    "**/.vendor/**",
+    "**/tmp/**",
+    "**/temp/**",
+    "**/.tmp/**",
+    "**/.temp/**"
+  ],
+
+  // Only process markdown files in project directories
+  "globs": [
+    "*.md",
+    "docs/**/*.md",
+    "frontend/**/*.md",
+    ".github/**/*.md"
+  ]
+}

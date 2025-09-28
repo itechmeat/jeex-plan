@@ -31,7 +31,7 @@ class TestRBACModels:
             name="Test Tenant",
             slug=f"test-rbac-tenant-{uuid.uuid4()}",
             description="Test tenant for RBAC",
-            is_active=True
+            is_active=True,
         )
         async_db.add(tenant)
         await async_db.commit()
@@ -47,7 +47,7 @@ class TestRBACModels:
             username="rbacuser",
             full_name="RBAC Test User",
             hashed_password="hashed_password",
-            is_active=True
+            is_active=True,
         )
         async_db.add(user)
         await async_db.commit()
@@ -62,7 +62,7 @@ class TestRBACModels:
             name="Test Project",
             description="Test project for RBAC",
             status=ProjectStatus.DRAFT,
-            owner_id=test_user.id
+            owner_id=test_user.id,
         )
         async_db.add(project)
         await async_db.commit()
@@ -78,7 +78,7 @@ class TestRBACModels:
             display_name="Test Role",
             description="Test role for testing",
             is_system=False,
-            is_active=True
+            is_active=True,
         )
 
         async_db.add(role)
@@ -100,7 +100,7 @@ class TestRBACModels:
             description="Test permission for testing",
             resource_type="test",
             action="read",
-            is_system=False
+            is_system=False,
         )
 
         async_db.add(permission)
@@ -113,7 +113,9 @@ class TestRBACModels:
         assert permission.action == "read"
 
     @pytest.mark.asyncio
-    async def test_role_permission_relationship(self, async_db: AsyncSession, test_tenant) -> None:
+    async def test_role_permission_relationship(
+        self, async_db: AsyncSession, test_tenant
+    ) -> None:
         """Test role-permission many-to-many relationship."""
         # Create role
         role = Role(
@@ -122,7 +124,7 @@ class TestRBACModels:
             display_name="Test Role",
             description="Test role",
             is_system=False,
-            is_active=True
+            is_active=True,
         )
         async_db.add(role)
 
@@ -134,7 +136,7 @@ class TestRBACModels:
             description="First permission",
             resource_type="test",
             action="read",
-            is_system=False
+            is_system=False,
         )
         perm2 = PermissionModel(
             tenant_id=test_tenant.id,
@@ -143,7 +145,7 @@ class TestRBACModels:
             description="Second permission",
             resource_type="test",
             action="write",
-            is_system=False
+            is_system=False,
         )
 
         async_db.add_all([perm1, perm2])
@@ -162,7 +164,9 @@ class TestRBACModels:
         assert "PERM2" in permission_names
 
     @pytest.mark.asyncio
-    async def test_project_member_creation(self, async_db: AsyncSession, test_tenant, test_user, test_project) -> None:
+    async def test_project_member_creation(
+        self, async_db: AsyncSession, test_tenant, test_user, test_project
+    ) -> None:
         """Test project member creation."""
         # Create role
         role = Role(
@@ -171,7 +175,7 @@ class TestRBACModels:
             display_name="Member Role",
             description="Member role",
             is_system=False,
-            is_active=True
+            is_active=True,
         )
         async_db.add(role)
         await async_db.commit()
@@ -184,7 +188,7 @@ class TestRBACModels:
             user_id=test_user.id,
             role_id=role.id,
             invited_by_id=test_user.id,
-            is_active=True
+            is_active=True,
         )
 
         async_db.add(member)
@@ -213,7 +217,7 @@ class TestRBACService:
             name="RBAC Service Test Tenant",
             slug=f"rbac-service-test-{uuid.uuid4()}",
             description="Test tenant for RBAC service",
-            is_active=True
+            is_active=True,
         )
         async_db.add(tenant)
         await async_db.commit()
@@ -231,7 +235,7 @@ class TestRBACService:
                 username=f"user{i}",
                 full_name=f"User {i}",
                 hashed_password="hashed_password",
-                is_active=True
+                is_active=True,
             )
             async_db.add(user)
             users.append(user)
@@ -249,7 +253,7 @@ class TestRBACService:
             name="RBAC Test Project",
             description="Test project for RBAC service",
             status=ProjectStatus.DRAFT,
-            owner_id=test_users[0].id
+            owner_id=test_users[0].id,
         )
         async_db.add(project)
         await async_db.commit()
@@ -257,7 +261,9 @@ class TestRBACService:
         return project
 
     @pytest.mark.asyncio
-    async def test_initialize_default_roles_and_permissions(self, rbac_service, test_tenant) -> None:
+    async def test_initialize_default_roles_and_permissions(
+        self, rbac_service, test_tenant
+    ) -> None:
         """Test initialization of default roles and permissions."""
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
 
@@ -284,7 +290,9 @@ class TestRBACService:
         assert len(editor_role.permissions) > len(viewer_role.permissions)
 
     @pytest.mark.asyncio
-    async def test_add_project_member(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_add_project_member(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test adding a user to a project with a role."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -294,7 +302,7 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         assert member is not None
@@ -303,7 +311,9 @@ class TestRBACService:
         assert member.is_active is True
 
     @pytest.mark.asyncio
-    async def test_add_project_member_duplicate(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_add_project_member_duplicate(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test adding the same user twice to a project."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -313,7 +323,7 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Try to add same user again
@@ -322,28 +332,32 @@ class TestRBACService:
                 project_id=test_project.id,
                 user_id=test_users[1].id,
                 role_name="VIEWER",
-                invited_by_id=test_users[0].id
+                invited_by_id=test_users[0].id,
             )
 
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
         assert "already a member" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_add_project_member_invalid_role(self, rbac_service, test_users, test_project) -> None:
+    async def test_add_project_member_invalid_role(
+        self, rbac_service, test_users, test_project
+    ) -> None:
         """Test adding member with invalid role."""
         with pytest.raises(HTTPException) as exc_info:
             await rbac_service.add_project_member(
                 project_id=test_project.id,
                 user_id=test_users[1].id,
                 role_name="INVALID_ROLE",
-                invited_by_id=test_users[0].id
+                invited_by_id=test_users[0].id,
             )
 
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
         assert "Role 'INVALID_ROLE' not found" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_get_user_permissions(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_get_user_permissions(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test getting user permissions for a project."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -353,13 +367,12 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Get user permissions
         permissions = await rbac_service.get_user_permissions(
-            user_id=test_users[1].id,
-            project_id=test_project.id
+            user_id=test_users[1].id, project_id=test_project.id
         )
 
         assert len(permissions) > 0
@@ -372,7 +385,9 @@ class TestRBACService:
         assert Permission.PROJECT_ADMIN not in permissions
 
     @pytest.mark.asyncio
-    async def test_check_permission(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_check_permission(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test checking specific permission for user."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -382,14 +397,14 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="VIEWER",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Check read permission (should have)
         has_read = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_READ
+            required_permission=Permission.PROJECT_READ,
         )
         assert has_read is True
 
@@ -397,7 +412,7 @@ class TestRBACService:
         has_write = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_WRITE
+            required_permission=Permission.PROJECT_WRITE,
         )
         assert has_write is False
 
@@ -405,12 +420,14 @@ class TestRBACService:
         has_admin = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_ADMIN
+            required_permission=Permission.PROJECT_ADMIN,
         )
         assert has_admin is False
 
     @pytest.mark.asyncio
-    async def test_update_member_role(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_update_member_role(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test updating member's role in project."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -420,22 +437,20 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="VIEWER",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Verify initial permissions
         has_write_before = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_WRITE
+            required_permission=Permission.PROJECT_WRITE,
         )
         assert has_write_before is False
 
         # Update to editor role
         updated_member = await rbac_service.update_member_role(
-            project_id=test_project.id,
-            user_id=test_users[1].id,
-            new_role_name="EDITOR"
+            project_id=test_project.id, user_id=test_users[1].id, new_role_name="EDITOR"
         )
 
         assert updated_member is not None
@@ -444,12 +459,14 @@ class TestRBACService:
         has_write_after = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_WRITE
+            required_permission=Permission.PROJECT_WRITE,
         )
         assert has_write_after is True
 
     @pytest.mark.asyncio
-    async def test_remove_project_member(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_remove_project_member(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test removing user from project."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -459,21 +476,20 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Verify user has permissions
         has_permission_before = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_READ
+            required_permission=Permission.PROJECT_READ,
         )
         assert has_permission_before is True
 
         # Remove user from project
         success = await rbac_service.remove_project_member(
-            project_id=test_project.id,
-            user_id=test_users[1].id
+            project_id=test_project.id, user_id=test_users[1].id
         )
         assert success is True
 
@@ -481,24 +497,27 @@ class TestRBACService:
         has_permission_after = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_READ
+            required_permission=Permission.PROJECT_READ,
         )
         assert has_permission_after is False
 
     @pytest.mark.asyncio
-    async def test_remove_nonexistent_member(self, rbac_service, test_project, test_users) -> None:
+    async def test_remove_nonexistent_member(
+        self, rbac_service, test_project, test_users
+    ) -> None:
         """Test removing user who is not a project member."""
         with pytest.raises(HTTPException) as exc_info:
             await rbac_service.remove_project_member(
-                project_id=test_project.id,
-                user_id=test_users[1].id
+                project_id=test_project.id, user_id=test_users[1].id
             )
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert "not a member" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_get_project_members(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_get_project_members(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test getting all project members."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -508,14 +527,14 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         await rbac_service.add_project_member(
             project_id=test_project.id,
             user_id=test_users[2].id,
             role_name="VIEWER",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Get project members
@@ -534,7 +553,9 @@ class TestRBACService:
         assert "invited_by_id" in member_data
 
     @pytest.mark.asyncio
-    async def test_get_user_projects(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_get_user_projects(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test getting all projects for a user."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -544,7 +565,7 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Get user's projects
@@ -561,7 +582,9 @@ class TestRBACService:
         assert project_data["project"]["name"] == test_project.name
 
     @pytest.mark.asyncio
-    async def test_is_project_owner(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_is_project_owner(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test checking if user is project owner."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -571,13 +594,12 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="OWNER",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Check if user is owner
         is_owner = await rbac_service.is_project_owner(
-            user_id=test_users[1].id,
-            project_id=test_project.id
+            user_id=test_users[1].id, project_id=test_project.id
         )
         assert is_owner is True
 
@@ -586,18 +608,19 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[2].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         # Check if editor is owner (should be false)
         is_editor_owner = await rbac_service.is_project_owner(
-            user_id=test_users[2].id,
-            project_id=test_project.id
+            user_id=test_users[2].id, project_id=test_project.id
         )
         assert is_editor_owner is False
 
     @pytest.mark.asyncio
-    async def test_can_manage_project(self, rbac_service, test_tenant, test_users, test_project) -> None:
+    async def test_can_manage_project(
+        self, rbac_service, test_tenant, test_users, test_project
+    ) -> None:
         """Test checking if user can manage project."""
         # Initialize default roles
         await rbac_service.initialize_default_roles_and_permissions(test_tenant.id)
@@ -607,12 +630,11 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[1].id,
             role_name="EDITOR",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         can_manage = await rbac_service.can_manage_project(
-            user_id=test_users[1].id,
-            project_id=test_project.id
+            user_id=test_users[1].id, project_id=test_project.id
         )
         assert can_manage is True
 
@@ -621,12 +643,11 @@ class TestRBACService:
             project_id=test_project.id,
             user_id=test_users[2].id,
             role_name="VIEWER",
-            invited_by_id=test_users[0].id
+            invited_by_id=test_users[0].id,
         )
 
         cannot_manage = await rbac_service.can_manage_project(
-            user_id=test_users[2].id,
-            project_id=test_project.id
+            user_id=test_users[2].id, project_id=test_project.id
         )
         assert cannot_manage is False
 
@@ -637,10 +658,19 @@ class TestPermissionEnums:
     def test_permission_enum_values(self) -> None:
         """Test that permission enum has expected values."""
         expected_permissions = [
-            "PROJECT_READ", "PROJECT_WRITE", "PROJECT_DELETE", "PROJECT_ADMIN",
-            "DOCUMENT_READ", "DOCUMENT_WRITE", "DOCUMENT_DELETE",
-            "AGENT_READ", "AGENT_WRITE", "AGENT_DELETE", "AGENT_EXECUTE",
-            "ANALYTICS_READ", "EXPORT_DOCUMENTS"
+            "PROJECT_READ",
+            "PROJECT_WRITE",
+            "PROJECT_DELETE",
+            "PROJECT_ADMIN",
+            "DOCUMENT_READ",
+            "DOCUMENT_WRITE",
+            "DOCUMENT_DELETE",
+            "AGENT_READ",
+            "AGENT_WRITE",
+            "AGENT_DELETE",
+            "AGENT_EXECUTE",
+            "ANALYTICS_READ",
+            "EXPORT_DOCUMENTS",
         ]
 
         for perm_name in expected_permissions:

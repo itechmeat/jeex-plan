@@ -1,0 +1,49 @@
+{
+  // Markdownlint configuration for JEEX Plan project
+  // Based on CodeRabbit recommendations and project standards
+
+
+  // Enable all default rules
+  "default": true,
+
+  // Disable problematic rules for this project
+  "MD013": false,  // Line length - we have long URLs and code examples
+  "MD033": false,  // Allow inline HTML for enhanced documentation
+  "MD041": false,  // First line doesn't need to be top-level heading (for templates)
+
+  // Configure specific rules
+  "MD003": {
+    "style": "atx"  // Use # style headers consistently
+  },
+  "MD007": {
+    "indent": 2     // Unordered list indentation
+  },
+  "MD009": {
+    "br_spaces": 2  // Allow 2 trailing spaces for line breaks
+  },
+  "MD012": {
+    "maximum": 2    // Allow up to 2 consecutive blank lines
+  },
+  "MD024": {
+    "allow_different_nesting": true  // Allow duplicate headers at different levels
+  },
+  "MD025": {
+    "front_matter_title": ""  // Don't require title in front matter
+  },
+  "MD029": {
+    "style": "ordered"  // Consistent ordered list numbering
+  },
+  "MD030": {
+    "ul_single": 1,  // Single space after list marker
+    "ul_multi": 1,
+    "ol_single": 1,
+    "ol_multi": 1
+  },
+  "MD040": true,   // Require language specification in fenced code blocks
+  "MD046": {
+    "style": "fenced"  // Prefer fenced code blocks over indented
+  },
+  "MD048": {
+    "style": "backtick"  // Use backticks for code fences
+  }
+}

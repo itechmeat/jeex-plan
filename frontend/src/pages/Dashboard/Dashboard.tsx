@@ -1,11 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/useAuth';
-import { useProjects } from '../../hooks/useProjects';
 import { Button } from '../../components/ui/Button/Button';
 import { Progress } from '../../components/ui/Progress/Progress';
+import { useAuth } from '../../contexts/useAuth';
+import { useProjects } from '../../hooks/useProjects';
 import { ProjectStatus } from '../../types/api';
-import styles from './Dashboard.module.scss';
+import styles from './Dashboard.module.css';
 
 const DEFAULT_PROJECTS_PAGE = 1;
 const DEFAULT_PROJECTS_PAGE_SIZE = 5;
@@ -81,13 +81,13 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className={styles.quickActions}>
             <Button
-              variant="primary"
-              size="lg"
+              variant='primary'
+              size='lg'
               onClick={() => navigate('/projects/new')}
             >
               Create New Project
             </Button>
-            <Button variant="outline" size="lg" onClick={() => navigate('/projects')}>
+            <Button variant='outline' size='lg' onClick={() => navigate('/projects')}>
               View All Projects
             </Button>
           </div>
@@ -131,7 +131,7 @@ export const Dashboard: React.FC = () => {
         <section className={styles.projectsSection}>
           <div className={styles.sectionHeader}>
             <h2>Recent Projects</h2>
-            <Button variant="ghost" onClick={() => navigate('/projects')}>
+            <Button variant='ghost' onClick={() => navigate('/projects')}>
               View All
             </Button>
           </div>
@@ -141,7 +141,7 @@ export const Dashboard: React.FC = () => {
               <div className={styles.emptyIcon}>📄</div>
               <h3>No projects yet</h3>
               <p>Create your first project to start generating documentation.</p>
-              <Button variant="primary" onClick={() => navigate('/projects/new')}>
+              <Button variant='primary' onClick={() => navigate('/projects/new')}>
                 Create Your First Project
               </Button>
             </div>
@@ -153,7 +153,7 @@ export const Dashboard: React.FC = () => {
                 return (
                   <button
                     key={project.id}
-                    type="button"
+                    type='button'
                     className={styles.projectCard}
                     onClick={() => navigate(`/projects/${project.id}`)}
                     aria-label={`Open project ${project.name}. Status: ${getStatusLabel(project.status)}.`}
@@ -173,9 +173,9 @@ export const Dashboard: React.FC = () => {
                       <div className={styles.progressSection}>
                         <Progress
                           value={progressValue}
-                          size="sm"
-                          variant="default"
-                          label="Processing..."
+                          size='sm'
+                          variant='default'
+                          label='Processing...'
                           showValue
                         />
                       </div>

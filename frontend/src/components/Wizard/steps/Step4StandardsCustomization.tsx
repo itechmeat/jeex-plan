@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { WizardStepProps } from '../Wizard';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  StandardsCustomization,
   DocumentationFormat,
   isStandardsCustomization,
+  StandardsCustomization,
 } from '../../../types/api';
-import styles from './WizardSteps.module.scss';
+import { WizardStepProps } from '../Wizard';
+import styles from './WizardSteps.module.css';
 
 const codingStandardsOptions = [
   { id: 'eslint', name: 'ESLint', description: 'JavaScript/TypeScript linting rules' },
@@ -239,7 +239,7 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             {codingStandardsOptions.map(({ id, name, description }) => (
               <label key={id} className={styles.checkboxItem}>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={formData.codingStandards.includes(id)}
                   onChange={() => handleCodingStandardToggle(id)}
                 />
@@ -251,7 +251,7 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.codingStandards && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.codingStandards}
             </span>
           )}
@@ -267,8 +267,8 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             {documentationFormats.map(({ format, name, description }) => (
               <label key={format} className={styles.optionItem}>
                 <input
-                  type="radio"
-                  name="documentationFormat"
+                  type='radio'
+                  name='documentationFormat'
                   value={format}
                   checked={formData.documentationFormat === format}
                   onChange={() => handleDocumentationFormatChange(format)}
@@ -281,7 +281,7 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.documentationFormat && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.documentationFormat}
             </span>
           )}
@@ -297,7 +297,7 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             {reviewProcessOptions.map(({ id, name, description }) => (
               <label key={id} className={styles.checkboxItem}>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={formData.reviewProcesses.includes(id)}
                   onChange={() => handleReviewProcessToggle(id)}
                 />
@@ -309,7 +309,7 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.reviewProcesses && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.reviewProcesses}
             </span>
           )}
@@ -325,7 +325,7 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             {qualityGateOptions.map(({ id, name, description }) => (
               <label key={id} className={styles.checkboxItem}>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={formData.qualityGates.includes(id)}
                   onChange={() => handleQualityGateToggle(id)}
                 />
@@ -337,7 +337,7 @@ export const Step4StandardsCustomization: React.FC<WizardStepProps> = ({
             ))}
           </div>
           {errors.qualityGates && (
-            <span className={styles.error} role="alert">
+            <span className={styles.error} role='alert'>
               {errors.qualityGates}
             </span>
           )}

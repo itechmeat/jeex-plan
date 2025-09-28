@@ -67,11 +67,13 @@
 ## Dependencies
 
 **Incoming**:
+
 - [Epic 01.1.1](01-infrastructure.md#011) — Docker infrastructure для Qdrant deployment
 - [Epic 01.4.3](01-infrastructure.md#014) — Redis для caching search results
 - [Epic 02.3.3](02-authentication.md#023) — Tenant isolation middleware
 
 **Outgoing**:
+
 - Enables [Epic 04.2.1](04-agent-orchestration.md#042) — Agents need context retrieval
 - Enables [Epic 05.2.2](05-document-generation.md#052) — Document generation needs previous context
 - Enables [Epic 08.1.1](08-quality-assurance.md#081) — QA needs semantic consistency checks
@@ -90,9 +92,9 @@
 
 ## Acceptance Evidence
 
-- Multi-tenant collection создана с proper payload schema
-- Search queries возвращают только tenant/project-specific results
-- Embedding pipeline обрабатывает документы без errors
-- Search latency < 200ms для typical project context queries
-- Automated tests подтверждают tenant isolation
-- Vector index health checks проходят successfully
+- Multi-tenant collection created with proper payload schema
+- Search queries return only tenant/project-specific results
+- Embedding pipeline processes documents without errors
+- Search latency < 200ms for typical project context queries
+- Automated tests confirm tenant isolation
+- Vector index health checks pass successfully

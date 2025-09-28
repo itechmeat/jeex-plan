@@ -1,0 +1,63 @@
+[sqlfluff]
+# SQLFluff configuration for JEEX Plan project
+# PostgreSQL dialect with Jinja templating support
+
+dialect = postgres
+templater = jinja
+sql_file_exts = .sql,.sql.j2,.ddl,.dml
+
+# Exclude specific directories and files
+exclude_rules = LT05
+warnings = LT01, LT04
+
+[sqlfluff:indentation]
+# Indentation configuration
+indented_joins = false
+indented_using_on = true
+indented_ctes = false
+indented_cases = true
+template_blocks_indent = false
+tab_space_size = 2
+indent_unit = space
+
+[sqlfluff:layout]
+# Layout configuration for better readability
+type = select_statement
+
+[sqlfluff:layout:type:select_statement]
+line_position = leading
+
+[sqlfluff:templater]
+unwrap_wrapped_queries = true
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = false
+
+[sqlfluff:rules]
+# Allow ambiguous SELECT statements without explicit DISTINCT
+allow_scalar = true
+group_by_and_order_by_style = implicit
+
+[sqlfluff:rules:capitalisation.keywords]
+# Enforce uppercase SQL keywords
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.identifiers]
+# Keep identifiers as they are (case-sensitive in PostgreSQL)
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+# Uppercase function names
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.literals]
+# Uppercase Boolean and null literals
+capitalisation_policy = upper
+
+[sqlfluff:rules:convention.select_trailing_comma]
+# Allow trailing commas in SELECT statements
+select_clause_trailing_comma = forbid
+
+[sqlfluff:rules:layout.spacing]
+# Single space after commas and operators
+single_space = true

@@ -108,7 +108,7 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
     async def get_execution_stats(self, project_id: UUID) -> dict[str, Any]:
         """Get execution statistics for a project."""
         # Count by status
-        stmt = (
+        status_stmt = (
             select(self.model.status, func.count(self.model.id).label("count"))
             .where(
                 and_(
@@ -120,11 +120,16 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
             .group_by(self.model.status)
         )
 
-        result = await self.session.execute(stmt)
-        status_counts = {row.status: row.count for row in result}
+        status_result = await self.session.execute(status_stmt)
+        status_counts = {
+            row.status.value
+            if isinstance(row.status, ExecutionStatus)
+            else row.status: row.count
+            for row in status_result
+        }
 
         # Count by agent type
-        stmt = (
+        agent_stmt = (
             select(self.model.agent_type, func.count(self.model.id).label("count"))
             .where(
                 and_(
@@ -136,8 +141,13 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
             .group_by(self.model.agent_type)
         )
 
-        result = await self.session.execute(stmt)
-        agent_counts = {row.agent_type: row.count for row in result}
+        agent_result = await self.session.execute(agent_stmt)
+        agent_counts = {
+            row.agent_type.value
+            if isinstance(row.agent_type, AgentType)
+            else row.agent_type: row.count
+            for row in agent_result
+        }
 
         # Average execution time for completed executions
         stmt = select(

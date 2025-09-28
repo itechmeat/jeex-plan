@@ -1,26 +1,26 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wizard, WizardStep } from '../Wizard/Wizard';
+import { useCreateProject } from '../../hooks/useProjects';
+import { handleApiError } from '../../services/api';
+import {
+  ArchitectureStyle,
+  CreateProjectRequest,
+  DevelopmentMethodology,
+  DocumentationFormat,
+  isArchitecturePreferences,
+  isPlanningConfiguration,
+  isStandardsCustomization,
+  isWizardStep1Data,
+  ScalabilityLevel,
+  TimeUnit,
+  WizardData,
+} from '../../types/api';
 import { Step1ProjectDescription } from '../Wizard/steps/Step1ProjectDescription';
 import { Step2ArchitecturePreferences } from '../Wizard/steps/Step2ArchitecturePreferences';
 import { Step3PlanningConfiguration } from '../Wizard/steps/Step3PlanningConfiguration';
 import { Step4StandardsCustomization } from '../Wizard/steps/Step4StandardsCustomization';
-import { useCreateProject } from '../../hooks/useProjects';
-import {
-  CreateProjectRequest,
-  WizardData,
-  isWizardStep1Data,
-  isArchitecturePreferences,
-  isPlanningConfiguration,
-  isStandardsCustomization,
-  ArchitectureStyle,
-  ScalabilityLevel,
-  DevelopmentMethodology,
-  DocumentationFormat,
-  TimeUnit,
-} from '../../types/api';
-import { handleApiError } from '../../services/api';
-import styles from './ProjectWizard.module.scss';
+import { Wizard, WizardStep } from '../Wizard/Wizard';
+import styles from './ProjectWizard.module.css';
 
 export interface ProjectWizardProps {
   onCancel?: () => void;

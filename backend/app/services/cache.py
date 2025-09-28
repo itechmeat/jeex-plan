@@ -47,7 +47,7 @@ def _cache_json_default(value: Any) -> Any:
         return [_cache_json_default(item) for item in value]
 
     # For types that cannot be deterministically serialized, raise TypeError
-    if hasattr(value, '__dict__') or callable(value):
+    if hasattr(value, "__dict__") or callable(value):
         typename = type(value).__name__
         raise TypeError(f"Cannot deterministically serialize type {typename}")
 
@@ -73,9 +73,14 @@ class CacheKey:
             "filters": sorted(filters.items()),
             "limit": limit,
         }
-        return "search:" + hashlib.md5(
-            json.dumps(key_data, sort_keys=True, default=_cache_json_default).encode()
-        ).hexdigest()
+        return (
+            "search:"
+            + hashlib.md5(
+                json.dumps(
+                    key_data, sort_keys=True, default=_cache_json_default
+                ).encode()
+            ).hexdigest()
+        )
 
     @staticmethod
     def generate_embedding_key(text: str, model: str, normalization: str) -> str:
@@ -440,9 +445,7 @@ class VectorCache(LoggerMixin):
             return deleted_count
 
         except RedisError as exc:
-            self.logger.exception(
-                "Project cache invalidation failed", error=str(exc)
-            )
+            self.logger.exception("Project cache invalidation failed", error=str(exc))
             return 0
 
     async def _add_to_tenant_index(self, tenant_id: str, cache_key: str) -> bool:

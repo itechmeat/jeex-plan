@@ -9,7 +9,7 @@ model: sonnet
 
 Manage todos in a `todos.md` file at the root of your current project directory: **$ARGUMENTS**
 
-## Usage Examples:
+## Usage Examples
 
 - `/user:todo add "Fix navigation bug"`
 - `/user:todo add "Fix navigation bug" [date/time/"tomorrow"/"next week"]` an optional 2nd parameter to set a due date
@@ -18,7 +18,7 @@ Manage todos in a `todos.md` file at the root of your current project directory:
 - `/user:todo list`
 - `/user:todo undo 1`
 
-## Instructions:
+## Instructions
 
 You are a todo manager for the current project. When this command is invoked:
 
@@ -35,7 +35,7 @@ You are a todo manager for the current project. When this command is invoked:
    - `past due` - Show all of the tasks which are past due and still active
    - `next` - Shows the next active task in the list, this should respect Due dates, if there are any. If not, just show the first todo in the Active list
 
-## Todo Format:
+## Todo Format
 
 Use this markdown format in todos.md:
 
@@ -53,7 +53,7 @@ Use this markdown format in todos.md:
 - [x] Another completed task | Due: MM-DD-YYYY (conditionally include HH:MM AM/PM, if specified) | Done: MM-DD-YYYY (conditionally include HH:MM AM/PM, if specified)
 ```
 
-## Behavior:
+## Behavior
 
 - Number todos when displaying (1, 2, 3...)
 - Keep completed todos in a separate section

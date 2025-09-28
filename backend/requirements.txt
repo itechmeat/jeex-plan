@@ -62,7 +62,8 @@ black==25.9.0
 isort==6.0.1
 flake8==7.3.0
 mypy==1.18.2
-ruff==0.8.3
+ruff==0.13.2
+sqlfluff==3.4.2
 
 # Utilities
 python-dotenv==1.1.1

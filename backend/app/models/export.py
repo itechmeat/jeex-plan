@@ -1,24 +1,21 @@
-"""
-Export tracking model with multi-tenant support.
-Handles ZIP archive generation and download management.
-"""
+"""Export tracking model with multi-tenant support."""
 
+from __future__ import annotations
+
+import uuid
 from datetime import UTC, datetime, timedelta
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import (
-    JSON,
-    Column,
-    DateTime,
-    ForeignKeyConstraint,
-    Index,
-    String,
-    Text,
-)
+from sqlalchemy import JSON, DateTime, ForeignKeyConstraint, Index, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
+
+if TYPE_CHECKING:
+    from .project import Project
 
 
 class ExportStatus(str, Enum):
@@ -37,47 +34,49 @@ class Export(BaseModel):
     __tablename__ = "exports"
 
     # Export info
-    status = Column(
-        String(50), default=ExportStatus.PENDING.value, nullable=False
+    status: Mapped[ExportStatus] = mapped_column(
+        SQLEnum(ExportStatus, name="exportstatus", native_enum=False),
+        default=ExportStatus.PENDING,
+        nullable=False,
     )
-    file_path = Column(Text, nullable=True)
+    file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Export manifest (list of included documents)
-    manifest = Column(JSON, default=dict, nullable=False)
+    manifest: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     # Error information
-    error_message = Column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Expiration (default 24 hours)
-    expires_at = Column(
+    expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC) + timedelta(hours=24),
         nullable=False,
     )
 
     # Project relationship
-    project_id = Column(UUID(as_uuid=True), nullable=False)
-    project = relationship(
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    project: Mapped[Project] = relationship(
         "Project",
         back_populates="exports",
         primaryjoin=(
             "and_(Export.project_id==Project.id, Export.tenant_id==Project.tenant_id)"
         ),
-        foreign_keys=[project_id],
+        foreign_keys=lambda: [Export.project_id, Export.tenant_id],
     )
 
     # User who requested the export
-    requested_by = Column(UUID(as_uuid=True), nullable=False)
+    requested_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     @property
     def is_expired(self) -> bool:
         """Check if export has expired."""
-        return datetime.now(UTC) > self.expires_at
+        return bool(datetime.now(UTC) > self.expires_at)
 
     @property
     def is_downloadable(self) -> bool:
         """Check if export is ready for download."""
-        return (
+        return bool(
             self.status == ExportStatus.COMPLETED.value
             and not self.is_expired
             and self.file_path is not None

@@ -1,6 +1,6 @@
-# Техническая спецификация JEEX Plan
+# JEEX Plan Technical Specification
 
-Этот документ содержит детальные технические требования, API спецификации, схемы баз данных и конфигурации для реализации JEEX Plan. Все компоненты спроектированы с учетом мультитенантной архитектуры, масштабируемости и безопасности.
+This document contains detailed technical requirements, API specifications, database schemas, and configurations for implementing JEEX Plan. All components are designed with multi-tenant architecture, scalability, and security in mind.
 
 ## 1) Технический стек
 
@@ -31,7 +31,7 @@
 - **Framework:** React.js + Vite — быстрая разработка и hot reload, оптимизированная сборка для production
 - **Language:** TypeScript — статическая типизация для безопасности и maintainability кода
 - **UI Components:** RadixUI — доступные, композитные компоненты с полной кастомизацией стилей
-- **Styling:** CSS Modules (SCSS) — изолированные стили с поддержкой переменных и миксинов
+- **Styling:** CSS Modules с CSS Nesting — изолированные стили с поддержкой переменных и вложенных селекторов
 - **Development Port:** 5200 — настроенный через Vite configuration для локальной разработки
 - **Deployment:** Выполняется локально вне Docker окружения для удобства разработки и hot reload
 
@@ -43,24 +43,24 @@
 - **Reverse Proxy:** Nginx — TLS-терминация, компрессия, load balancing и passthrough для SSE
 - **Observability:** OpenTelemetry stack — распределенная трассировка, метрики и логи для мониторинга производительности
 
-#### Конфигурация портов:
+#### Port Configuration
 
-| Сервис | Порт | Описание |
-|--------|------|----------|
-| Frontend (локально) | 5200 | React + Vite development server |
+| Service | Port | Description |
+|---------|------|-------------|
+| Frontend (local) | 5200 | React + Vite development server |
 | API | 5210 | FastAPI backend |
 | PostgreSQL | 5220 | Primary database |
 | Qdrant | 5230 | Vector database |
-| Redis | 5240 | Cache и очереди |
-| Nginx | 80, 443 | Reverse proxy и TLS |
-| OpenTelemetry | 4317, 4318, 8888 | Телеметрия (gRPC, HTTP, metrics) |
-| HashiCorp Vault | 5250 | Управление секретами |
+| Redis | 5240 | Cache and queues |
+| Nginx | 80, 443 | Reverse proxy and TLS |
+| OpenTelemetry | 4317, 4318, 8888 | Telemetry (gRPC, HTTP, metrics) |
+| HashiCorp Vault | 5250 | Secrets management |
 
-#### Особенности развёртывания:
+#### Deployment Features
 
-- **Frontend:** Запускается локально через `pnpm run dev` для удобства разработки
-- **Backend:** Контейнеризирован через docker-compose для изоляции и воспроизводимости
-- **Nginx:** Проксирует frontend через `host.docker.internal:5200`
+- **Frontend:** Runs locally via `pnpm run dev` for development convenience
+- **Backend:** Containerized via docker-compose for isolation and reproducibility
+- **Nginx:** Proxies frontend through `host.docker.internal:5200`
 
 ### 1.4 Embedding Service
 
@@ -74,19 +74,19 @@
 
 Для обеспечения совместимости и доступа к последним возможностям требуются следующие минимальные версии:
 
-| Компонент   | Минимальная версия | Обоснование                                                 |
-| ----------- | ------------------ | ----------------------------------------------------------- |
-| FastAPI     | 0.116.2+           | Improved dependency injection, better async support         |
-| CrewAI      | 0.186.1+           | Enhanced multi-agent orchestration, memory management       |
-| Pydantic AI | 1.0.8+             | Stable API, advanced validation features                    |
-| PostgreSQL  | 18+                | Enhanced JSON/JSONB support, improved performance           |
-| Qdrant      | 1.15.4+            | Multi-tenancy optimizations, payload filtering improvements |
-| Redis       | 8.2+               | Improved memory efficiency, enhanced pub/sub                |
-| Tenacity    | 9.0+               | Robust retry mechanisms, circuit breaker patterns          |
-| OpenTelemetry | 1.27+            | FastAPI auto-instrumentation, distributed tracing          |
-| textstat    | 0.7.0+             | Document readability scoring (Flesch-Kincaid, etc.)        |
-| python-markdown | 3.7+           | Enhanced Markdown processing with Mermaid and table support |
-| Alembic     | 1.13+             | Database schema migrations with automatic downgrade support |
+| Component   | Minimum Version | Justification                                                 |
+| ----------- | ---------------- | ------------------------------------------------------------ |
+| FastAPI     | 0.116.2+         | Improved dependency injection, better async support         |
+| CrewAI      | 0.186.1+         | Enhanced multi-agent orchestration, memory management       |
+| Pydantic AI | 1.0.8+           | Stable API, advanced validation features                    |
+| PostgreSQL  | 18+              | Enhanced JSON/JSONB support, improved performance           |
+| Qdrant      | 1.15.4+          | Multi-tenancy optimizations, payload filtering improvements |
+| Redis       | 8.2+             | Improved memory efficiency, enhanced pub/sub                |
+| Tenacity    | 9.0+             | Robust retry mechanisms, circuit breaker patterns          |
+| OpenTelemetry | 1.27+          | FastAPI auto-instrumentation, distributed tracing          |
+| textstat    | 0.7.0+           | Document readability scoring (Flesch-Kincaid, etc.)        |
+| python-markdown | 3.7+          | Enhanced Markdown processing with Mermaid and table support |
+| Alembic     | 1.13+            | Database schema migrations with automatic downgrade support |
 
 ```mermaid
 graph TB
@@ -726,38 +726,38 @@ class ValidationRules:
 
 Стандартизированная структура экспортируемого архива следует лучшим практикам startup documentation и PRD (Product Requirements Document) методологии:
 
-```
+```text
 project-name/
-├── README.md                          # Project overview и quick start guide
-└── docs/                             # Основные документы проекта
+├── README.md                          # Project overview and quick start guide
+└── docs/                             # Main project documents
     ├── about.md                      # Project vision, goals, target audience (PRD style)
     ├── specs.md                      # Engineering standards, DoD, code guidelines
-    ├── architecture.md               # Technical architecture и design decisions
+    ├── architecture.md               # Technical architecture and design decisions
     └── plans/                        # Implementation planning
-        ├── overview.md               # High-level implementation strategy и roadmap
-        ├── 01-infrastructure.md      # Epic 1: Architecture setup с minimal functionality
-        ├── 02-authentication.md      # Epic 2: User management и OAuth2 integration
+        ├── overview.md               # High-level implementation strategy and roadmap
+        ├── 01-infrastructure.md      # Epic 1: Architecture setup with minimal functionality
+        ├── 02-authentication.md      # Epic 2: User management and OAuth2 integration
         ├── 03-content-system.md      # Epic 3: Core business logic (project-specific)
-        ├── 04-agents.md              # Epic 4: AI agents и document generation
+        ├── 04-agents.md              # Epic 4: AI agents and document generation
         ├── 05-optimization.md        # Epic 5: Performance, scaling, monitoring
         ├── [N-1]-[feature].md        # Additional feature epics based on project needs
-        └── [N]-testing.md            # Final Epic: Comprehensive testing и QA
+        └── [N]-testing.md            # Final Epic: Comprehensive testing and QA
 ```
 
-**Методология структуры документов:**
+**Document Structure Methodology:**
 
-- **about.md** — следует принципам Lean Startup PRD: problem statement, target market, value proposition, success metrics
-- **specs.md** — engineering standards документ объединяющий coding guidelines, review process, и quality gates, формируемый на основе описания проекта
-- **architecture.md** — technical design document в стиле Amazon's 6-page narrative: context, constraints, options, decision rationale, создаваемый с учетом установленных стандартов
-- **plans/** — Agile planning с incremental development approach: overview roadmap + variable количество эпиков для поэтапного наращивания функционала от минимальной архитектуры до полнофункционального продукта
+- **about.md** — follows Lean Startup PRD principles: problem statement, target market, value proposition, success metrics
+- **specs.md** — engineering standards document combining coding guidelines, review process, and quality gates, formed based on project description
+- **architecture.md** — technical design document in Amazon's 6-page narrative style: context, constraints, options, decision rationale, created considering established standards
+- **plans/** — Agile planning with incremental development approach: overview roadmap + variable number of epics for phased functionality growth from minimal architecture to full-featured product
 
-**Принципы планирования эпиков:**
+**Epic Planning Principles:**
 
-1. **Epic 1 (Infrastructure)** — всегда первый: setup архитектуры со всеми компонентами, но с минимальным функционалом (health checks, basic endpoints), реализуемый в соответствии с установленными стандартами
-2. **Epic 2-(N-2) (Feature Epics)** — поэтапное развитие по функциональным областям: authentication → core business logic → specific features, следующее архитектурным решениям
-3. **Epic N-1 (Optimization)** — производительность, мониторинг, scaling после основного функционала
-4. **Epic N (Testing)** — всегда последний: комплексное тестирование всего проекта, integration testing, load testing, security audit, UAT
-5. **Количество эпиков** — определяется сложностью проекта и может варьироваться от 4-5 до 12+ в зависимости от scope
+1. **Epic 1 (Infrastructure)** — always first: architecture setup with all components but minimal functionality (health checks, basic endpoints), implemented according to established standards
+2. **Epic 2-(N-2) (Feature Epics)** — phased development by functional areas: authentication → core business logic → specific features, following architectural decisions
+3. **Epic N-1 (Optimization)** — performance, monitoring, scaling after core functionality
+4. **Epic N (Testing)** — always last: comprehensive project testing, integration testing, load testing, security audit, UAT
+5. **Number of epics** — determined by project complexity and can vary from 4-5 to 12+ depending on scope
 
 ### 10.2 Document Quality Features
 
@@ -789,12 +789,12 @@ project-name/
 
 | Сервис     | Внешний порт | Внутренний порт | URL для доступа       |
 | ---------- | ------------ | --------------- | --------------------- |
-| Frontend   | 5200         | 5200            | http://localhost:5200 |
-| API        | 5210         | 8000            | http://localhost:5210 |
+| Frontend   | 5200         | 5200            | <http://localhost:5200> |
+| API        | 5210         | 8000            | <http://localhost:5210> |
 | PostgreSQL | 5220         | 5432            | localhost:5220        |
-| Qdrant     | 5230         | 6333            | http://localhost:5230 |
+| Qdrant     | 5230         | 6333            | <http://localhost:5230> |
 | Redis      | 5240         | 6379            | localhost:5240        |
-| Vault      | 5250         | 8200            | http://localhost:5250 |
+| Vault      | 5250         | 8200            | <http://localhost:5250> |
 
 **Преимущества схемы:**
 

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProjects } from '../../hooks/useProjects';
 import { Button } from '../../components/ui/Button/Button';
 import { Input } from '../../components/ui/Input/Input';
 import { Progress } from '../../components/ui/Progress/Progress';
+import { useProjects } from '../../hooks/useProjects';
 import { ProjectStatus } from '../../types/api';
-import styles from './Projects.module.scss';
+import styles from './Projects.module.css';
 
 export const Projects: React.FC = () => {
   const navigate = useNavigate();
@@ -57,14 +57,14 @@ export const Projects: React.FC = () => {
             <h1>Projects</h1>
             <p>Manage your documentation generation projects</p>
           </div>
-          <Button variant="primary" onClick={() => navigate('/projects/new')}>
+          <Button variant='primary' onClick={() => navigate('/projects/new')}>
             Create New Project
           </Button>
         </div>
 
         <div className={styles.filters}>
           <Input
-            placeholder="Search projects..."
+            placeholder='Search projects...'
             value={search}
             onChange={e => {
               setSearch(e.target.value);
@@ -89,7 +89,7 @@ export const Projects: React.FC = () => {
                 : 'Create your first project to start generating documentation.'}
             </p>
             {!search && (
-              <Button variant="primary" onClick={() => navigate('/projects/new')}>
+              <Button variant='primary' onClick={() => navigate('/projects/new')}>
                 Create Your First Project
               </Button>
             )}
@@ -129,9 +129,9 @@ export const Projects: React.FC = () => {
                       <div className={styles.progressSection}>
                         <Progress
                           value={progressValue}
-                          size="sm"
-                          variant="default"
-                          label="Processing..."
+                          size='sm'
+                          variant='default'
+                          label='Processing...'
                           showValue
                         />
                       </div>
@@ -151,7 +151,7 @@ export const Projects: React.FC = () => {
             {totalPages > 1 && (
               <div className={styles.pagination}>
                 <Button
-                  variant="outline"
+                  variant='outline'
                   disabled={page === 1}
                   onClick={() => setPage(page - 1)}
                 >
@@ -161,7 +161,7 @@ export const Projects: React.FC = () => {
                   Page {page} of {totalPages}
                 </span>
                 <Button
-                  variant="outline"
+                  variant='outline'
                   disabled={page === totalPages}
                   onClick={() => setPage(page + 1)}
                 >

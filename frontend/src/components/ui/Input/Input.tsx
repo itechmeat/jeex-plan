@@ -1,6 +1,6 @@
-import React from 'react';
 import classNames from 'classnames';
-import styles from './Input.module.scss';
+import React from 'react';
+import styles from './Input.module.css';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -89,7 +89,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {(error || helperText) && (
           <div className={styles.helperContainer}>
             {error && (
-              <span id={errorId} className={styles.error} role="alert">
+              <span id={errorId} className={styles.error} role='alert'>
                 {error}
               </span>
             )}

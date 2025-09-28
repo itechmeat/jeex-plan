@@ -26,17 +26,18 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
 
     Returns overall system status and detailed component health information.
     """
-    health_status = {
+    components: dict[str, Any] = {}
+    health_status: dict[str, Any] = {
         "status": "healthy",
         "timestamp": datetime.now(UTC).isoformat(),
         "version": "1.0.0",
-        "components": {},
+        "components": components,
         "checks": {},
     }
 
     # Database health check
     db_health = await DatabaseManager.health_check()
-    health_status["components"]["database"] = db_health
+    components["database"] = db_health
 
     if db_health["status"] != "healthy":
         health_status["status"] = "degraded"
@@ -45,14 +46,14 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     try:
         redis_adapter = RedisAdapter()
         redis_health = await redis_adapter.health_check()
-        health_status["components"]["redis"] = redis_health
+        components["redis"] = redis_health
 
         if redis_health["status"] != "healthy":
             health_status["status"] = "degraded"
 
     except (ConnectionError, TimeoutError) as e:
         logger.error("Redis connection failed", error=str(e))
-        health_status["components"]["redis"] = {
+        components["redis"] = {
             "status": "unhealthy",
             "message": f"Redis connection failed: {e!s}",
             "details": {"error": str(e)},
@@ -60,7 +61,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         health_status["status"] = "degraded"
     except Exception as e:
         logger.error("Redis health check failed", error=str(e), exc_info=True)
-        health_status["components"]["redis"] = {
+        components["redis"] = {
             "status": "unhealthy",
             "message": f"Redis connection failed: {e!s}",
             "details": {"error": str(e)},
@@ -71,14 +72,14 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     try:
         qdrant_adapter = QdrantAdapter()
         qdrant_health = await qdrant_adapter.health_check()
-        health_status["components"]["qdrant"] = qdrant_health
+        components["qdrant"] = qdrant_health
 
         if qdrant_health["status"] != "healthy":
             health_status["status"] = "degraded"
 
     except (ConnectionError, TimeoutError) as e:
         logger.error("Qdrant connection failed", error=str(e))
-        health_status["components"]["qdrant"] = {
+        components["qdrant"] = {
             "status": "unhealthy",
             "message": f"Qdrant connection failed: {e!s}",
             "details": {"error": str(e)},
@@ -86,7 +87,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         health_status["status"] = "degraded"
     except Exception as e:
         logger.error("Qdrant health check failed", error=str(e), exc_info=True)
-        health_status["components"]["qdrant"] = {
+        components["qdrant"] = {
             "status": "unhealthy",
             "message": f"Qdrant connection failed: {e!s}",
             "details": {"error": str(e)},
@@ -97,14 +98,14 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     if settings.VAULT_ADDR:
         try:
             vault_health = await _check_vault_health()
-            health_status["components"]["vault"] = vault_health
+            components["vault"] = vault_health
 
             if vault_health["status"] != "healthy":
                 health_status["status"] = "degraded"
 
         except (ConnectionError, TimeoutError) as e:
             logger.error("Vault connection failed", error=str(e))
-            health_status["components"]["vault"] = {
+            components["vault"] = {
                 "status": "unhealthy",
                 "message": f"Vault connection failed: {e!s}",
                 "details": {"error": str(e)},
@@ -112,7 +113,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
             health_status["status"] = "degraded"
         except Exception as e:
             logger.error("Vault health check failed", error=str(e), exc_info=True)
-            health_status["components"]["vault"] = {
+            components["vault"] = {
                 "status": "unhealthy",
                 "message": f"Vault connection failed: {e!s}",
                 "details": {"error": str(e)},
@@ -133,7 +134,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     # Determine overall status
     unhealthy_components = [
         name
-        for name, component in health_status["components"].items()
+        for name, component in components.items()
         if component["status"] == "unhealthy"
     ]
 
@@ -179,7 +180,9 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         logger.error("Database connection failed", error=str(e))
         raise HTTPException(status_code=503, detail="Database not ready")
     except Exception as e:
-        logger.error("Readiness check failed - database not ready", error=str(e), exc_info=True)
+        logger.error(
+            "Readiness check failed - database not ready", error=str(e), exc_info=True
+        )
         raise HTTPException(status_code=503, detail="Database not ready")
 
     return {

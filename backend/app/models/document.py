@@ -1,23 +1,20 @@
-"""
-Document model with multi-tenant support.
-"""
+"""Document model with multi-tenant support."""
 
+from __future__ import annotations
+
+import uuid
 from enum import Enum
+from typing import TYPE_CHECKING
 
-from sqlalchemy import (
-    Column,
-    ForeignKeyConstraint,
-    Integer,
-    String,
-    Text,
-)
-from sqlalchemy import (
-    Enum as SQLEnum,
-)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKeyConstraint, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
+
+if TYPE_CHECKING:
+    from .project import Project
 
 
 class DocumentType(str, Enum):
@@ -43,25 +40,29 @@ class Document(BaseModel):
 
     __tablename__ = "documents"
 
-    title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=True)
-    document_type = Column(
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    document_type: Mapped[DocumentType] = mapped_column(
         SQLEnum(DocumentType, name="documenttype"),
         nullable=False,
     )
-    status = Column(
+    status: Mapped[DocumentStatus] = mapped_column(
         SQLEnum(DocumentStatus, name="documentstatus"),
         default=DocumentStatus.PENDING,
         nullable=False,
     )
 
     # Generation metadata
-    generation_step = Column(Integer, default=1, nullable=False)  # 1-4 for wizard steps
-    generation_progress = Column(Integer, default=0, nullable=False)  # 0-100%
-    error_message = Column(Text, nullable=True)
+    generation_step: Mapped[int] = mapped_column(  # 1-4 for wizard steps
+        Integer, default=1, nullable=False
+    )
+    generation_progress: Mapped[int] = mapped_column(  # 0-100%
+        Integer, default=0, nullable=False
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Project relationship
-    project_id = Column(UUID(as_uuid=True), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -71,7 +72,7 @@ class Document(BaseModel):
         ),
     )
 
-    project = relationship("Project", back_populates="documents")
+    project: Mapped[Project] = relationship("Project", back_populates="documents")
 
     class Config:
         """Pydantic config."""

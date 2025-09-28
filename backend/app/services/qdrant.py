@@ -1,19 +1,21 @@
-"""
-Qdrant vector database service.
-Handles vector storage, search, and multi-tenant isolation.
-"""
+"""Qdrant vector database service with multi-tenant isolation."""
+
+from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from qdrant_client import QdrantClient
-from qdrant_client.http import models
 from qdrant_client.http.models import (
+    Condition,
     Distance,
     FieldCondition,
     Filter,
+    FilterSelector,
     HnswConfigDiff,
+    KeywordIndexParams,
+    KeywordIndexType,
     MatchValue,
     PointStruct,
     VectorParams,
@@ -66,9 +68,7 @@ class QdrantService:
             self._collection_initialized = True
 
         except Exception as exc:
-            logger.error(
-                "Failed to initialize Qdrant collection", error=str(exc)
-            )
+            logger.error("Failed to initialize Qdrant collection", error=str(exc))
             raise
 
     def _create_collection(self) -> None:
@@ -85,29 +85,28 @@ class QdrantService:
             ),
         )
 
-        # Create payload indexes for efficient filtering
-        self.client.create_payload_index(
-            collection_name=self.collection_name,
-            field_name="tenant_id",
-            field_schema=models.KeywordIndexParams(),
-        )
-        self.client.create_payload_index(
-            collection_name=self.collection_name,
-            field_name="project_id",
-            field_schema=models.KeywordIndexParams(),
-        )
-        self.client.create_payload_index(
-            collection_name=self.collection_name,
-            field_name="type",
-            field_schema=models.KeywordIndexParams(),
-        )
+        keyword_schema = KeywordIndexParams(type=KeywordIndexType.KEYWORD)
+        for field_name in ("tenant_id", "project_id", "type"):
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name=field_name,
+                field_schema=keyword_schema,
+            )
 
     def _create_tenant_filter(self, tenant_id: str, project_id: str) -> Filter:
         """Create filter for tenant and project isolation."""
         return Filter(
             must=[
-                FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
-                FieldCondition(key="project_id", match=MatchValue(value=project_id)),
+                cast(
+                    Condition,
+                    FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
+                ),
+                cast(
+                    Condition,
+                    FieldCondition(
+                        key="project_id", match=MatchValue(value=project_id)
+                    ),
+                ),
             ]
         )
 
@@ -170,7 +169,7 @@ class QdrantService:
                 None,
                 lambda: self.client.upsert(
                     collection_name=self.collection_name, points=points
-                )
+                ),
             )
 
             tenant_ctx = metadata_list[0] if metadata_list else {}
@@ -211,22 +210,38 @@ class QdrantService:
             query_vector = query_embeddings[0]
 
             # Create base filter
-            filter_conditions = [
-                FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
-                FieldCondition(key="project_id", match=MatchValue(value=project_id)),
+            filter_conditions: list[Condition] = [
+                cast(
+                    Condition,
+                    FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
+                ),
+                cast(
+                    Condition,
+                    FieldCondition(
+                        key="project_id", match=MatchValue(value=project_id)
+                    ),
+                ),
             ]
 
             # Add document type filter if specified
             if document_type:
                 filter_conditions.append(
-                    FieldCondition(key="type", match=MatchValue(value=document_type))
+                    cast(
+                        Condition,
+                        FieldCondition(
+                            key="type", match=MatchValue(value=document_type)
+                        ),
+                    )
                 )
 
             # Add additional filters
             if additional_filters:
                 for key, value in additional_filters.items():
                     filter_conditions.append(
-                        FieldCondition(key=key, match=MatchValue(value=value))
+                        cast(
+                            Condition,
+                            FieldCondition(key=key, match=MatchValue(value=value)),
+                        )
                     )
 
             search_filter = Filter(must=filter_conditions)
@@ -244,14 +259,15 @@ class QdrantService:
             )
 
             # Filter by score threshold and format results
-            results = []
+            results: list[tuple[str, dict[str, Any], float]] = []
             for point in search_result:
                 if point.score >= score_threshold:
-                    content = point.payload.get("content", "")
-                    metadata = {
-                        k: v for k, v in point.payload.items() if k != "content"
-                    }
-                    results.append((content, metadata, point.score))
+                    payload = point.payload or {}
+                    if not isinstance(payload, dict):
+                        payload = {}
+                    content = str(payload.get("content", ""))
+                    metadata = {k: v for k, v in payload.items() if k != "content"}
+                    results.append((content, metadata, float(point.score)))
 
             logger.info("Vector search completed", results_count=len(results))
             return results
@@ -337,13 +353,12 @@ class QdrantService:
                 None,
                 lambda: self.client.delete(
                     collection_name=self.collection_name,
-                    points_selector=models.FilterSelector(filter=project_filter),
+                    points_selector=FilterSelector(filter=project_filter),
+                    wait=True,
                 ),
             )
 
-            logger.info(
-                "Deleted all documents for project", project_id=str(project_id)
-            )
+            logger.info("Deleted all documents for project", project_id=str(project_id))
 
         except Exception as exc:
             logger.error(
@@ -363,12 +378,23 @@ class QdrantService:
             # Create filter for specific document
             document_filter = Filter(
                 must=[
-                    FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
-                    FieldCondition(
-                        key="project_id", match=MatchValue(value=project_id)
+                    cast(
+                        Condition,
+                        FieldCondition(
+                            key="tenant_id", match=MatchValue(value=tenant_id)
+                        ),
                     ),
-                    FieldCondition(
-                        key="document_id", match=MatchValue(value=document_id)
+                    cast(
+                        Condition,
+                        FieldCondition(
+                            key="project_id", match=MatchValue(value=project_id)
+                        ),
+                    ),
+                    cast(
+                        Condition,
+                        FieldCondition(
+                            key="document_id", match=MatchValue(value=document_id)
+                        ),
                     ),
                 ]
             )
@@ -378,7 +404,8 @@ class QdrantService:
                 None,
                 lambda: self.client.delete(
                     collection_name=self.collection_name,
-                    points_selector=models.FilterSelector(filter=document_filter),
+                    points_selector=FilterSelector(filter=document_filter),
+                    wait=True,
                 ),
             )
 
@@ -401,15 +428,27 @@ class QdrantService:
                 None, self.client.get_collection, self.collection_name
             )
 
+            vectors_config = info.config.params.vectors
+            if isinstance(vectors_config, dict):
+                example_vector = next(iter(vectors_config.values()), None)
+            else:
+                example_vector = vectors_config
+
+            vector_size = getattr(example_vector, "size", None)
+            distance = getattr(example_vector, "distance", None)
+            distance_value = getattr(distance, "value", distance)
+
             return {
                 "total_points": info.points_count,
                 "indexed_points": info.indexed_vectors_count,
-                "status": info.status.value,
+                "status": getattr(info.status, "value", info.status),
                 "config": {
-                    "vector_size": info.config.params.vectors.size,
-                    "distance": info.config.params.vectors.distance.value,
-                    "hnsw_m": info.config.hnsw_config.m,
-                    "hnsw_payload_m": info.config.hnsw_config.payload_m,
+                    "vector_size": vector_size,
+                    "distance": distance_value,
+                    "hnsw_m": getattr(info.config.hnsw_config, "m", None),
+                    "hnsw_payload_m": getattr(
+                        info.config.hnsw_config, "payload_m", None
+                    ),
                 },
             }
 

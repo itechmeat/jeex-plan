@@ -4,9 +4,9 @@ Separated from AuthService to follow Single Responsibility Principle.
 """
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
-from jose import JWTError, jwt
+from jose import JWTError, jwt  # type: ignore[import-untyped]
 
 from .config import get_settings
 
@@ -16,7 +16,9 @@ settings = get_settings()
 class TokenService:
     """Service responsible only for token operations."""
 
-    def __init__(self, secret_key: str | None = None, algorithm: str | None = None) -> None:
+    def __init__(
+        self, secret_key: str | None = None, algorithm: str | None = None
+    ) -> None:
         self.secret_key = secret_key or settings.SECRET_KEY
         self.algorithm = algorithm or settings.ALGORITHM
 
@@ -41,8 +43,8 @@ class TokenService:
         )
 
         try:
-            encoded_jwt = jwt.encode(
-                to_encode, self.secret_key, algorithm=self.algorithm
+            encoded_jwt = cast(
+                str, jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
             )
             return encoded_jwt
         except Exception as e:
@@ -69,8 +71,8 @@ class TokenService:
         )
 
         try:
-            encoded_jwt = jwt.encode(
-                to_encode, self.secret_key, algorithm=self.algorithm
+            encoded_jwt = cast(
+                str, jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
             )
             return encoded_jwt
         except Exception as e:
@@ -84,7 +86,10 @@ class TokenService:
             return None
 
         try:
-            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            payload = cast(
+                dict[str, Any],
+                jwt.decode(token, self.secret_key, algorithms=[self.algorithm]),
+            )
 
             if payload.get("type") != token_type:
                 return None

@@ -1,24 +1,36 @@
-"""
-Database configuration and connection management.
-"""
+"""Database configuration and connection management."""
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.engine import Result
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
+from sqlalchemy.sql import Executable
 
 from app.core.config import settings
 from app.core.logger import get_logger
+from app.models.base import Base
 
 logger = get_logger()
 
 # Create async engine with optimized settings
+ASYNC_DATABASE_URL = settings.DATABASE_URL.replace(
+    "postgresql://", "postgresql+asyncpg://"
+)
+
 if settings.is_development:
     # Development: use NullPool (no pool parameters)
     engine = create_async_engine(
-        settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+        ASYNC_DATABASE_URL,
         echo=settings.DEBUG,
         poolclass=NullPool,
         pool_pre_ping=True,
@@ -27,7 +39,7 @@ if settings.is_development:
 else:
     # Production: use connection pooling
     engine = create_async_engine(
-        settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+        ASYNC_DATABASE_URL,
         echo=settings.DEBUG,
         pool_size=20,
         max_overflow=30,
@@ -36,14 +48,11 @@ else:
     )
 
 # Create session factory
-AsyncSessionLocal = async_sessionmaker(
+AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
-
-# Import canonical Base from models
-from app.models.base import Base
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -56,7 +65,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def get_db_session():
+async def get_db_session() -> AsyncIterator[AsyncSession]:
     """Context manager for database sessions"""
     async with AsyncSessionLocal() as session:
         try:
@@ -83,10 +92,10 @@ async def close_database_connections() -> None:
 
 
 class DatabaseManager:
-    """Database connection manager with health checks"""
+    """Database connection manager with health checks."""
 
     @staticmethod
-    async def health_check() -> dict:
+    async def health_check() -> dict[str, Any]:
         """Check database connectivity"""
         try:
             async with AsyncSessionLocal() as session:
@@ -109,12 +118,16 @@ class DatabaseManager:
 
     @staticmethod
     async def execute_raw_sql(
-        session: AsyncSession, sql: str, params: dict | None = None
-    ):
+        session: AsyncSession,
+        sql: str | Executable,
+        params: dict[str, Any] | None = None,
+    ) -> list[tuple[Any, ...]]:
         """Execute raw SQL query"""
         try:
-            result = await session.execute(sql, params or {})
-            return result.fetchall()
+            statement = text(sql) if isinstance(sql, str) else sql
+            result: Result[Any] = await session.execute(statement, params or {})
+            rows = result.fetchall()
+            return [tuple(row) for row in rows]
         except Exception as e:
             logger.error("Raw SQL execution failed", error=str(e), sql=sql)
             raise

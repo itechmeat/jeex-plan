@@ -6,12 +6,13 @@ scoped to the correct tenant and project, preventing cross-tenant data access.
 """
 
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException, Request, status
 from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from app.core.logger import get_logger
 from app.schemas.vector import DocumentType
@@ -35,7 +36,7 @@ class TenantFilterMiddleware(BaseHTTPMiddleware):
             "/api/v1/vectors/embed-and-store",
         }
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
         Process request and inject tenant/project context for vector operations.
         """

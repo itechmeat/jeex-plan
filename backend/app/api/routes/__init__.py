@@ -15,7 +15,7 @@ except ImportError as e:
     # Allow missing top-level document_generation module but surface other errors
     if isinstance(e, ImportError) and getattr(e, "name", None) in [
         "document_generation",
-        __name__ + ".document_generation"
+        __name__ + ".document_generation",
     ]:
         __all__ = ["agents", "auth", "health", "projects"]
     else:
