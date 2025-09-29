@@ -70,7 +70,7 @@ make api-logs  # Follow API logs
 
 # Frontend development (separate, not in Docker)
 cd frontend
-npm run dev  # Runs on port 5200
+pnpm run dev  # Runs on port 5200
 
 # Full rebuild
 make rebuild
@@ -140,7 +140,7 @@ pnpm run test
 - **Hot Reload**: Backend runs with `--reload` in development mode
 - **Environment Variables**: Set `ENVIRONMENT=development` for dev features
 - **Volumes**: Backend code mounted for instant updates
-- **No Frontend in Docker**: Frontend runs separately via npm
+- **No Frontend in Docker**: Frontend runs separately via pnpm
 
 ### Secret Management
 
@@ -266,7 +266,7 @@ When dependency conflicts occur, resolve by:
 
 - **ALL backend work must be performed inside Docker containers**
 - **Execute scripts, commands, and development tasks within Docker environment**
-- **Frontend must work outside Docker** (runs via npm/pnpm on host)
+- **Frontend must work outside Docker** (runs via pnpm on host)
 - **Use `docker-compose exec` for backend operations**
 
 ### Code Architecture Principles (STRICT)

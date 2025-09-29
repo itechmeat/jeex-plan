@@ -4,7 +4,7 @@ Authentication endpoints with OAuth2 support and full JWT implementation.
 
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -201,13 +201,16 @@ async def refresh_access_token(
 
 @router.post("/logout", response_model=LogoutResponse)
 async def logout_user(
+    request: Request,
+    response: Response,
     auth: AuthDependency = Depends(auth_dependency),
     db: AsyncSession = Depends(get_db),
 ) -> LogoutResponse:
     """
     User logout endpoint.
 
-    Invalidates the current session by blacklisting the JWT token.
+    Invalidates the current session by blacklisting both access and refresh tokens,
+    and clearing authentication cookies.
     """
     if not auth.user or not auth.token:
         raise HTTPException(
@@ -219,8 +222,11 @@ async def logout_user(
     auth_service = AuthService(db)
 
     try:
-        # Blacklist the current access token
-        logout_success = await auth_service.logout_user(auth.token)
+        # Get refresh token from cookies (may be None if not present)
+        refresh_token = request.cookies.get("refresh_token")
+
+        # Blacklist both access and refresh tokens
+        logout_success = await auth_service.logout_user(auth.token, refresh_token)
 
         if not logout_success:
             logger.error("Token blacklisting failed", user_id=str(auth.user.id))
@@ -228,6 +234,20 @@ async def logout_user(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Logout failed",
             )
+
+        # Clear authentication cookies
+        response.delete_cookie(
+            key="access_token",
+            path="/",
+            secure=settings.is_production,
+            httponly=True,
+        )
+        response.delete_cookie(
+            key="refresh_token",
+            path="/",
+            secure=settings.is_production,
+            httponly=True,
+        )
 
         logger.info("Logout successful", user_id=str(auth.user.id))
         return LogoutResponse(message="Successfully logged out")

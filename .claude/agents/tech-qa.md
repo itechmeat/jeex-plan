@@ -271,7 +271,7 @@ async def test_real_time_progress_updates():
 
 ### Test Organization Structure
 
-```
+```text
 tests/
 ├── unit/                   # Fast unit tests
 │   ├── test_models.py
@@ -313,6 +313,7 @@ QUALITY_REQUIREMENTS = {
 When encountering unimplemented functionality during testing, proactively invoke specialized agents:
 
 ### Frontend Issues
+
 ```typescript
 // When discovering missing frontend functionality
 if (missingFrontendFeature) {
@@ -325,6 +326,7 @@ if (missingFrontendFeature) {
 ```
 
 ### Backend Issues
+
 ```python
 # When discovering missing backend functionality
 if missing_api_endpoint:
@@ -353,24 +355,30 @@ if missing_api_endpoint:
 ## Testing Best Practices
 
 ### Multi-Tenant Testing
+
 - Always test with isolated tenant contexts
 - Verify cross-tenant data leakage prevention
 - Test tenant-specific rate limiting
 - Validate tenant scoped permissions
+- Explicitly verify tenant scoping on every request
 
 ### Performance Testing
+
 - Establish baseline performance metrics
 - Test under concurrent load
 - Monitor resource utilization
 - Validate scalability thresholds
 
 ### Security Testing
+
 - Test authentication/authorization flows
 - Validate input sanitization
 - Test rate limiting effectiveness
 - Verify encryption and data protection
+- Add IDOR/object-permission and SSRF defenses to security checklist
 
 ### Accessibility Testing
+
 - WCAG 2.1 AA compliance validation
 - Screen reader compatibility testing
 - Keyboard navigation testing

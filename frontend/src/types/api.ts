@@ -24,6 +24,7 @@ export interface RegisterRequest {
   firstName: string;
   lastName: string;
   password: string;
+  confirmPassword: string;
 }
 
 export interface LoginResponse {

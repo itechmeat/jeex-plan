@@ -6,8 +6,10 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import AuthenticationError
 from app.models.user import User
 from app.repositories.tenant import TenantRepository
 from app.repositories.user import UserRepository
@@ -18,25 +20,30 @@ class TestTenantIsolation:
     """Test strict tenant isolation in authentication and data access."""
 
     @pytest.fixture
-    async def tenant_setup(self, db_session: AsyncSession):
+    def tenant_setup(self, db_session: AsyncSession):
         """Create test tenants and users for isolation testing."""
+        import asyncio
+
+        async def setup():
+            return await self._async_tenant_setup(db_session)
+
+        # Run the async setup synchronously for the fixture
+        return asyncio.get_event_loop().run_until_complete(setup())
+
+    async def _async_tenant_setup(self, db_session: AsyncSession):
         # Create two separate tenants
         tenant_repo = TenantRepository(db_session)
 
         tenant_a = await tenant_repo.create(
-            {
-                "name": "Tenant A Corp",
-                "slug": f"tenant-a-{uuid.uuid4().hex[:8]}",
-                "is_active": True,
-            }
+            name="Tenant A Corp",
+            slug=f"tenant-a-{uuid.uuid4().hex[:8]}",
+            is_active=True,
         )
 
         tenant_b = await tenant_repo.create(
-            {
-                "name": "Tenant B Corp",
-                "slug": f"tenant-b-{uuid.uuid4().hex[:8]}",
-                "is_active": True,
-            }
+            name="Tenant B Corp",
+            slug=f"tenant-b-{uuid.uuid4().hex[:8]}",
+            is_active=True,
         )
 
         # Create users in each tenant
@@ -48,6 +55,7 @@ class TestTenantIsolation:
             username="user_a",
             password="password123",
             full_name="User A",
+            skip_password_validation=True,
         )
 
         user_b = await user_service_b.create_user(
@@ -55,6 +63,7 @@ class TestTenantIsolation:
             username="user_b",
             password="password123",
             full_name="User B",
+            skip_password_validation=True,
         )
 
         return {
@@ -69,7 +78,7 @@ class TestTenantIsolation:
         self, db_session: AsyncSession, tenant_setup
     ):
         """Test that users cannot access data from other tenants."""
-        data = await tenant_setup
+        data = tenant_setup
 
         # User repository for tenant A
         user_repo_a = UserRepository(db_session, data["tenant_a"].id)
@@ -88,7 +97,7 @@ class TestTenantIsolation:
         self, async_client: AsyncClient, tenant_setup
     ):
         """Test that authentication tokens respect tenant boundaries."""
-        data = await tenant_setup
+        data = tenant_setup
 
         # Attempt to login user A
         login_response_a = await async_client.post(
@@ -96,17 +105,17 @@ class TestTenantIsolation:
             json={"email": data["user_a"].email, "password": "password123"},
         )
 
-        # If login successful, token should contain tenant info
-        if login_response_a.status_code in [200, 201]:
-            token_data = login_response_a.json()
+        assert login_response_a.status_code in (200, 201)
 
-            # Token should be present
-            assert "token" in token_data or "access_token" in token_data
+        token_data = login_response_a.json()
 
-            # Extract tenant information from response if available
-            user_info = token_data.get("user", {})
-            if user_info:
-                assert user_info.get("tenant_id") == str(data["tenant_a"].id)
+        # Token should be present
+        assert "token" in token_data or "access_token" in token_data
+
+        # Extract tenant information from response if available
+        user_info = token_data.get("user", {})
+        if user_info:
+            assert user_info.get("tenant_id") == str(data["tenant_a"].id)
 
     @pytest.mark.asyncio
     async def test_same_email_different_tenants(self, db_session: AsyncSession):
@@ -115,19 +124,15 @@ class TestTenantIsolation:
 
         # Create two tenants
         tenant1 = await tenant_repo.create(
-            {
-                "name": "Tenant 1",
-                "slug": f"tenant-1-{uuid.uuid4().hex[:8]}",
-                "is_active": True,
-            }
+            name="Tenant 1",
+            slug=f"tenant-1-{uuid.uuid4().hex[:8]}",
+            is_active=True,
         )
 
         tenant2 = await tenant_repo.create(
-            {
-                "name": "Tenant 2",
-                "slug": f"tenant-2-{uuid.uuid4().hex[:8]}",
-                "is_active": True,
-            }
+            name="Tenant 2",
+            slug=f"tenant-2-{uuid.uuid4().hex[:8]}",
+            is_active=True,
         )
 
         # Same email for both tenants
@@ -142,6 +147,7 @@ class TestTenantIsolation:
             username="user1",
             password="password123",
             full_name="User One",
+            skip_password_validation=True,
         )
 
         user2 = await user_service2.create_user(
@@ -149,6 +155,7 @@ class TestTenantIsolation:
             username="user2",
             password="password123",
             full_name="User Two",
+            skip_password_validation=True,
         )
 
         # Both should be created successfully
@@ -163,7 +170,7 @@ class TestTenantIsolation:
         self, db_session: AsyncSession, tenant_setup
     ):
         """Test that queries cannot access cross-tenant data."""
-        data = await tenant_setup
+        data = tenant_setup
 
         # Repository scoped to tenant A
         user_repo_a = UserRepository(db_session, data["tenant_a"].id)
@@ -192,7 +199,7 @@ class TestTenantIsolation:
         self, db_session: AsyncSession, tenant_setup
     ):
         """Test that UserService operations are properly tenant-scoped."""
-        data = await tenant_setup
+        data = tenant_setup
 
         # Service for tenant A
         service_a = UserService(db_session, data["tenant_a"].id)
@@ -211,7 +218,7 @@ class TestTenantIsolation:
         self, db_session: AsyncSession, tenant_setup
     ):
         """Test that authentication service respects tenant isolation."""
-        data = await tenant_setup
+        data = tenant_setup
 
         # Create user service for each tenant
         service_a = UserService(db_session, data["tenant_a"].id)
@@ -221,20 +228,14 @@ class TestTenantIsolation:
         auth_result_a = await service_a.authenticate_user(
             email=data["user_a"].email, password="password123"
         )
-
-        if auth_result_a:  # If authentication successful
-            assert auth_result_a["user"].tenant_id == data["tenant_a"].id
+        assert auth_result_a["user"].tenant_id == data["tenant_a"].id
 
         # Try to authenticate user A within tenant B context (should fail)
-        try:
-            auth_result_cross = await service_b.authenticate_user(
+        with pytest.raises(AuthenticationError) as exc_info:
+            await service_b.authenticate_user(
                 email=data["user_a"].email, password="password123"
             )
-            # Should not find user A in tenant B context
-            assert auth_result_cross is None
-        except Exception:
-            # Exception is also acceptable (user not found)
-            pass
+        assert exc_info.value.message == "Invalid email or password"
 
 
 class TestTenantContextValidation:
@@ -274,12 +275,12 @@ class TestTenantContextValidation:
             },
         )
 
-        if login_response.status_code in [200, 201]:
-            login_data = login_response.json()
+        assert login_response.status_code in (200, 201)
+        login_data = login_response.json()
 
-            # Should include user data with tenant_id
-            user_data = login_data.get("user", {})
-            assert "tenant_id" in user_data
+        # Should include user data with tenant_id
+        user_data = login_data.get("user", {})
+        assert "tenant_id" in user_data
 
     @pytest.mark.asyncio
     async def test_malicious_tenant_context_manipulation(
@@ -346,11 +347,9 @@ class TestTenantSecurityBoundaries:
         # Create a test tenant and user
         tenant_repo = TenantRepository(db_session)
         tenant = await tenant_repo.create(
-            {
-                "name": "Test Tenant",
-                "slug": f"test-tenant-{uuid.uuid4().hex[:8]}",
-                "is_active": True,
-            }
+            name="Test Tenant",
+            slug=f"test-tenant-{uuid.uuid4().hex[:8]}",
+            is_active=True,
         )
 
         user_service = UserService(db_session, tenant.id)
@@ -359,10 +358,12 @@ class TestTenantSecurityBoundaries:
             username="jwt_test_user",
             password="password123",
             full_name="JWT Test User",
+            skip_password_validation=True,
         )
 
         # Generate tokens
         auth_service = AuthService(db_session)
+        token_service = auth_service.token_service
         tokens = await auth_service.create_tokens_for_user(user)
 
         # Tokens should be generated
@@ -374,6 +375,10 @@ class TestTenantSecurityBoundaries:
         token_parts = access_token.split(".")
         assert len(token_parts) == 3
 
+        decoded_claims = token_service.verify_token(access_token)
+        assert decoded_claims is not None
+        assert decoded_claims.get("tenant_id") == str(tenant.id)
+
     @pytest.mark.asyncio
     async def test_token_validation_across_tenants(
         self, db_session: AsyncSession, tenant_setup
@@ -381,19 +386,20 @@ class TestTenantSecurityBoundaries:
         """Test that tokens are validated within correct tenant context."""
         from app.core.auth import AuthService
 
-        data = await tenant_setup
+        data = tenant_setup
 
         # Generate token for user A (tenant A)
         auth_service = AuthService(db_session)
+        token_service = auth_service.token_service
         tokens_a = await auth_service.create_tokens_for_user(data["user_a"])
 
         # Token should be valid for tenant A context
-        token_payload = await auth_service.verify_token(tokens_a["access_token"])
+        token_payload = token_service.verify_token(tokens_a["access_token"])
+        assert token_payload is not None
 
-        if token_payload:
-            # Payload should contain tenant information
-            assert "tenant_id" in token_payload
-            assert token_payload["tenant_id"] == str(data["tenant_a"].id)
+        # Payload should contain tenant information
+        assert "tenant_id" in token_payload
+        assert token_payload["tenant_id"] == str(data["tenant_a"].id)
 
     @pytest.mark.asyncio
     async def test_session_isolation_between_tenants(self, async_client: AsyncClient):
@@ -419,7 +425,7 @@ class TestTenantDataLeakagePrevention:
         self, db_session: AsyncSession, tenant_setup
     ):
         """Test that all database queries are properly tenant-filtered."""
-        data = await tenant_setup
+        data = tenant_setup
 
         # Repository should automatically filter by tenant
         user_repo = UserRepository(db_session, data["tenant_a"].id)
@@ -498,13 +504,28 @@ class TestTenantPerformanceIsolation:
             )
 
         # Run concurrent operations
-        tasks = [tenant_operation(f"tenant-{i}") for i in range(3)]
+        tenant_suffixes = [f"tenant-{i}" for i in range(3)]
+        tasks = [tenant_operation(suffix) for suffix in tenant_suffixes]
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
         # All should complete (either success or expected auth failure)
-        for response in responses:
+        for suffix, response in zip(tenant_suffixes, responses, strict=False):
             assert not isinstance(response, Exception)
-            assert hasattr(response, "status_code")
+            assert response.status_code in (200, 401)
+
+            if response.status_code == 200:
+                payload = response.json()
+                user_data = payload.get("user", {})
+                assert user_data.get("email") == f"user-{suffix}@example.com"
+
+                # Extract token from response, handling both possible response shapes
+                tokens = payload.get("tokens", {})
+                token = tokens.get("access_token") or payload.get("access_token")
+                if not token:
+                    raise AssertionError("Successful login must return access token")
+
+                claims = jwt.get_unverified_claims(token)
+                assert "tenant_id" in claims
 
     @pytest.mark.asyncio
     async def test_tenant_resource_limits(self, db_session: AsyncSession):
@@ -516,11 +537,9 @@ class TestTenantPerformanceIsolation:
 
         # Create tenant
         tenant = await tenant_repo.create(
-            {
-                "name": "Resource Test Tenant",
-                "slug": f"resource-test-{uuid.uuid4().hex[:8]}",
-                "is_active": True,
-            }
+            name="Resource Test Tenant",
+            slug=f"resource-test-{uuid.uuid4().hex[:8]}",
+            is_active=True,
         )
 
         assert tenant.is_active

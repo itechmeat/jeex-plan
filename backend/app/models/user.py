@@ -44,9 +44,13 @@ class User(BaseModel):
         "Tenant", back_populates="users", foreign_keys="User.tenant_id"
     )
 
-    # Projects relationship
+    # Projects relationship (enforce tenant isolation)
     projects: Mapped[list[Project]] = relationship(
-        "Project", back_populates="owner", overlaps="tenant,projects"
+        "Project",
+        back_populates="owner",
+        primaryjoin="and_(User.id == Project.owner_id, User.tenant_id == Project.tenant_id)",
+        foreign_keys="[Project.owner_id, Project.tenant_id]",
+        overlaps="tenant,owner",
     )
     project_memberships: Mapped[list[ProjectMember]] = relationship(
         "ProjectMember", foreign_keys="ProjectMember.user_id", back_populates="user"

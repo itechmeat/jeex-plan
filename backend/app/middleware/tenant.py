@@ -36,6 +36,7 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
 
         # Skip tenant isolation for excluded paths
         if self._is_excluded_path(request.url.path):
+            request.state.tenant_id = None
             return await call_next(request)
 
         # Extract tenant context from JWT token
@@ -59,14 +60,16 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
 
     async def _extract_tenant_from_request(self, request: Request) -> uuid.UUID | None:
         """Extract tenant ID from JWT token in request."""
+        # Get Authorization header
+        authorization = request.headers.get("Authorization")
+        if not authorization:
+            return None
+
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            return None
+
         try:
-            # Get Authorization header
-            authorization = request.headers.get("Authorization")
-            if not authorization or not authorization.startswith("Bearer "):
-                return None
-
-            token = authorization.split(" ")[1]
-
             # Extract tenant_id directly from JWT without database call
             from ..core.token_service import TokenService
 
@@ -82,7 +85,7 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
 
             return uuid.UUID(tenant_id_str)
 
-        except (ValueError, TypeError, Exception):
+        except (ValueError, TypeError):
             return None
 
 

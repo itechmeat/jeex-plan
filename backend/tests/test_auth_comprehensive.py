@@ -6,6 +6,7 @@ import asyncio
 import uuid
 
 import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -141,19 +142,35 @@ class TestUserRegistration:
 
     @pytest.mark.asyncio
     async def test_registration_duplicate_email(
-        self, async_client: AsyncClient, test_user: User
+        self, test_session: AsyncSession, test_tenant
     ):
-        """Test registration with duplicate email."""
-        response = await async_client.post(
-            "/api/v1/auth/register",
-            json={
-                "email": test_user.email,
-                "password": "test123456",
-                "confirm_password": "test123456",
-                "name": "Another User",
-            },
+        """Test registration with duplicate email within the same tenant."""
+        from app.services.user import UserService
+
+        user_service = UserService(test_session, test_tenant.id)
+
+        # Create first user
+        email = "duplicate@test.com"
+        first_user = await user_service.register_user(
+            email=email,
+            username="first_user",
+            password="StrongDuplicateTestPassword123!",
+            full_name="First User",
+            tenant_id=test_tenant.id,
         )
-        assert response.status_code in [400, 409, 422]  # Should reject duplicate
+
+        # Try to create second user with same email in same tenant
+        with pytest.raises(HTTPException) as exc_info:
+            await user_service.register_user(
+                email=email,
+                username="second_user",
+                password="StrongDuplicateTestPassword456!",
+                full_name="Second User",
+                tenant_id=test_tenant.id,
+            )
+
+        assert exc_info.value.status_code in [400, 409, 422]
+        assert "already registered" in exc_info.value.detail.lower()
 
 
 class TestUserLogin:
@@ -312,12 +329,14 @@ class TestMultiTenantIsolation:
                 username="testuser1",
                 password="password123",
                 full_name="Test User 1",
+                skip_password_validation=True,
             )
             user2 = await user_service2.create_user(
                 email="test@example.com",
                 username="testuser2",
                 password="password123",
                 full_name="Test User 2",
+                skip_password_validation=True,
             )
 
             assert user1.tenant_id == tenant1.id
@@ -401,18 +420,34 @@ class TestMultiTenantIsolation:
             json={"email": "test@example.com", "password": "password123"},
         )
 
+        assert response.status_code in (200, 401, 403)
         if response.status_code == 200:
             data = response.json()
-            # Should have token structure
-            assert "token" in data or "access_token" in data
 
-            # Token should be JWT format (3 parts separated by dots)
             token = data.get("token", {}).get("access_token") or data.get(
                 "access_token"
             )
-            if token:
-                parts = token.split(".")
-                assert len(parts) == 3, "JWT should have 3 parts"
+            assert token, "JWT token missing in login response"
+
+            from jose import jwt
+
+            try:
+                claims = jwt.get_unverified_claims(token)
+            except Exception as exc:  # pragma: no cover - unexpected parsing error
+                raise AssertionError(f"Cannot decode JWT claims: {exc}") from exc
+
+            assert "tenant_id" in claims, "JWT missing tenant_id claim"
+
+            try:
+                tenant_uuid = uuid.UUID(str(claims["tenant_id"]))
+            except (ValueError, TypeError) as exc:
+                raise AssertionError("JWT tenant_id must be a valid UUID") from exc
+
+            assert tenant_uuid, "tenant_id claim should not be empty"
+
+            response_tenant = data.get("user", {}).get("tenant_id")
+            if response_tenant is not None:
+                assert str(tenant_uuid) == str(response_tenant)
 
 
 class TestPasswordSecurity:

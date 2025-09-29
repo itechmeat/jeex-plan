@@ -19,7 +19,7 @@ const FeatureIcon: React.FC<FeatureIconProps> = ({ icon, label }) => (
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
-  const { register, isAuthenticated, error: authError, clearError } = useAuth();
+  const { register, error: authError, clearError, isLoading: authLoading } = useAuth();
   const {
     title: featuresTitle,
     subtitle: featuresSubtitle,
@@ -33,15 +33,10 @@ export const Register: React.FC = () => {
     password: '',
     confirmPassword: '',
   });
-  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
+  const isLoading = authLoading || isSubmitting;
 
   // Clear auth errors when component mounts
   useEffect(() => {
@@ -93,12 +88,10 @@ export const Register: React.FC = () => {
       const value = e.target.value;
       setFormData(prev => ({ ...prev, [field]: value }));
 
-      // Clear field error when user starts typing
       if (errors[field]) {
         setErrors(prev => ({ ...prev, [field]: '' }));
       }
 
-      // Clear auth error when user modifies form
       if (authError) {
         clearError();
       }
@@ -107,24 +100,39 @@ export const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isSubmitting || isLoading) {
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
+
     try {
       await register({
         email: formData.email.trim(),
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         password: formData.password,
+        confirmPassword: formData.confirmPassword,
       });
-      // Navigation will be handled by the useEffect above
-    } catch (error) {
+    } catch {
       // Error is handled by AuthContext
-      console.error('Registration failed:', error);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Enter key submission
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isLoading) {
+      e.preventDefault();
+      const form = e.currentTarget.closest('form');
+      if (form) {
+        form.requestSubmit();
+      }
     }
   };
 
@@ -141,12 +149,14 @@ export const Register: React.FC = () => {
           className={styles.form}
           noValidate
           data-testid='register-form'
+          onKeyDown={handleKeyDown}
         >
           {authError && (
             <div
               className={styles.errorBanner}
               role='alert'
               data-testid='error-message'
+              aria-live='polite'
             >
               {authError}
             </div>
@@ -162,6 +172,8 @@ export const Register: React.FC = () => {
             autoComplete='email'
             fullWidth
             data-testid='email-input'
+            disabled={isLoading}
+            onKeyDown={handleKeyDown}
           />
 
           <div className={styles.nameFields}>
@@ -175,6 +187,8 @@ export const Register: React.FC = () => {
               autoComplete='given-name'
               fullWidth
               data-testid='first-name-input'
+              disabled={isLoading}
+              onKeyDown={handleKeyDown}
             />
 
             <Input
@@ -187,6 +201,8 @@ export const Register: React.FC = () => {
               autoComplete='family-name'
               fullWidth
               data-testid='last-name-input'
+              disabled={isLoading}
+              onKeyDown={handleKeyDown}
             />
           </div>
 
@@ -200,6 +216,8 @@ export const Register: React.FC = () => {
             autoComplete='new-password'
             fullWidth
             data-testid='password-input'
+            disabled={isLoading}
+            onKeyDown={handleKeyDown}
           />
 
           <Input
@@ -212,6 +230,8 @@ export const Register: React.FC = () => {
             autoComplete='new-password'
             fullWidth
             data-testid='confirm-password-input'
+            disabled={isLoading}
+            onKeyDown={handleKeyDown}
           />
 
           <Button
@@ -219,8 +239,15 @@ export const Register: React.FC = () => {
             variant='primary'
             size='lg'
             isLoading={isLoading}
+            disabled={isLoading || isSubmitting}
             fullWidth
             data-testid='sign-up-button'
+            onClick={e => {
+              if (isLoading || isSubmitting) {
+                e.preventDefault();
+                return;
+              }
+            }}
           >
             {isLoading ? 'Creating Account...' : 'Create Account'}
           </Button>

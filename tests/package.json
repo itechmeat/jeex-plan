@@ -13,14 +13,14 @@
     "test:auth": "playwright test auth.spec.ts",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report",
-    "install": "playwright install"
+    "playwright:install": "npx playwright install --with-deps"
   },
   "dependencies": {
     "@playwright/test": "^1.45.0",
     "event-source-polyfill": "^1.0.31"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^22",
     "typescript": "^5.0.0"
   }
 }

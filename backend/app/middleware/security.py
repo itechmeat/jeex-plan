@@ -81,11 +81,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     """CSRF protection middleware for state-changing operations."""
 
-    def __init__(self, app: ASGIApp, exempt_paths: list[str] | None = None) -> None:
+    def __init__(
+        self, app: ASGIApp, exempt_paths: list[str] | frozenset[str] | None = None
+    ) -> None:
         super().__init__(app)
 
         if exempt_paths is not None:
-            self.exempt_paths = exempt_paths
+            if isinstance(exempt_paths, list):
+                self.exempt_paths = frozenset(exempt_paths)
+            else:
+                self.exempt_paths = exempt_paths
         else:
             # Use shared exempt paths as base, plus additional CSRF-specific exclusions
             AUTH_API_PREFIX = "/api/v1/auth"
@@ -97,10 +102,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 "change-password",
             ]
 
-            self.exempt_paths = EXEMPT_PATHS + [
+            self.exempt_paths = EXEMPT_PATHS | frozenset(
                 f"{AUTH_API_PREFIX}/{endpoint}"
                 for endpoint in csrf_exempt_auth_endpoints
-            ]
+            )
             # Note: /auth/oauth/callback excluded because it sets cookies
         self.state_changing_methods: set[str] = {"POST", "PUT", "PATCH", "DELETE"}
 

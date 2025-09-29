@@ -86,8 +86,10 @@ def create_project(name, description):  # No type hints
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-async def get_user(session: AsyncSession, user_id: UUID) -> User | None:
-    result = await session.execute(select(User).where(User.id == user_id))
+async def get_user_by_id(session: AsyncSession, user_id: UUID, tenant_id: UUID) -> User | None:
+    result = await session.execute(
+        select(User).where(User.id == user_id, User.tenant_id == tenant_id)
+    )
     return result.scalar_one_or_none()
 
 # CORRECT - Async HTTP client
@@ -100,7 +102,7 @@ async def fetch_external_api(url: str) -> dict:
         return response.json()
 
 # CORRECT - Proper dependency injection
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 
 def get_db() -> AsyncSession:
     # Database session dependency
@@ -108,7 +110,7 @@ def get_db() -> AsyncSession:
 
 @app.get("/users/{user_id}")
 async def get_user(user_id: UUID, db: AsyncSession = Depends(get_db)):
-    user = await get_user(db, user_id)
+    user = await get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return UserRead.model_validate(user)
@@ -127,10 +129,13 @@ async def get_tenant_projects(session: AsyncSession, tenant_id: str) -> list[Pro
 # CORRECT - RLS (Row Level Security) enforcement
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:
-        # Set tenant context for RLS
-        tid = get_tenant_id() or ""
-        if tid:
-            await session.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid})
+        # Set tenant context for RLS (mandatory)
+        tid = get_tenant_id()
+        if not tid:
+            raise HTTPException(status_code=400, detail="Missing tenant context")
+        await session.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid})
+        # Optional safety rails
+        await session.execute(text("SET LOCAL statement_timeout = '5s'"))
         yield session
 
 # CORRECT - Tenant-scoped cache keys
@@ -142,8 +147,10 @@ async def get_cached_data(tenant_id: str, key: str) -> dict:
 ### OAuth2 Integration
 
 ```python
-# CORRECT - Authlib OAuth2 setup
+# CORRECT - Authlib OAuth2 setup with security validations
 from authlib.integrations.starlette_client import OAuth
+from authlib.jose import jwt
+import secrets
 
 oauth = OAuth()
 oauth.register(
@@ -151,17 +158,47 @@ oauth.register(
     client_id=settings.OAUTH_CLIENT_ID,
     client_secret=settings.OAUTH_CLIENT_SECRET,
     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
+    client_kwargs={
+        "scope": "openid email profile",
+        "code_challenge_method": "S256",  # PKCE enforcement
+    },
 )
 
-# CORRECT - OAuth2 callback handling
+# CORRECT - OAuth2 callback handling with security validations
 @app.get("/auth/callback")
 async def auth_callback(request: Request):
     try:
-        token = await oauth.google.authorize_access_token(request)
-        user_info = await oauth.google.parse_id_token(request, token)
-        # Upsert user and create session
-        return await create_user_session(user_info)
+        # Validate state parameter to prevent CSRF
+        state = request.query_params.get("state")
+        expected_state = request.session.get("oauth_state")
+        if not state or state != expected_state:
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+
+        # Validate nonce to prevent replay attacks
+        nonce = request.session.get("oauth_nonce")
+
+        token = await oauth.google.authorize_access_token(
+            request,
+            code_verifier=request.session.get("code_verifier")  # PKCE verifier
+        )
+
+        # Validate ID token issuer and audience
+        id_token = jwt.decode(
+            token["id_token"],
+            claims_options={
+                "iss": {"essential": True, "value": "https://accounts.google.com"},
+                "aud": {"essential": True, "value": settings.OAUTH_CLIENT_ID},
+                "nonce": {"essential": True, "value": nonce},
+            }
+        )
+
+        # Clear session state
+        request.session.pop("oauth_state", None)
+        request.session.pop("oauth_nonce", None)
+        request.session.pop("code_verifier", None)
+
+        # Create secure session with short TTL
+        return await create_user_session(id_token, secure=True, httponly=True, max_age=3600)
     except OAuthError as e:
         raise HTTPException(status_code=400, detail=f"OAuth error: {e.error}")
 ```
@@ -169,8 +206,9 @@ async def auth_callback(request: Request):
 ### Vector Search with Qdrant
 
 ```python
-# CORRECT - Qdrant with tenant isolation
+# CORRECT - Qdrant with tenant isolation and async support
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+import asyncio
 
 async def search_documents(tenant_id: str, project_id: str, query_vector: list[float]):
     # Tenant and project scoped filter
@@ -179,7 +217,9 @@ async def search_documents(tenant_id: str, project_id: str, query_vector: list[f
         FieldCondition(key="project_id", match=MatchValue(value=project_id)),
     ])
 
-    return qdrant_client.search(
+    # Use async wrapper to avoid blocking event loop
+    return await asyncio.to_thread(
+        qdrant_client.search,
         collection_name=settings.QDRANT_COLLECTION,
         query_vector=query_vector,
         query_filter=tenant_filter,
@@ -190,14 +230,30 @@ async def search_documents(tenant_id: str, project_id: str, query_vector: list[f
 ### Real-time Features (SSE)
 
 ```python
-# CORRECT - Server-Sent Events for progress streaming
+# CORRECT - Server-Sent Events for progress streaming with heartbeat
 from sse_starlette.sse import EventSourceResponse
+import asyncio
 
 @app.get("/projects/{project_id}/events")
 async def project_events(project_id: str):
     async def event_generator():
-        async for event in project_event_stream(project_id):
-            yield {"event": "message", "data": json.dumps(event)}
+        last_ping = 0
+        ping_interval = 30  # Send ping every 30 seconds
+
+        try:
+            async for event in project_event_stream(project_id):
+                # Send the actual event
+                yield {"event": "message", "data": json.dumps(event)}
+
+                # Check if we need to send a heartbeat
+                current_time = asyncio.get_event_loop().time()
+                if current_time - last_ping >= ping_interval:
+                    yield {"event": "ping", "data": "keepalive"}
+                    last_ping = current_time
+
+        except asyncio.CancelledError:
+            # Client disconnected - cleanup resources
+            return
 
     return EventSourceResponse(event_generator())
 
@@ -208,7 +264,7 @@ async def publish_progress(project_id: str, event: dict):
 
 ## Project Structure (STRICT)
 
-```
+```text
 backend/
 ├── src/app/
 │   ├── main.py              # FastAPI app creation and middleware setup
@@ -243,20 +299,28 @@ backend/
 ```bash
 # Backend development
 cd backend
-poetry install          # Use Poetry for dependency management
-poetry run dev         # Start development server with hot reload
-poetry run test        # Run pytest with async support
-poetry run lint        # Run ruff for linting and formatting
-poetry run type-check  # Run mypy for type checking
+poetry install                                    # Use Poetry for dependency management
+poetry run uvicorn app.main:app --reload          # Start development server with hot reload
+poetry run pytest -v --tb=short                   # Run pytest with async support
+poetry run ruff check && poetry run ruff format   # Run ruff for linting and formatting
+poetry run mypy app                                # Run mypy for type checking
 ```
 
 ## Multi-Tenant Requirements
 
 - **Tenant Isolation**: All database operations MUST include tenant filtering
-- **RLS Policies**: PostgreSQL Row Level Security enabled on all tables
-- **Cache Isolation**: Redis cache keys namespaced by tenant
+- **RLS Policies**: PostgreSQL Row Level Security enabled on all tables with `ALTER TABLE ... FORCE ROW LEVEL SECURITY`
+- **Cache Isolation**: Redis cache keys namespaced by tenant with rotation policy for emergency rollback
 - **Vector Search**: Qdrant queries include tenant+project filters
 - **Rate Limiting**: Tenant and user-specific rate limits
+
+### Operational Guardrails
+
+- **Mandatory Tenant Context**: Every DB transaction MUST run with `SET LOCAL app.tenant_id` (enforce in middleware)
+- **PgBouncer Compatibility**: Use request-scoped DB transactions or disable transaction pooling
+- **Cache Key Rotation**: Implement salt/namespace rotation tooling for incident response
+- **RLS Enforcement**: All tenant tables require `FORCE ROW LEVEL SECURITY` to prevent bypass
+- **Transaction Timeouts**: Set `statement_timeout` per transaction to prevent long-running queries
 
 ## IMMEDIATE REJECTION TRIGGERS
 

@@ -10,6 +10,7 @@ os.environ.setdefault("USE_VAULT", "false")
 os.environ.setdefault("ENVIRONMENT", "testing")
 
 import uuid
+from collections.abc import AsyncGenerator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -60,16 +61,43 @@ async def test_db():
 
 
 @pytest.fixture
-async def test_session(test_db):
-    """Create test database session"""
+async def test_session(test_db) -> AsyncGenerator[AsyncSession, None]:
+    """Create test database session with automatic cleanup."""
     async with TestSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            # Ensure all pending operations are handled
+            try:
+                if session.in_transaction():
+                    await session.rollback()
+            except Exception:
+                pass  # Session might already be closed
+
+            # Clean up all data after each test to ensure isolation
+            try:
+                # Delete all data from all tables to ensure clean state
+                for table in reversed(Base.metadata.sorted_tables):
+                    await session.execute(table.delete())
+                await session.commit()
+            except Exception:
+                # If cleanup fails, try to rollback
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass  # Session might be in invalid state
 
 
 @pytest.fixture
 async def async_db(test_session):
     """Backward-compatible alias for async DB session."""
     return test_session
+
+
+@pytest.fixture
+def test_app():
+    """Create test FastAPI app instance."""
+    return app
 
 
 @pytest.fixture
@@ -125,11 +153,12 @@ def sample_user_data():
 @pytest.fixture
 def auth_headers(test_client):
     """Get authentication headers for testing"""
-    # Create user and get token
+    # Create user and get token with unique email
+    unique_suffix = uuid.uuid4().hex[:8]
     response = test_client.post(
         "/api/v1/auth/register",
         json={
-            "email": "auth@test.com",
+            "email": f"auth-{unique_suffix}@test.com",
             "name": "Auth User",
             "password": "authpassword123",
             "confirm_password": "authpassword123",
@@ -153,12 +182,28 @@ async def async_test_client():
         yield client
 
 
+# Semaphore for controlling concurrent database operations in tests
+@pytest.fixture(scope="session")
+def db_semaphore():
+    """Semaphore to limit concurrent database operations in tests."""
+    return asyncio.Semaphore(5)  # Allow max 5 concurrent DB operations
+
+
 @pytest.fixture
 async def async_client(test_session):
     """Create async test client with database override"""
 
-    def override_get_db():
-        yield test_session
+    async def override_get_db():
+        # Create a new session for each request to avoid sharing state
+        async with TestSessionLocal() as session:
+            try:
+                yield session
+            finally:
+                try:
+                    if session.in_transaction():
+                        await session.rollback()
+                except Exception:
+                    pass
 
     app.dependency_overrides[get_db] = override_get_db
 
@@ -177,6 +222,8 @@ async def test_tenant(test_session):
         id=uuid.uuid4(),
         name=f"Test Tenant {unique_suffix}",
         slug=f"test-tenant-{unique_suffix}",
+        description="Test tenant for testing",
+        is_active=True,
     )
     test_session.add(tenant)
     await test_session.commit()
@@ -187,10 +234,11 @@ async def test_tenant(test_session):
 @pytest.fixture
 async def test_user(test_session, test_tenant):
     """Create a test user"""
+    unique_suffix = uuid.uuid4().hex[:8]
     user = User(
         id=uuid.uuid4(),
-        email="test@example.com",
-        username="testuser",
+        email=f"test-{unique_suffix}@example.com",
+        username=f"testuser-{unique_suffix}",
         hashed_password="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj3vCWmTB5Va",  # hashed "test123456"
         full_name="Test User",
         tenant_id=test_tenant.id,
@@ -210,6 +258,8 @@ async def second_tenant(test_session):
         id=uuid.uuid4(),
         name=f"Second Tenant {unique_suffix}",
         slug=f"second-tenant-{unique_suffix}",
+        description="Second test tenant for testing",
+        is_active=True,
     )
     test_session.add(tenant)
     await test_session.commit()
@@ -220,15 +270,15 @@ async def second_tenant(test_session):
 @pytest.fixture
 async def second_user(test_session, second_tenant):
     """Create a test user in second tenant"""
+    unique_suffix = uuid.uuid4().hex[:8]
     user = User(
         id=uuid.uuid4(),
-        email="second@example.com",
-        username="seconduser",
-        password_hash="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj3vCWmTB5Va",  # hashed "test123456"
+        email=f"second-{unique_suffix}@example.com",
+        username=f"seconduser-{unique_suffix}",
+        hashed_password="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj3vCWmTB5Va",  # hashed "test123456"
         full_name="Second User",
         tenant_id=second_tenant.id,
         is_active=True,
-        is_verified=True,
     )
     test_session.add(user)
     await test_session.commit()
@@ -268,31 +318,38 @@ async def test_db_session(test_session):
     from app.services.user import UserService
 
     # Add helper methods to the session
-    async def create_tenant(name="Test Tenant", slug=None, **kwargs):
+    async def create_tenant(name=None, slug=None, **kwargs):
+        unique_suffix = uuid.uuid4().hex[:8]
+        if name is None:
+            name = f"Test Tenant {unique_suffix}"
         if slug is None:
-            slug = f"{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:8]}"
+            slug = f"{name.lower().replace(' ', '-')}-{unique_suffix}"
         tenant_repo = TenantRepository(test_session)
         return await tenant_repo.create_tenant(name=name, slug=slug, **kwargs)
 
     async def create_user(
         tenant_id,
-        email="test@example.com",
+        email=None,
         username=None,
         password="test123456",
         **kwargs,
     ):
+        unique_suffix = uuid.uuid4().hex[:8]
+        if email is None:
+            email = f"test-{unique_suffix}@example.com"
         if username is None:
-            username = email.split("@")[0]
+            username = f"testuser-{unique_suffix}"
 
         user_service = UserService(test_session, tenant_id)
-        return await user_service.create_user(
+        result = await user_service.register_user(
             email=email,
             username=username,
             password=password,
             full_name=kwargs.get("full_name", username.title()),
-            is_active=kwargs.get("is_active", True),
-            is_verified=kwargs.get("is_verified", True),
+            tenant_id=tenant_id,
         )
+        # Extract user from registration result
+        return result["user"]
 
     # Add methods to session
     test_session.create_tenant = create_tenant
@@ -305,6 +362,80 @@ async def test_db_session(test_session):
 async def db_session(test_db_session):
     """Alias for test_db_session to match test expectations"""
     return test_db_session
+
+
+@pytest.fixture
+async def tenant_setup(test_session):
+    """Create complete tenant setup with two tenants and users for multi-tenant testing"""
+    from app.repositories.tenant import TenantRepository
+    from app.repositories.user import UserRepository
+    from app.services.user import UserService
+
+    tenant_repo = TenantRepository(test_session)
+
+    # Create tenant A
+    unique_suffix_a = uuid.uuid4().hex[:8]
+    tenant_a = await tenant_repo.create_tenant(
+        name=f"Tenant A {unique_suffix_a}",
+        slug=f"tenant-a-{unique_suffix_a}",
+        description="First test tenant for multi-tenant testing",
+    )
+
+    # Create tenant B
+    unique_suffix_b = uuid.uuid4().hex[:8]
+    tenant_b = await tenant_repo.create_tenant(
+        name=f"Tenant B {unique_suffix_b}",
+        slug=f"tenant-b-{unique_suffix_b}",
+        description="Second test tenant for multi-tenant testing",
+    )
+
+    # Create user A in tenant A
+    user_service_a = UserService(test_session, tenant_a.id)
+    user_a_data = await user_service_a.register_user(
+        email=f"user-a-{unique_suffix_a}@tenant-a.com",
+        username=f"user_a_{unique_suffix_a}",
+        password="TenantTestPassword123!",
+        full_name="User A",
+        tenant_id=tenant_a.id,
+    )
+    # Get user object from repository
+    user_repo_a = UserRepository(test_session, tenant_a.id)
+    user_a = await user_repo_a.get_by_id(uuid.UUID(user_a_data["user"]["id"]))
+
+    # Create user B in tenant B
+    user_service_b = UserService(test_session, tenant_b.id)
+    user_b_data = await user_service_b.register_user(
+        email=f"user-b-{unique_suffix_b}@tenant-b.com",
+        username=f"user_b_{unique_suffix_b}",
+        password="TenantTestPassword456!",
+        full_name="User B",
+        tenant_id=tenant_b.id,
+    )
+    # Get user object from repository
+    user_repo_b = UserRepository(test_session, tenant_b.id)
+    user_b = await user_repo_b.get_by_id(uuid.UUID(user_b_data["user"]["id"]))
+
+    # Create additional user in tenant A for cross-tenant testing
+    user_a2_data = await user_service_a.register_user(
+        email=f"user-a2-{unique_suffix_a}@tenant-a.com",
+        username=f"user_a2_{unique_suffix_a}",
+        password="TenantTestPassword789!",
+        full_name="User A2",
+        tenant_id=tenant_a.id,
+    )
+    # Get user object from repository
+    user_a2 = await user_repo_a.get_by_id(uuid.UUID(user_a2_data["user"]["id"]))
+
+    return {
+        "tenant_a": tenant_a,
+        "tenant_b": tenant_b,
+        "user_a": user_a,
+        "user_b": user_b,
+        "user_a2": user_a2,
+        "tokens_a": user_a_data["tokens"],
+        "tokens_b": user_b_data["tokens"],
+        "tokens_a2": user_a2_data["tokens"],
+    }
 
 
 # Pytest configuration

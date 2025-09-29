@@ -381,9 +381,12 @@ class VectorBenchmark:
         print("🚀 Starting comprehensive vector database benchmark")
         print("=" * 60)
 
+        benchmark_timestamp = datetime.now(UTC)
         results = {
             "benchmark_config": config,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": benchmark_timestamp.isoformat(timespec="milliseconds").replace(
+                "+00:00", "Z"
+            ),
             "results": {},
         }
 
@@ -439,8 +442,7 @@ class VectorBenchmark:
         print("=" * 60)
 
         # Save results
-        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-        results_file = f"vector_benchmark_results_{timestamp}.json"
+        results_file = f"vector_benchmark_results_{benchmark_timestamp.strftime('%Y%m%d_%H%M%S_%f')}.json"
         with open(results_file, "w") as f:
             json.dump(results, f, indent=2)
 

@@ -63,5 +63,21 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off', // Allow any in tests
       'no-console': 'off', // Allow console in tests
     },
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.mocha,
+        ...globals.jest,
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+      },
+    },
   },
 ];

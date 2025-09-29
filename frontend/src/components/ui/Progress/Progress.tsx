@@ -13,7 +13,7 @@ export interface ProgressProps
 }
 
 export const Progress = React.forwardRef<
-  React.ElementRef<typeof ProgressPrimitive.Root>,
+  React.ComponentRef<typeof ProgressPrimitive.Root>,
   ProgressProps
 >(
   (
@@ -47,11 +47,17 @@ export const Progress = React.forwardRef<
           ref={ref}
           className={rootClass}
           value={clampedValue}
+          style={React.useMemo(
+            () => ({ ['--progress' as string]: progressScale }),
+            [progressScale]
+          )}
           {...props}
         >
           <ProgressPrimitive.Indicator
-            className={styles.indicator}
-            style={{ transform: `scaleX(${progressScale})` }}
+            className={classNames(
+              styles.indicator,
+              progressScale > 0 && styles.animating
+            )}
           />
         </ProgressPrimitive.Root>
       </div>

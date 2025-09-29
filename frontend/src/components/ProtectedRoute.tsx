@@ -2,7 +2,6 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../config/routes';
 import { useAuth } from '../contexts/useAuth';
-import { en } from '../localization/en';
 import styles from './ProtectedRoute.module.css';
 
 interface ProtectedRouteProps {
@@ -17,7 +16,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return (
       <div className={styles.loaderContainer}>
         <div className={styles.spinner} />
-        <p className={styles.message}>{en.auth.checkingAuthentication}</p>
+        <p className={styles.message}>Checking authentication...</p>
       </div>
     );
   }

@@ -1,19 +1,22 @@
-"""
-User management service with authentication and profile operations.
-"""
+"""User management service with authentication and profile operations."""
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import AuthService
+from ..core.exceptions import AuthenticationError
 from ..core.password_service import PasswordService
 from ..models.user import User
 from ..repositories.tenant import TenantRepository
 from ..repositories.user import UserRepository
+
+logger = logging.getLogger(__name__)
 
 
 class UserService:
@@ -31,6 +34,103 @@ class UserService:
         self.tenant_repo = TenantRepository(db)
         self.auth_service = AuthService(db, tenant_id)
         self.password_service = PasswordService()
+
+    async def create_user(
+        self,
+        email: str,
+        username: str,
+        password: str,
+        full_name: str | None = None,
+        tenant_id: uuid.UUID | None = None,
+        *,
+        skip_password_validation: bool = False,
+    ) -> User:
+        """
+        Create a new user without generating tokens (for testing and internal use).
+
+        Args:
+            email: User's email address
+            username: User's username
+            password: User's password
+            full_name: User's full name (optional)
+            tenant_id: Tenant ID (optional, will use service's tenant_id if not provided)
+            skip_password_validation: Skip password strength validation (for testing)
+
+        Returns:
+            User: The created user object
+
+        Raises:
+            HTTPException: If email/username already exists or other validation errors
+        """
+        # Compute effective tenant_id first
+        if tenant_id:
+            effective_tenant_id = tenant_id
+        else:
+            effective_tenant_id = (
+                self.tenant_id or await self._get_or_create_default_tenant()
+            )
+
+        # Initialize repositories with effective tenant
+        if not self.user_repo or self.tenant_id != effective_tenant_id:
+            self.tenant_id = effective_tenant_id
+            self.user_repo = UserRepository(self.db, self.tenant_id)
+
+        # Validate email availability (against correct tenant)
+        if not await self.user_repo.check_email_availability(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
+
+        # Validate username availability (against correct tenant)
+        if not await self.user_repo.check_username_availability(username):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
+            )
+
+        # Hash password with optional validation skip for testing
+        if skip_password_validation:
+            # Use existing password service but bypass validation
+            import copy
+
+            temp_service = copy.copy(self.password_service)
+            # Temporarily bypass validation
+            original_validate = temp_service._validate_password_strength
+            temp_service._validate_password_strength = lambda p: None  # No-op
+            try:
+                hashed_password = temp_service.get_password_hash(password)
+            finally:
+                temp_service._validate_password_strength = original_validate
+        else:
+            hashed_password = self.password_service.get_password_hash(password)
+
+        # Create user
+        user = await self.user_repo.create(
+            email=email,
+            username=username,
+            full_name=full_name,
+            hashed_password=hashed_password,
+            is_active=True,
+            last_login_at=datetime.now(UTC),
+        )
+
+        try:
+            await self.db.commit()
+            await self.db.refresh(user)
+            return user
+        except IntegrityError as exc:
+            await self.db.rollback()
+            logger.warning(
+                "User creation conflict for tenant %s (email=%s, username=%s)",
+                effective_tenant_id,
+                email,
+                username,
+                exc_info=exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email or username already in use",
+            ) from exc
 
     async def register_user(
         self,
@@ -79,11 +179,22 @@ class UserService:
             last_login_at=datetime.now(UTC),
         )
 
-        # Commit the transaction to save user to database
-        await self.db.commit()
-
-        # Refresh user object to ensure all fields are loaded after commit
-        await self.db.refresh(user)
+        try:
+            await self.db.commit()
+            await self.db.refresh(user)
+        except IntegrityError as exc:
+            await self.db.rollback()
+            logger.warning(
+                "User registration conflict for tenant %s (email=%s, username=%s)",
+                effective_tenant_id,
+                email,
+                username,
+                exc_info=exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email or username already in use",
+            ) from exc
 
         # Initialize RBAC system for the tenant (if this is the first user)
         from ..services.rbac import RBACService
@@ -94,10 +205,13 @@ class UserService:
                 effective_tenant_id
             )
             await self.db.commit()  # Commit RBAC initialization
-        except Exception:
-            # Log the error but don't fail registration
-            # RBAC can be initialized later
+        except Exception as exc:
             await self.db.rollback()
+            logger.exception(
+                "RBAC initialization failed during register_user for tenant %s",
+                effective_tenant_id,
+                exc_info=exc,
+            )
 
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)
@@ -114,16 +228,10 @@ class UserService:
         user = await self.auth_service.authenticate_user(email, password, tenant_id)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
+            raise AuthenticationError("Invalid email or password")
 
         if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Account is deactivated",
-            )
+            raise AuthenticationError("Account is deactivated")
 
         # Update last login
         user.last_login_at = datetime.now(UTC)

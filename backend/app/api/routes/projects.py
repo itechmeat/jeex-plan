@@ -263,27 +263,48 @@ async def create_project(
     project_repo = ProjectRepository(db, tenant_id)
     rbac_service = RBACService(db, tenant_id)
 
-    try:
-        # Check name availability within tenant
-        is_available = await project_repo.check_name_availability(project_data.name)
-        if not is_available:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Project name '{project_data.name}' is already taken within tenant",
-            )
-
-        project = await project_repo.create(
-            name=project_data.name,
-            description=getattr(project_data, "description", ""),
-            language=getattr(project_data, "language", "en"),
-            owner_id=current_user.id,
+    # SECURITY: Require write permission to create projects in this tenant
+    can_create = await rbac_service.check_permission(
+        current_user.id, None, Permission.PROJECT_WRITE
+    )
+    if not can_create:
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions to create projects"
         )
 
+    try:
+        # Remove TOCTOU race condition - rely on database unique constraint
+        # instead of checking name availability beforehand
+        from sqlalchemy.exc import IntegrityError
+
+        try:
+            project = await project_repo.create(
+                name=project_data.name,
+                description=getattr(project_data, "description", ""),
+                language=getattr(project_data, "language", "en"),
+                owner_id=current_user.id,
+            )
+        except IntegrityError as ie:
+            await db.rollback()
+            # Check if this is specifically a name uniqueness violation
+            if "uq_project_tenant_name" in str(ie.orig):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Project name '{project_data.name}' already exists in this tenant",
+                )
+            else:
+                # Other integrity errors (foreign key violations, etc.)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Database constraint violation: {ie.orig!s}",
+                )
+
         # Initialize project permissions for the owner
-        await rbac_service.assign_role_to_user(
+        await rbac_service.add_project_member(
+            project_id=project.id,
             user_id=current_user.id,
-            resource_id=project.id,
-            role=Permission.PROJECT_OWNER,
+            role_name="OWNER",
+            invited_by_id=current_user.id,
         )
 
         await db.commit()
@@ -310,7 +331,7 @@ async def create_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=500, detail="Failed to create project")
+        raise HTTPException(status_code=500, detail=f"Database connection error: {e!s}")
     except (ValueError, KeyError, TypeError) as e:
         await db.rollback()
         logger.error(
@@ -320,18 +341,18 @@ async def create_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=400, detail="Invalid project data")
+        raise HTTPException(status_code=400, detail=f"Invalid project data: {e!s}")
     except Exception as e:
         await db.rollback()
         logger.error(
-            "Failed to create project",
+            "Unexpected error while creating project",
             name=project_data.name,
             error=str(e),
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail="Failed to create project")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e!s}")
 
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
@@ -489,8 +510,27 @@ async def update_project(
                 language_fallback=project_update.language or _project_language(project),
             )
 
-        updated_project = await project_repo.update(project_id, **update_fields)
-        await db.commit()
+        from sqlalchemy.exc import IntegrityError
+
+        try:
+            updated_project = await project_repo.update(project_id, **update_fields)
+            await db.commit()
+        except IntegrityError as ie:
+            await db.rollback()
+            # Check if this is specifically a name uniqueness violation
+            if "uq_project_tenant_name" in str(ie.orig):
+                # Extract the name from update_fields if it was being updated
+                attempted_name = update_fields.get("name", "unknown")
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Project name '{attempted_name}' already exists in this tenant",
+                )
+            else:
+                # Other integrity errors (foreign key violations, etc.)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Database constraint violation: {ie.orig!s}",
+                )
 
         target_project = updated_project or project
 
@@ -519,7 +559,7 @@ async def update_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=500, detail="Failed to update project")
+        raise HTTPException(status_code=500, detail=f"Database connection error: {e!s}")
     except (ValueError, KeyError, TypeError) as e:
         await db.rollback()
         logger.error(
@@ -529,18 +569,18 @@ async def update_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=400, detail="Invalid project data")
+        raise HTTPException(status_code=400, detail=f"Invalid project data: {e!s}")
     except Exception as e:
         await db.rollback()
         logger.error(
-            "Failed to update project",
+            "Unexpected error while updating project",
             project_id=str(project_id),
             error=str(e),
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail="Failed to update project")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e!s}")
 
 
 @router.delete("/projects/{project_id}")

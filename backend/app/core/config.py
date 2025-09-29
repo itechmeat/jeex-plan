@@ -5,7 +5,7 @@ Vault integration, and type validation using Pydantic settings.
 
 import logging
 from functools import lru_cache
-from typing import Any
+from typing import Any, Final
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field(
         default="postgresql://postgres:password@localhost:5432/jeex_plan",
     )
+
+    # PostgreSQL Server Settings
+    PG_APPLICATION_NAME_DEV: str = Field(default="jeex-plan-dev")
+    PG_APPLICATION_NAME_PROD: str = Field(default="jeex-plan")
+    PG_EFFECTIVE_IO_CONCURRENCY: int = Field(default=200)
+    PG_RANDOM_PAGE_COST: float = Field(default=1.1)
 
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379")
@@ -187,6 +193,20 @@ class Settings(BaseSettings):
             settings_dict["password"] = self.REDIS_PASSWORD
 
         return settings_dict
+
+    def get_pg_server_settings_dev(self) -> dict[str, str]:
+        """Get PostgreSQL server settings for development"""
+        return {
+            "application_name": self.PG_APPLICATION_NAME_DEV,
+        }
+
+    def get_pg_server_settings_prod(self) -> dict[str, str]:
+        """Get PostgreSQL server settings for production"""
+        return {
+            "application_name": self.PG_APPLICATION_NAME_PROD,
+            "effective_io_concurrency": str(self.PG_EFFECTIVE_IO_CONCURRENCY),
+            "random_page_cost": str(self.PG_RANDOM_PAGE_COST),
+        }
 
 
 logger = logging.getLogger(__name__)
@@ -344,23 +364,25 @@ def get_vault_settings() -> VaultSettings:
 
 
 # Shared middleware configuration
-EXEMPT_PATHS = [
-    # Documentation and health endpoints
-    "/docs",
-    "/redoc",
-    "/openapi.json",
-    "/health",
-    "/ready",
-    "/system/status",
-    "/api/v1/info",
-    "/api/v1/health",
-    "/api/v1/auth/register",
-    "/api/v1/auth/login",
-    "/api/v1/auth/oauth",
-    "/api/v1/auth/providers",
-    "/api/v1/agents/health",
-    "/",
-]
+EXEMPT_PATHS: Final[frozenset[str]] = frozenset(
+    {
+        # Documentation and health endpoints
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/health",
+        "/ready",
+        "/system/status",
+        "/api/v1/info",
+        "/api/v1/health",
+        "/api/v1/auth/register",
+        "/api/v1/auth/login",
+        "/api/v1/auth/oauth",
+        "/api/v1/auth/providers",
+        "/api/v1/agents/health",
+        "/api/v1/auth/logout",
+    }
+)
 
 # Global settings instance
 settings = get_settings()

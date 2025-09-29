@@ -95,10 +95,16 @@
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_fill_form",
-      "Bash(export:*)",
       "Bash(npx tsc:*)",
       "Bash(pnpm run test:e2e:*)",
-      "Bash(pnpm run test:auth:*)"
+      "Bash(pnpm run test:auth:*)",
+      "Bash(markdownlint-cli2:*)",
+      "Bash(npm run playwright:install:*)",
+      "Bash(npx playwright test:*)",
+      "Bash(npm run test:auth:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx vite build:*)",
+      "Bash(npx stylelint:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",

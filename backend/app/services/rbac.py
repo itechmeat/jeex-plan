@@ -208,7 +208,22 @@ class RBACService:
         project_id: uuid.UUID | None,
         permission: Permission,
     ) -> bool:
-        """Check if a user has a specific permission, optionally scoped to a project."""
+        """
+        Check if a user has a specific permission, optionally scoped to a project.
+
+        When project_id is None, this is treated as a tenant-scoped "list" permission check.
+        The user must have at least one active membership in ANY project within the tenant
+        with the required permission. This prevents cross-tenant access while allowing
+        legitimate list operations for users with project-level permissions.
+
+        Args:
+            user_id: User ID to check permissions for
+            project_id: Specific project ID to check, or None for tenant-scoped check
+            permission: Permission to verify
+
+        Returns:
+            True if user has permission, False otherwise
+        """
 
         # Validate user exists and is active inside tenant
         from sqlalchemy import select
@@ -231,8 +246,16 @@ class RBACService:
             "user_id": user_id,
             "is_active": True,
         }
-        if project_id:
+
+        # SECURITY: When project_id is None, this is a tenant-scoped list permission.
+        # We must ensure the user has explicit membership in at least one project
+        # within this tenant with the required permission. This prevents escalation
+        # to cross-tenant access while allowing legitimate list operations.
+        if project_id is not None:
+            # Specific project check - user must have permission on this exact project
             membership_filters["project_id"] = project_id
+        # For project_id=None: check all user's project memberships in this tenant
+        # (no additional filter needed - already scoped by tenant via member_repo)
 
         memberships = await self.member_repo.get_by_fields(**membership_filters)
         if not memberships:
@@ -243,7 +266,7 @@ class RBACService:
 
         for role_id in role_ids:
             role = await self.role_repo.get_by_id(role_id)
-            if not role:
+            if not role or not role.is_active:
                 continue
 
             if any(perm.name == permission.value for perm in role.permissions):

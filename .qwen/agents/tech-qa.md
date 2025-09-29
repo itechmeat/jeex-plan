@@ -54,6 +54,30 @@ def test_something():
     # No cleanup = pollution
 ```
 
+### ❌ NEVER USE - Fragile CSS Selectors (CRITICAL PROHIBITION)
+
+```typescript
+// WRONG - CSS selectors (EXTREMELY PROHIBITED - unprofessional and fragile)
+await page.click('button');  // WILL BREAK on ANY CSS change
+await page.locator('.submit-btn');  // WILL BREAK on styling updates
+await page.locator('text=/invalid.*credential/i');  // REGEX selectors are fragile
+await page.locator('[role="alert"], .error, text=/required/i');  // Complex selectors break easily
+
+// WRONG - HTML structure-dependent selectors (PROHIBITED)
+await page.locator('div > form > button:nth-child(2)');  // WILL BREAK on structure changes
+await page.locator('.container .form .button');  // CSS class dependencies
+```
+
+**MANDATORY**: All E2E tests MUST use data-testid attributes exclusively, with preference for accessibility selectors when data-testid is not available:
+
+```typescript
+// CORRECT - data-testid attributes (REQUIRED approach)
+await page.click('[data-testid="submit-button"]');
+await page.fill('[data-testid="email-input"]', email);
+await page.locator('[data-testid="error-message"]').toBeVisible();
+await page.locator('[data-testid="success-notification"]').toContainText('Success');
+```
+
 ### ❌ NEVER USE - Security Anti-patterns
 
 ```python
@@ -247,7 +271,7 @@ async def test_real_time_progress_updates():
 
 ### Test Organization Structure
 
-```
+```text
 tests/
 ├── unit/                   # Fast unit tests
 │   ├── test_models.py
@@ -289,6 +313,7 @@ QUALITY_REQUIREMENTS = {
 When encountering unimplemented functionality during testing, proactively invoke specialized agents:
 
 ### Frontend Issues
+
 ```typescript
 // When discovering missing frontend functionality
 if (missingFrontendFeature) {
@@ -301,6 +326,7 @@ if (missingFrontendFeature) {
 ```
 
 ### Backend Issues
+
 ```python
 # When discovering missing backend functionality
 if missing_api_endpoint:
@@ -324,32 +350,43 @@ if missing_api_endpoint:
 6. **Skipping security test coverage**
 7. **Not using Page Object Model for E2E tests**
 8. **Tests that depend on external services without mocks**
+9. **Using CSS selectors instead of data-testid attributes (CRITICAL VIOLATION)**
+   - **Exception**: Semantic queries using `getByRole`, `getByLabelText`, `getByPlaceholderText` are allowed for accessibility testing
+   - **Exception**: CSS/structure selectors are BANNED except for complex scenarios with proper justification
 
 ## Testing Best Practices
 
 ### Multi-Tenant Testing
+
 - Always test with isolated tenant contexts
 - Verify cross-tenant data leakage prevention
 - Test tenant-specific rate limiting
 - Validate tenant scoped permissions
+- Add concrete tests for multi-tenant behavior across caching, background jobs, realtime channels, auditing
 
 ### Performance Testing
+
 - Establish baseline performance metrics
 - Test under concurrent load
 - Monitor resource utilization
 - Validate scalability thresholds
 
 ### Security Testing
+
 - Test authentication/authorization flows
 - Validate input sanitization
 - Test rate limiting effectiveness
 - Verify encryption and data protection
+- Add explicit test cases for tenant separation
+- Add concrete tests to enforce tenant separation
 
 ### Accessibility Testing
+
 - WCAG 2.1 AA compliance validation
 - Screen reader compatibility testing
 - Keyboard navigation testing
 - Color contrast verification
+- Add accessibility guidance with @axe-core/playwright integration
 
 ## Documentation Research
 

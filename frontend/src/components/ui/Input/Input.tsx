@@ -96,7 +96,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 id={errorId}
                 className={styles.error}
                 role='alert'
-                data-testid={`${dataTestId}-error`}
+                data-testid={dataTestId ? `${dataTestId}-error` : undefined}
               >
                 {error}
               </span>

@@ -13,6 +13,30 @@ import {
   User,
 } from '../types/api';
 
+/**
+ * SECURITY TODO: Critical security improvements needed
+ *
+ * Current implementation uses sessionStorage for refresh tokens as temporary mitigation
+ * for XSS vulnerabilities. This is NOT production-ready for high-security applications.
+ *
+ * Required backend changes for full security:
+ * 1. Configure refresh tokens as HttpOnly, Secure, SameSite cookies
+ * 2. Remove refresh token from API response body
+ * 3. Accept refresh requests without body (cookies auto-sent)
+ * 4. Implement CSRF protection (double-submit cookie pattern)
+ *
+ * Frontend changes after backend migration:
+ * 1. Remove all refresh token storage logic
+ * 2. Add credentials: 'include' to refresh requests
+ * 3. Implement CSRF token handling
+ *
+ * Additional security measures to implement:
+ * - Content Security Policy (CSP) headers
+ * - Token rotation on every refresh
+ * - Rate limiting for refresh endpoints
+ * - Secure session management
+ */
+
 const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL =
   typeof envApiBaseUrl === 'string' && envApiBaseUrl.trim().length > 0
@@ -52,7 +76,37 @@ class ApiClient {
   private removeTokenFromStorage() {
     this.accessToken = null;
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    // SECURITY: Remove refresh token from sessionStorage
+    sessionStorage.removeItem('refreshToken');
+  }
+
+  // SECURITY: Helper methods for secure refresh token storage
+  private saveRefreshToken(token: string) {
+    // TODO: Migrate to HttpOnly cookies for maximum security
+    // Using sessionStorage as temporary mitigation - tokens clear on tab close
+    sessionStorage.setItem('refreshToken', token);
+  }
+
+  private getRefreshToken(): string | null {
+    return sessionStorage.getItem('refreshToken');
+  }
+
+  private removeRefreshToken() {
+    sessionStorage.removeItem('refreshToken');
+  }
+
+  // SECURITY: Check if access token is expiring soon
+  private isTokenExpiringSoon(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = payload.exp * 1000;
+      const currentTime = Date.now();
+      const fiveMinutes = 5 * 60 * 1000;
+
+      return expirationTime - currentTime < fiveMinutes;
+    } catch {
+      return true; // If we can't parse - consider expired
+    }
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -114,7 +168,7 @@ class ApiClient {
     });
 
     this.saveTokenToStorage(response.data.accessToken);
-    localStorage.setItem('refreshToken', response.data.refreshToken);
+    this.saveRefreshToken(response.data.refreshToken);
 
     return response.data;
   }
@@ -134,7 +188,7 @@ class ApiClient {
     });
 
     this.saveTokenToStorage(response.data.accessToken);
-    localStorage.setItem('refreshToken', response.data.refreshToken);
+    this.saveRefreshToken(response.data.refreshToken);
 
     return response.data;
   }
@@ -151,7 +205,7 @@ class ApiClient {
   }
 
   async refreshToken(): Promise<string> {
-    const refreshToken = localStorage.getItem('refreshToken');
+    const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
       throw new ApiError('No refresh token available', 401);
     }

@@ -65,9 +65,10 @@ vault-status:
 lint:
 	@echo "🔍 Running all linting checks..."
 	@$(MAKE) frontend-lint
-	@echo "📋 Checking markdown..."
-	npx markdownlint-cli2
 	@$(MAKE) backend-lint
+	@$(MAKE) sql-lint
+	@$(MAKE) docker-lint
+	@$(MAKE) markdown-lint
 	@echo "✅ All lint checks completed"
 
 frontend-lint:

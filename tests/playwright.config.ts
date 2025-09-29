@@ -1,23 +1,38 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Configuration constants with environment variable fallbacks
+const TEST_CONFIG = {
+  RETRIES_CI: parseInt(process.env.PLAYWRIGHT_RETRIES_CI || '2', 10),
+  RETRIES_LOCAL: parseInt(process.env.PLAYWRIGHT_RETRIES_LOCAL || '0', 10),
+  WORKERS_CI: parseInt(process.env.PLAYWRIGHT_WORKERS_CI || '1', 10),
+  FRONTEND_PORT: parseInt(process.env.FRONTEND_PORT || '5200', 10),
+  BACKEND_PORT: parseInt(process.env.BACKEND_PORT || '5210', 10),
+  HOST: process.env.TEST_HOST || '127.0.0.1',
+  FRONTEND_TIMEOUT: parseInt(process.env.FRONTEND_TIMEOUT || '120000', 10),
+  BACKEND_TIMEOUT: parseInt(process.env.BACKEND_TIMEOUT || '180000', 10),
+  BASE_URL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.TEST_HOST || '127.0.0.1'}:${process.env.FRONTEND_PORT || '5200'}`,
+};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: Number(process.env.PW_RETRIES ?? (process.env.CI ? TEST_CONFIG.RETRIES_CI : TEST_CONFIG.RETRIES_LOCAL)),
+  workers: process.env.CI
+    ? TEST_CONFIG.WORKERS_CI
+    : (process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : undefined),
 
   reporter: [
-    ['html', { outputFolder: 'test-results/html' }],
-    ['json', { outputFile: 'test-results/results.json' }],
-    ['junit', { outputFile: 'test-results/results.xml' }]
+    ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_REPORT || 'playwright-report' }],
+    ['json', { outputFile: process.env.PLAYWRIGHT_JSON_REPORT || 'test-results/results.json' }],
+    ['junit', { outputFile: process.env.PLAYWRIGHT_JUNIT_REPORT || 'test-results/results.xml' }]
   ],
 
   use: {
-    baseURL: 'http://localhost:5200',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    baseURL: TEST_CONFIG.BASE_URL,
+    trace: (process.env.PLAYWRIGHT_TRACE as 'on' | 'off' | 'on-first-retry' | 'on-all-retries' | 'retain-on-failure') || 'on-first-retry',
+    screenshot: (process.env.PLAYWRIGHT_SCREENSHOT as 'off' | 'on' | 'only-on-failure') || 'only-on-failure',
+    video: (process.env.PLAYWRIGHT_VIDEO as 'off' | 'on' | 'retain-on-failure' | 'on-first-retry') || 'retain-on-failure',
   },
 
   projects: [
@@ -43,17 +58,20 @@ export default defineConfig({
   globalSetup: './setup/global-setup.ts',
   globalTeardown: './setup/global-teardown.ts',
 
-  // Web server configuration
   webServer: [
     {
-      command: 'cd ../frontend && pnpm run dev',
-      port: 5200,
+      command: process.env.CI
+        ? `cd ../frontend && pnpm run preview -- --port ${TEST_CONFIG.FRONTEND_PORT} --host ${TEST_CONFIG.HOST}`
+        : `cd ../frontend && pnpm run dev -- --port ${TEST_CONFIG.FRONTEND_PORT} --host ${TEST_CONFIG.HOST}`,
+      url: `http://${TEST_CONFIG.HOST}:${TEST_CONFIG.FRONTEND_PORT}`,
+      timeout: TEST_CONFIG.FRONTEND_TIMEOUT,
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: 'cd .. && make up',
-      port: 5210,
+      command: process.env.BACKEND_COMMAND || 'cd .. && make up',
+      url: `http://${TEST_CONFIG.HOST}:${TEST_CONFIG.BACKEND_PORT}`,
+      timeout: TEST_CONFIG.BACKEND_TIMEOUT,
       reuseExistingServer: !process.env.CI,
-    }
+    },
   ],
 });

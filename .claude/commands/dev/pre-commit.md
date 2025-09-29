@@ -48,7 +48,7 @@ Run `make pre-commit` to execute all pre-commit hooks, then systematically fix a
 **Step 1: Run Pre-Commit Checks**
 Execute all pre-commit hooks:
 
-!timeout 600 make pre-commit
+!timeout 600 bash -c 'make pre-commit; echo "__PRECOMMIT_STATUS:$?"'
 
 **Step 2: Analyze Pre-Commit Output**
 Carefully review the pre-commit output to identify:
@@ -66,7 +66,7 @@ Based on the pre-commit results, activate appropriate agents:
 Use the Task tool with parameters:
 - subagent_type: "tech-frontend"
 - description: "Fix pre-commit frontend issues"
-- prompt: "Fix the following pre-commit issues in the frontend code: [insert pre-commit frontend errors]. Resolve ESLint, TypeScript, and formatting issues. Follow React 19+, TypeScript strict mode, and accessibility standards. Apply all fixes using the exact tools and configurations specified in the project."
+- prompt: "SECURITY-FIRST: Run detect-secrets/trufflehog scan and license compliance checks BEFORE any fixes. Generate structured reports (ESLint --format=json, TypeScript --pretty false, Playwright --reporter=html) for data-driven analysis instead of log scraping. Redact all secrets in outputs with [REDACTED]. Fix the following pre-commit issues in the frontend code: [insert pre-commit frontend errors]. Resolve ESLint, TypeScript, and formatting issues. Follow React 19+, TypeScript strict mode, and accessibility standards. Apply all fixes using the exact tools and configurations specified in the project."
 ```
 
 **If backend issues found:**
@@ -75,7 +75,7 @@ Use the Task tool with parameters:
 Use the Task tool with parameters:
 - subagent_type: "tech-python"
 - description: "Fix pre-commit backend issues"
-- prompt: "Fix the following pre-commit issues in the backend code: [insert pre-commit backend errors]. Resolve Python formatting, linting, import sorting, and type checking issues. Follow architectural principles, security requirements, and multi-tenant isolation. Use ruff, black, isort, and mypy as configured in the project."
+- prompt: "SECURITY-FIRST: Run detect-secrets/trufflehog scan and license compliance checks BEFORE any fixes. Generate structured reports (pytest --junit-xml, mypy --xml-report, ruff --format=json, bandit --format=json, safety --json) for data-driven analysis instead of log scraping. Redact all secrets in outputs with [REDACTED]. Fix the following pre-commit issues in the backend code: [insert pre-commit backend errors]. Resolve Python formatting, linting, import sorting, and type checking issues. Follow architectural principles, security requirements, and multi-tenant isolation. Use ruff, black, isort, and mypy as configured in the project. Add Bandit and dependency-audit commands for SAST/SCA."
 ```
 
 **If test issues found:**
@@ -84,25 +84,100 @@ Use the Task tool with parameters:
 Use the Task tool with parameters:
 - subagent_type: "tech-qa"
 - description: "Fix pre-commit test issues"
-- prompt: "Fix the following pre-commit issues in test files: [insert pre-commit test errors]. Resolve test formatting, coverage, and syntax issues. Follow testing best practices and maintain test quality standards."
+- prompt: "SECURITY-FIRST: Run detect-secrets/trufflehog scan and license compliance checks BEFORE any fixes. Generate structured reports (pytest --junit-xml --html=reports/pytest-report.html, Playwright --reporter=html,junit, coverage xml --fail-under=90) for data-driven analysis instead of log scraping. Redact all secrets in outputs with [REDACTED]. Fix the following pre-commit issues in test files: [insert pre-commit test errors]. Resolve test formatting, coverage, and syntax issues. Follow testing best practices and maintain test quality standards."
 ```
 
 **For multiple issue types:**
 Launch agents in parallel for each issue type identified.
 
+## Security-First Pre-Commit Gates
+
+**MANDATORY: Run these checks BEFORE any formatting/linting:**
+
+1. **Secret Scanning** (BLOCKING):
+   ```bash
+   # Run detect-secrets baseline scan
+   detect-secrets scan --baseline .secrets.baseline
+   # Or run trufflehog for comprehensive scanning
+   trufflehog filesystem . --exclude-paths trufflehog-exclude.txt
+   # EXIT CODE: Non-zero blocks commit
+   ```
+
+2. **License Compliance** (BLOCKING):
+   ```bash
+   # Verify license headers exist in all source files
+   licensecheck --check .licensecheck.yml
+   # EXIT CODE: Non-zero blocks commit on missing headers
+   ```
+
+3. **Redaction Verification** (BLOCKING):
+   - All agent outputs MUST redact secrets with `[REDACTED]` markers
+   - Pre-commit hook fails if redaction markers are missing from logs
+   - Agents must scan their own outputs before submission
+   - Automated checks verify redaction patterns in all generated artifacts
+
+## Failure Artifacts Requirements
+
+**MANDATORY: Agents must generate structured reports for data-driven remediation**
+
+### Frontend Agent Artifacts:
+```bash
+# ESLint JSON report for structured error analysis
+eslint . --format=json --output-file=reports/eslint-report.json
+
+# TypeScript compiler output for type error analysis
+tsc --noEmit --pretty false > reports/typescript-errors.txt
+
+# Playwright HTML report for E2E test failures
+npx playwright test --reporter=html,junit --output-dir=reports/
+```
+
+### Backend Agent Artifacts:
+```bash
+# pytest JUnit XML + HTML reports for test failures
+pytest --junit-xml=reports/pytest-junit.xml --html=reports/pytest-report.html
+
+# mypy XML report for type checking issues
+mypy . --xml-report reports/mypy-report/
+
+# ruff JSON report for linting issues
+ruff check . --format=json --output-file=reports/ruff-report.json
+```
+
+### QA Agent Artifacts:
+```bash
+# Ensure report directories exist
+mkdir -p reports/{unit,e2e,coverage}
+
+# Comprehensive test reporting
+pytest --junit-xml=reports/unit-tests.xml --html=reports/unit-tests.html --cov-report=xml:reports/coverage.xml
+npx playwright test --reporter=html,junit --output-dir=reports/e2e/
+```
+
 **Step 4: Specialized Agent Execution**
 
 The activated agent must:
 
-1. **Read each issue carefully** - understand the error, location, and suggested fix
-2. **Implement exact fixes** - apply the corrections using the appropriate tools
-3. **Maintain consistency** - follow existing patterns and project conventions
-4. **Preserve functionality** - ensure fixes don't break existing functionality
-5. **Follow project standards** - comply with CLAUDE.md requirements
-6. **Verify fixes** - run relevant checks after applying fixes
+1. **SECURITY-FIRST CHECKS** - run secret scanning (detect-secrets/trufflehog) and license compliance BEFORE any other checks
+2. **Redact sensitive data** - ensure all logs and outputs have secrets properly redacted with [REDACTED] markers
+3. **Generate failure artifacts** - produce JUnit XML/HTML reports (pytest --junit-xml, Playwright --reporter=html) for data-driven analysis
+4. **Attach structured reports** - use artifacts instead of log scraping for reliable automatic remediation
+5. **Read each issue carefully** - understand the error, location, and suggested fix from structured data
+6. **Implement exact fixes** - apply the corrections using the appropriate tools
+7. **Maintain consistency** - follow existing patterns and project conventions
+8. **Preserve functionality** - ensure fixes don't break existing functionality
+9. **Follow project standards** - comply with CLAUDE.md requirements
+10. **Verify fixes** - run relevant checks after applying fixes and generate post-fix reports
+11. **Artifact scrubbing** - remove sensitive data from all generated reports before publishing
+12. **Tenant-safe publishing** - ensure all published artifacts are tenant-isolated and secure
 
 ## Key Principles for Agents
 
+- **MANDATORY SECRET SCANNING** - run detect-secrets or trufflehog before any code changes, fail on findings
+- **LICENSE COMPLIANCE** - verify all files have proper license headers, fail on missing headers
+- **REDACTION ENFORCEMENT** - all copied logs/outputs MUST have secrets redacted with [REDACTED] markers
+- **DATA-DRIVEN REMEDIATION** - generate and attach JUnit/HTML reports instead of log scraping for reliable fixes
+- **STRUCTURED ARTIFACTS** - use pytest --junit-xml, Playwright --reporter=html, ESLint --format=json for analysis
 - **Use project tools** - apply fixes using configured tools (ruff, black, ESLint, etc.)
 - **Follow DRY principles** - extract reusable code where appropriate
 - **Maintain multi-tenant architecture** - ensure all changes respect tenant isolation

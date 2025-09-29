@@ -52,6 +52,10 @@ class AuthPage {
 
   // Error state expectations
   async expectGeneralErrorMessage() {
+    // First wait for loading to complete (button should not be loading anymore)
+    await expect(this.page.locator('[data-testid="sign-in-button"]')).not.toHaveAttribute('data-loading', 'true');
+
+    // Then check for error message
     await expect(this.page.locator('[data-testid="error-message"]')).toBeVisible();
   }
 
@@ -252,9 +256,26 @@ test.describe('Authentication Flow', () => {
       // Start login process and immediately check for loading state
       await authPage.clickSignIn();
 
+      // Wait for React state updates to take effect
+      await page.waitForTimeout(10);
+
       // Should show loading spinner or disabled button
       const hasLoadingSpinner = await page.locator('[data-testid="loading-spinner"]').isVisible().catch(() => false);
       const isButtonDisabled = await page.locator('[data-testid="sign-in-button"]').isDisabled().catch(() => false);
+
+      // Additional debug info
+      const buttonText = await page.locator('[data-testid="sign-in-button"]').textContent().catch(() => 'unknown');
+      const debugInfo = await page.evaluate(() => {
+        const button = document.querySelector('[data-testid="sign-in-button"]') as HTMLButtonElement;
+        return {
+          disabled: button?.disabled,
+          loading: button?.dataset?.loading,
+          hasSpinner: !!document.querySelector('[data-testid="loading-spinner"]'),
+          className: button?.className
+        };
+      });
+
+      console.log('Loading test debug:', { hasLoadingSpinner, isButtonDisabled, buttonText, debugInfo });
 
       expect(hasLoadingSpinner || isButtonDisabled).toBe(true);
     });
@@ -405,6 +426,8 @@ test.describe('Authentication Flow', () => {
       // Click submit button multiple times rapidly
       const submitButton = page.locator('[data-testid="sign-in-button"]');
       await submitButton.click();
+      // Small delay to let React state update
+      await page.waitForTimeout(10);
       await submitButton.click();
       await submitButton.click();
 

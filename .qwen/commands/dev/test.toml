@@ -47,12 +47,12 @@ Run complete testing suite including E2E tests (Playwright) and backend tests (p
 **Step 1: Run E2E Tests**
 Execute Playwright test suite:
 
-!timeout 900 cd tests && pnpm run test || true
+!timeout 900 bash -lc 'cd tests && pnpm run test; echo "__PW_STATUS:$?"' || true
 
 **Step 2: Run Backend Tests**
 Execute backend test suite:
 
-!timeout 600 cd backend && docker-compose exec api pytest -v
+!timeout 900 bash -lc 'cd backend && docker compose run --rm -T api pytest -q; echo "__PY_STATUS:$?"' || true
 
 **Step 3: Analyze Test Results**
 Carefully review the test output to identify:

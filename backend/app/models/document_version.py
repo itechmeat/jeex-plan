@@ -59,7 +59,7 @@ class DocumentVersion(BaseModel):
     project: Mapped[Project] = relationship(
         "Project",
         back_populates="document_versions",
-        primaryjoin="and_(foreign(DocumentVersion.project_id) == remote(Project.id), foreign(DocumentVersion.tenant_id) == remote(Project.tenant_id))",
+        primaryjoin="and_(DocumentVersion.project_id == Project.id, DocumentVersion.tenant_id == Project.tenant_id)",
         foreign_keys="[DocumentVersion.project_id, DocumentVersion.tenant_id]",
     )
 

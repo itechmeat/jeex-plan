@@ -60,11 +60,21 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         className={buttonClass}
         disabled={disabled || isLoading}
-        aria-label={needsAriaLabel ? 'Action button' : props['aria-label']}
+        aria-label={props['aria-label']}
+        aria-busy={isLoading || undefined}
         data-testid={dataTestId}
+        data-loading={isLoading || undefined}
+        data-disabled={disabled || isLoading || undefined}
         {...props}
       >
-        {isLoading && <div className={styles.spinner} data-testid='loading-spinner' />}
+        {isLoading && (
+          <div
+            className={styles.spinner}
+            role='status'
+            aria-live='polite'
+            data-testid='loading-spinner'
+          />
+        )}
         {leftIcon && !isLoading && <span className={styles.leftIcon}>{leftIcon}</span>}
         {children}
         {rightIcon && !isLoading && (

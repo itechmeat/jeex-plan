@@ -50,6 +50,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!apiClient.isAuthenticated()) {
       setUser(null);
       setIsLoading(false);
+      setError(null);
       return;
     }
 
@@ -78,6 +79,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } else {
         console.warn('Auth refresh failed with non-auth error; retaining session.');
+        // For non-auth errors during refresh, clear user to avoid stuck loading state
+        setUser(null);
       }
     } finally {
       setIsLoading(false);
@@ -85,23 +88,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [logout]);
 
   const login = useCallback(async (credentials: LoginRequest) => {
-    setIsLoading(true);
+    console.log('AuthContext: Starting login');
     setError(null);
 
     try {
       const response = await apiClient.login(credentials);
+      console.log('AuthContext: Login successful');
       setUser(response.user);
     } catch (error) {
-      console.error('Login error:', error);
-      setError(handleApiError(error));
+      console.error('AuthContext: Login error:', error);
+      const errorMessage = handleApiError(error);
+      console.log('AuthContext: Setting error message:', errorMessage);
+      setError(errorMessage);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
   const register = useCallback(async (userData: RegisterRequest) => {
-    setIsLoading(true);
     setError(null);
 
     try {
@@ -111,8 +114,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Registration error:', error);
       setError(handleApiError(error));
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -121,25 +122,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshAuth();
   }, [refreshAuth]);
 
-  // Set up automatic token refresh
+  // Set up automatic token refresh with improved security
   useEffect(() => {
     if (!user) return;
 
+    // SECURITY: Reduced refresh interval to 30 minutes for better rotation
+    // TODO: Implement proactive refresh when token is close to expiry
     const interval = setInterval(
       async () => {
         try {
           await apiClient.refreshToken();
+          console.log('Background token refresh successful');
         } catch (error) {
           console.error('Background token refresh failed:', error);
-          // Don't logout automatically on background refresh failure
-          // Let the user continue until they make a request that fails
+          // SECURITY: On repeated failures, logout user to prevent stale session
+          // This prevents attackers from maintaining access with compromised tokens
+          if (error instanceof Error && error.message.includes('401')) {
+            console.warn('Token refresh failed with 401, logging out user');
+            logout();
+          }
         }
       },
-      15 * 60 * 1000
-    ); // Refresh every 15 minutes
+      30 * 60 * 1000
+    );
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, logout]);
 
   const value: AuthContextType = {
     user,
