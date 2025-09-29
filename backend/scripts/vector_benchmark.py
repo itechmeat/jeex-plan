@@ -10,7 +10,7 @@ import json
 import statistics
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.adapters.qdrant import QdrantAdapter
@@ -383,7 +383,7 @@ class VectorBenchmark:
 
         results = {
             "benchmark_config": config,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "results": {},
         }
 
@@ -439,7 +439,7 @@ class VectorBenchmark:
         print("=" * 60)
 
         # Save results
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         results_file = f"vector_benchmark_results_{timestamp}.json"
         with open(results_file, "w") as f:
             json.dump(results, f, indent=2)

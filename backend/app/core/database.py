@@ -35,6 +35,12 @@ if settings.is_development:
         poolclass=NullPool,
         pool_pre_ping=True,
         pool_recycle=300,
+        # PostgreSQL 18 async I/O optimizations
+        connect_args={
+            "server_settings": {
+                "application_name": "jeex-plan-dev",
+            }
+        },
     )
 else:
     # Production: use connection pooling
@@ -45,6 +51,14 @@ else:
         max_overflow=30,
         pool_pre_ping=True,
         pool_recycle=300,
+        # PostgreSQL 18 async I/O optimizations
+        connect_args={
+            "server_settings": {
+                "application_name": "jeex-plan",
+                "effective_io_concurrency": "200",
+                "random_page_cost": "1.1",
+            }
+        },
     )
 
 # Create session factory

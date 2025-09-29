@@ -13,11 +13,10 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    and_,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship, remote
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
 
@@ -60,11 +59,8 @@ class DocumentVersion(BaseModel):
     project: Mapped[Project] = relationship(
         "Project",
         back_populates="document_versions",
-        primaryjoin=lambda: and_(
-            foreign(DocumentVersion.project_id) == remote(Project.id),
-            foreign(DocumentVersion.tenant_id) == remote(Project.tenant_id),
-        ),
-        foreign_keys=lambda: [DocumentVersion.project_id, DocumentVersion.tenant_id],
+        primaryjoin="and_(foreign(DocumentVersion.project_id) == remote(Project.id), foreign(DocumentVersion.tenant_id) == remote(Project.tenant_id))",
+        foreign_keys="[DocumentVersion.project_id, DocumentVersion.tenant_id]",
     )
 
     # Created by user

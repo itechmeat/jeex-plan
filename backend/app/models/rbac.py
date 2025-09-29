@@ -17,10 +17,9 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
-    and_,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, BaseModel
 
@@ -106,28 +105,16 @@ class Role(BaseModel):
         "PermissionModel",
         secondary=role_permissions,
         back_populates="roles",
-        primaryjoin=lambda: and_(
-            Role.id == foreign(role_permissions.c.role_id),
-            Role.tenant_id == foreign(role_permissions.c.tenant_id),
-        ),
-        secondaryjoin=lambda: and_(
-            PermissionModel.id == foreign(role_permissions.c.permission_id),
-            PermissionModel.tenant_id == foreign(role_permissions.c.tenant_id),
-        ),
-        foreign_keys=lambda: [
-            role_permissions.c.role_id,
-            role_permissions.c.permission_id,
-            role_permissions.c.tenant_id,
-        ],
+        primaryjoin="and_(Role.id == role_permissions.c.role_id, Role.tenant_id == role_permissions.c.tenant_id)",
+        secondaryjoin="and_(PermissionModel.id == role_permissions.c.permission_id, PermissionModel.tenant_id == role_permissions.c.tenant_id)",
+        foreign_keys="[role_permissions.c.role_id, role_permissions.c.permission_id, role_permissions.c.tenant_id]",
     )
     project_members: Mapped[list[ProjectMember]] = relationship(
         "ProjectMember",
         back_populates="role",
-        primaryjoin=lambda: and_(
-            Role.id == foreign(ProjectMember.role_id),
-            Role.tenant_id == foreign(ProjectMember.tenant_id),
-        ),
-        foreign_keys=lambda: [ProjectMember.role_id, ProjectMember.tenant_id],
+        primaryjoin="and_(Role.id == ProjectMember.role_id, Role.tenant_id == ProjectMember.tenant_id)",
+        foreign_keys="[ProjectMember.role_id, ProjectMember.tenant_id]",
+        overlaps="members",
     )
 
     __table_args__ = (
@@ -158,19 +145,9 @@ class PermissionModel(BaseModel):
         "Role",
         secondary=role_permissions,
         back_populates="permissions",
-        primaryjoin=lambda: and_(
-            PermissionModel.id == foreign(role_permissions.c.permission_id),
-            PermissionModel.tenant_id == foreign(role_permissions.c.tenant_id),
-        ),
-        secondaryjoin=lambda: and_(
-            Role.id == foreign(role_permissions.c.role_id),
-            Role.tenant_id == foreign(role_permissions.c.tenant_id),
-        ),
-        foreign_keys=lambda: [
-            role_permissions.c.role_id,
-            role_permissions.c.permission_id,
-            role_permissions.c.tenant_id,
-        ],
+        primaryjoin="and_(PermissionModel.id == role_permissions.c.permission_id, PermissionModel.tenant_id == role_permissions.c.tenant_id)",
+        secondaryjoin="and_(Role.id == role_permissions.c.role_id, Role.tenant_id == role_permissions.c.tenant_id)",
+        foreign_keys="[role_permissions.c.role_id, role_permissions.c.permission_id, role_permissions.c.tenant_id]",
     )
 
     __table_args__ = (
@@ -201,37 +178,29 @@ class ProjectMember(BaseModel):
     project: Mapped[Project] = relationship(
         "Project",
         back_populates="members",
-        primaryjoin=lambda: and_(
-            foreign(ProjectMember.project_id) == Project.id,
-            foreign(ProjectMember.tenant_id) == Project.tenant_id,
-        ),
-        foreign_keys=lambda: [ProjectMember.project_id, ProjectMember.tenant_id],
+        primaryjoin="and_(ProjectMember.project_id == Project.id, ProjectMember.tenant_id == Project.tenant_id)",
+        foreign_keys="[ProjectMember.project_id, ProjectMember.tenant_id]",
+        overlaps="project_members,members",
     )
     user: Mapped[User] = relationship(
         "User",
-        foreign_keys=lambda: [ProjectMember.user_id, ProjectMember.tenant_id],
+        foreign_keys="[ProjectMember.user_id, ProjectMember.tenant_id]",
         back_populates="project_memberships",
-        primaryjoin=lambda: and_(
-            foreign(ProjectMember.user_id) == User.id,
-            foreign(ProjectMember.tenant_id) == User.tenant_id,
-        ),
+        primaryjoin="and_(ProjectMember.user_id == User.id, ProjectMember.tenant_id == User.tenant_id)",
+        overlaps="project_members,members,project,project_members,role",
     )
     role: Mapped[Role] = relationship(
         "Role",
         back_populates="project_members",
-        primaryjoin=lambda: and_(
-            foreign(ProjectMember.role_id) == Role.id,
-            foreign(ProjectMember.tenant_id) == Role.tenant_id,
-        ),
-        foreign_keys=lambda: [ProjectMember.role_id, ProjectMember.tenant_id],
+        primaryjoin="and_(ProjectMember.role_id == Role.id, ProjectMember.tenant_id == Role.tenant_id)",
+        foreign_keys="[ProjectMember.role_id, ProjectMember.tenant_id]",
+        overlaps="project_members,members,project,user",
     )
     invited_by: Mapped[User | None] = relationship(
         "User",
-        foreign_keys=lambda: [ProjectMember.invited_by_id, ProjectMember.tenant_id],
-        primaryjoin=lambda: and_(
-            foreign(ProjectMember.invited_by_id) == User.id,
-            foreign(ProjectMember.tenant_id) == User.tenant_id,
-        ),
+        foreign_keys="[ProjectMember.invited_by_id, ProjectMember.tenant_id]",
+        primaryjoin="and_(ProjectMember.invited_by_id == User.id, ProjectMember.tenant_id == User.tenant_id)",
+        overlaps="project_members,members,project,role,user",
     )
 
     __table_args__ = (

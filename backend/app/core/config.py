@@ -343,5 +343,24 @@ def get_vault_settings() -> VaultSettings:
     return VaultSettings(get_settings())
 
 
+# Shared middleware configuration
+EXEMPT_PATHS = [
+    # Documentation and health endpoints
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/health",
+    "/ready",
+    "/system/status",
+    "/api/v1/info",
+    "/api/v1/health",
+    "/api/v1/auth/register",
+    "/api/v1/auth/login",
+    "/api/v1/auth/oauth",
+    "/api/v1/auth/providers",
+    "/api/v1/agents/health",
+    "/",
+]
+
 # Global settings instance
 settings = get_settings()

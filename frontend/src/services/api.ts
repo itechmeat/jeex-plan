@@ -9,6 +9,7 @@ import {
   PaginatedResponse,
   Project,
   RefreshTokenRequest,
+  RegisterRequest,
   User,
 } from '../types/api';
 
@@ -110,6 +111,26 @@ class ApiClient {
     const response = await this.request<ApiResponse<LoginResponse>>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
+    });
+
+    this.saveTokenToStorage(response.data.accessToken);
+    localStorage.setItem('refreshToken', response.data.refreshToken);
+
+    return response.data;
+  }
+
+  async register(userData: RegisterRequest): Promise<LoginResponse> {
+    // Transform frontend data structure to backend expected format
+    const backendData = {
+      email: userData.email,
+      name: `${userData.firstName} ${userData.lastName}`,
+      password: userData.password,
+      confirm_password: userData.confirmPassword,
+    };
+
+    const response = await this.request<ApiResponse<LoginResponse>>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(backendData),
     });
 
     this.saveTokenToStorage(response.data.accessToken);

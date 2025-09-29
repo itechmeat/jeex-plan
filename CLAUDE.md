@@ -109,7 +109,7 @@ docker-compose exec api pytest tests/test_models.py
 
 # Frontend tests
 cd frontend
-npm run test
+pnpm run test
 ```
 
 ## Key Architecture Patterns

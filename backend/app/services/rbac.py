@@ -180,7 +180,7 @@ class RBACService:
         if roles_created:
             await self.db.flush()
 
-        await self.db.commit()
+        # Note: commit should be handled by the caller
 
     async def get_user_permissions(
         self, user_id: uuid.UUID, project_id: uuid.UUID
@@ -294,7 +294,7 @@ class RBACService:
         )
 
         self.db.add(membership)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(membership)
 
         return membership

@@ -1,12 +1,13 @@
 import React, { createContext, useCallback, useEffect, useState } from 'react';
 import { apiClient, handleApiError } from '../services/api';
-import { LoginRequest, User } from '../types/api';
+import { LoginRequest, RegisterRequest, User } from '../types/api';
 
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
+  register: (userData: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   error: string | null;
@@ -99,6 +100,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  const register = useCallback(async (userData: RegisterRequest) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiClient.register(userData);
+      setUser(response.user);
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError(handleApiError(error));
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Initialize auth state on mount
   useEffect(() => {
     refreshAuth();
@@ -129,6 +146,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     isAuthenticated: Boolean(user),
     login,
+    register,
     logout,
     refreshAuth,
     error,

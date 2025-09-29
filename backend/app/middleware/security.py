@@ -15,7 +15,7 @@ from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from ..core.config import get_settings
+from ..core.config import EXEMPT_PATHS, get_settings
 
 settings = get_settings()
 
@@ -83,19 +83,25 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app: ASGIApp, exempt_paths: list[str] | None = None) -> None:
         super().__init__(app)
-        self.exempt_paths: list[str] = exempt_paths or [
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-            "/health",
-            # Specific stateless auth endpoints that don't set cookies
-            "/auth/register",
-            "/auth/login",
-            "/auth/refresh",
-            "/auth/validate-token",
-            "/auth/change-password",
+
+        if exempt_paths is not None:
+            self.exempt_paths = exempt_paths
+        else:
+            # Use shared exempt paths as base, plus additional CSRF-specific exclusions
+            AUTH_API_PREFIX = "/api/v1/auth"
+
+            # Stateless auth endpoints that don't set cookies (CSRF-specific exclusions)
+            csrf_exempt_auth_endpoints = [
+                "refresh",
+                "validate-token",
+                "change-password",
+            ]
+
+            self.exempt_paths = EXEMPT_PATHS + [
+                f"{AUTH_API_PREFIX}/{endpoint}"
+                for endpoint in csrf_exempt_auth_endpoints
+            ]
             # Note: /auth/oauth/callback excluded because it sets cookies
-        ]
         self.state_changing_methods: set[str] = {"POST", "PUT", "PATCH", "DELETE"}
 
     async def dispatch(

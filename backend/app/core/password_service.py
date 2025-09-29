@@ -11,7 +11,7 @@ class PasswordService:
 
     def __init__(self, schemes: list[str] | None = None) -> None:
         """Initialize password service with configurable schemes."""
-        schemes = schemes or ["bcrypt"]
+        schemes = schemes or ["argon2"]
         self.pwd_context = CryptContext(schemes=schemes, deprecated="auto")
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:

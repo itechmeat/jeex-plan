@@ -79,6 +79,26 @@ class UserService:
             last_login_at=datetime.now(UTC),
         )
 
+        # Commit the transaction to save user to database
+        await self.db.commit()
+
+        # Refresh user object to ensure all fields are loaded after commit
+        await self.db.refresh(user)
+
+        # Initialize RBAC system for the tenant (if this is the first user)
+        from ..services.rbac import RBACService
+
+        rbac_service = RBACService(self.db, effective_tenant_id)
+        try:
+            await rbac_service.initialize_default_roles_and_permissions(
+                effective_tenant_id
+            )
+            await self.db.commit()  # Commit RBAC initialization
+        except Exception:
+            # Log the error but don't fail registration
+            # RBAC can be initialized later
+            await self.db.rollback()
+
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)
 
@@ -89,6 +109,8 @@ class UserService:
     ) -> dict[str, Any]:
         """Authenticate user with email and password."""
 
+        # For authentication, we should search across all tenants if tenant_id not specified
+        # since we don't know which tenant the user belongs to
         user = await self.auth_service.authenticate_user(email, password, tenant_id)
 
         if not user:
@@ -106,6 +128,9 @@ class UserService:
         # Update last login
         user.last_login_at = datetime.now(UTC)
         await self.db.commit()
+
+        # Refresh user object to ensure all fields are loaded after commit
+        await self.db.refresh(user)
 
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)

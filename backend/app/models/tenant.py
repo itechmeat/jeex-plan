@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Integer, String, Text
+from sqlalchemy import Boolean, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,4 +37,11 @@ class Tenant(Base, TimestampMixin):
 
     # Relationships
     users: Mapped[list[User]] = relationship("User", back_populates="tenant")
-    projects: Mapped[list[Project]] = relationship("Project", back_populates="tenant")
+    projects: Mapped[list[Project]] = relationship(
+        "Project", back_populates="tenant", overlaps="owner"
+    )
+
+    __table_args__ = (
+        # Multi-column index for PostgreSQL 18 skip scans
+        Index("idx_tenant_slug_active", "slug", "is_active"),
+    )

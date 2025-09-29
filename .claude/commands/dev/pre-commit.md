@@ -1,0 +1,142 @@
+---
+allowed-tools: Bash(make:*), Task
+description: Run pre-commit checks and automatically fix found issues with smart agent selection
+argument-hint: [clarifying-prompt] (optional custom prompt for agents)
+---
+
+# Pre-Commit Check and Auto-Fix
+
+Run `make pre-commit` to execute all pre-commit hooks, then systematically fix all identified issues using appropriate specialized agents.
+
+## Agent Selection Logic
+
+**Step 1: Pre-Commit Analysis and Agent Selection**
+
+- If pre-commit finds frontend issues → activate the `tech-frontend` agent
+- If pre-commit finds backend issues → activate the `tech-python` agent
+- If pre-commit finds test issues → activate the `tech-qa` agent
+- If multiple issue types → activate multiple agents in parallel
+
+## Process
+
+1. **Analysis Phase**: Execute `make pre-commit` to run all pre-commit hooks
+2. **Agent Activation**: Based on pre-commit results, activate appropriate specialized agents
+3. **Fix Phase**: Let specialized agents implement fixes for identified issues
+4. **Verification**: Ensure all changes maintain code quality and follow project conventions
+
+## Agent Selection by Issue Type
+
+**Frontend Issues (files in frontend/ directory):**
+- ESLint errors/warnings
+- TypeScript errors
+- Stylelint issues
+- Formatting problems
+
+**Backend Issues (files in backend/ directory):**
+- Python formatting/linting errors
+- Import sorting issues
+- Type checking errors
+- Security warnings
+
+**Test Issues:**
+- Test formatting problems
+- Test coverage issues
+- Test syntax errors
+
+## Instructions
+
+**Step 1: Run Pre-Commit Checks**
+Execute all pre-commit hooks:
+
+!timeout 600 make pre-commit
+
+**Step 2: Analyze Pre-Commit Output**
+Carefully review the pre-commit output to identify:
+
+1. **Issue types and locations**
+2. **Severity levels (errors vs warnings)**
+3. **Files affected and their locations** (frontend/, backend/, tests/)
+
+**Step 3: Agent Selection and Activation**
+Based on the pre-commit results, activate appropriate agents:
+
+**If frontend issues found:**
+
+```
+Use the Task tool with parameters:
+- subagent_type: "tech-frontend"
+- description: "Fix pre-commit frontend issues"
+- prompt: "Fix the following pre-commit issues in the frontend code: [insert pre-commit frontend errors]. Resolve ESLint, TypeScript, and formatting issues. Follow React 19+, TypeScript strict mode, and accessibility standards. Apply all fixes using the exact tools and configurations specified in the project."
+```
+
+**If backend issues found:**
+
+```
+Use the Task tool with parameters:
+- subagent_type: "tech-python"
+- description: "Fix pre-commit backend issues"
+- prompt: "Fix the following pre-commit issues in the backend code: [insert pre-commit backend errors]. Resolve Python formatting, linting, import sorting, and type checking issues. Follow architectural principles, security requirements, and multi-tenant isolation. Use ruff, black, isort, and mypy as configured in the project."
+```
+
+**If test issues found:**
+
+```
+Use the Task tool with parameters:
+- subagent_type: "tech-qa"
+- description: "Fix pre-commit test issues"
+- prompt: "Fix the following pre-commit issues in test files: [insert pre-commit test errors]. Resolve test formatting, coverage, and syntax issues. Follow testing best practices and maintain test quality standards."
+```
+
+**For multiple issue types:**
+Launch agents in parallel for each issue type identified.
+
+**Step 4: Specialized Agent Execution**
+
+The activated agent must:
+
+1. **Read each issue carefully** - understand the error, location, and suggested fix
+2. **Implement exact fixes** - apply the corrections using the appropriate tools
+3. **Maintain consistency** - follow existing patterns and project conventions
+4. **Preserve functionality** - ensure fixes don't break existing functionality
+5. **Follow project standards** - comply with CLAUDE.md requirements
+6. **Verify fixes** - run relevant checks after applying fixes
+
+## Key Principles for Agents
+
+- **Use project tools** - apply fixes using configured tools (ruff, black, ESLint, etc.)
+- **Follow DRY principles** - extract reusable code where appropriate
+- **Maintain multi-tenant architecture** - ensure all changes respect tenant isolation
+- **Follow security best practices** - implement proper validation and sanitization
+- **Preserve test coverage** - maintain or improve test coverage after fixes
+
+## Critical Requirements
+
+- **Always provide the exact `subagent_type`** in the Task tool
+- **Confirm agent activation** - the agent must introduce itself when it starts
+- **Pass specific error details** - include exact error messages and file locations
+- **Retry with corrected parameters** if agent activation fails
+
+## Expected Output from Specialized Agents
+
+- **Issue Analysis**: Summary of pre-commit issues found and their categorization
+- **Fix Status**: Status of each issue (fixed/skipped/needs-review)
+- **Changes Summary**: Detailed list of files modified and changes applied
+- **Verification Results**: Output from re-running relevant checks
+- **Quality Confirmation**: Assurance that fixes don't introduce new issues
+
+## Command Execution Flow
+
+1. **Run pre-commit checks** using `make pre-commit`
+2. **Analyze output** to identify issue types and affected areas
+3. **Activate matching agents** based on issue categorization
+4. **Pass specific error details** to each agent
+5. **Collect agent reports** detailing applied changes
+6. **Verify fixes** - ensure no new issues introduced
+
+## Usage Examples
+
+- `/dev:pre-commit` - run pre-commit and fix all found issues
+- `/dev:pre-commit "focus on ESLint errors"` - run pre-commit with specific focus
+- `/dev:pre-commit "prioritize security warnings"` - run pre-commit with security emphasis
+
+**Important:** Always verify that agents actually activated - each agent must introduce itself at the start of its response!

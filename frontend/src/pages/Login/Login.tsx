@@ -123,9 +123,18 @@ export const Login: React.FC = () => {
           <p className={styles.subtitle}>Sign in to your account to continue</p>
         </div>
 
-        <form onSubmit={handleSubmit} className={styles.form} noValidate>
+        <form
+          onSubmit={handleSubmit}
+          className={styles.form}
+          noValidate
+          data-testid='login-form'
+        >
           {authError && (
-            <div className={styles.errorBanner} role='alert'>
+            <div
+              className={styles.errorBanner}
+              role='alert'
+              data-testid='error-message'
+            >
               {authError}
             </div>
           )}
@@ -139,6 +148,7 @@ export const Login: React.FC = () => {
             placeholder='Enter your email'
             autoComplete='email'
             fullWidth
+            data-testid='email-input'
           />
 
           <Input
@@ -150,6 +160,7 @@ export const Login: React.FC = () => {
             placeholder='Enter your password'
             autoComplete='current-password'
             fullWidth
+            data-testid='password-input'
           />
 
           <Button
@@ -158,6 +169,7 @@ export const Login: React.FC = () => {
             size='lg'
             isLoading={isLoading}
             fullWidth
+            data-testid='sign-in-button'
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
@@ -170,6 +182,7 @@ export const Login: React.FC = () => {
               type='button'
               className={styles.linkButton}
               onClick={() => navigate('/register')}
+              data-testid='register-link'
             >
               Sign up here
             </button>
@@ -180,6 +193,7 @@ export const Login: React.FC = () => {
               type='button'
               className={styles.linkButton}
               onClick={() => navigate('/forgot-password')}
+              data-testid='forgot-password-link'
             >
               Forgot your password?
             </button>

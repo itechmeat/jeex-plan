@@ -176,6 +176,7 @@ async def list_projects(
     # Check user permissions
     can_list_projects = await rbac_service.check_permission(
         current_user.id,
+        None,
         Permission.PROJECT_READ,
     )
     if not can_list_projects:
@@ -259,56 +260,43 @@ async def create_project(
         user_id=str(current_user.id),
     )
 
-    # Create repository with tenant isolation
     project_repo = ProjectRepository(db, tenant_id)
     rbac_service = RBACService(db, tenant_id)
 
-    # Check user permissions
-    can_create_projects = await rbac_service.check_permission(
-        current_user.id,
-        Permission.PROJECT_WRITE,
-    )
-    if not can_create_projects:
-        raise HTTPException(
-            status_code=403, detail="Insufficient permissions to create projects"
-        )
-
     try:
-        # Check if project name is available within tenant
-        name_available = await project_repo.check_name_availability(project_data.name)
-        if not name_available:
+        # Check name availability within tenant
+        is_available = await project_repo.check_name_availability(project_data.name)
+        if not is_available:
             raise HTTPException(
                 status_code=409,
-                detail=f"Project name '{project_data.name}' is already taken",
+                detail=f"Project name '{project_data.name}' is already taken within tenant",
             )
 
-        # Create project
-        from app.models.project import ProjectStatus
-
-        new_project = await project_repo.create_project(
+        project = await project_repo.create(
             name=project_data.name,
+            description=getattr(project_data, "description", ""),
+            language=getattr(project_data, "language", "en"),
             owner_id=current_user.id,
-            description=getattr(project_data, "description", None),
-            status=ProjectStatus.DRAFT,
         )
 
-        # Commit the transaction
+        # Initialize project permissions for the owner
+        await rbac_service.assign_role_to_user(
+            user_id=current_user.id,
+            resource_id=project.id,
+            role=Permission.PROJECT_OWNER,
+        )
+
         await db.commit()
-
-        # Convert to response format using persisted attributes
-        response = _to_project_response(
-            new_project,
-            language_fallback=project_data.language or "en",
-        )
+        await db.refresh(project)
 
         logger.info(
             "Project created successfully",
-            project_id=str(new_project.id),
+            project_id=str(project.id),
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
 
-        return response
+        return _to_project_response(project)
 
     except HTTPException:
         await db.rollback()
@@ -373,8 +361,8 @@ async def get_project(
     # Check user permissions
     can_read_projects = await rbac_service.check_permission(
         current_user.id,
-        Permission.PROJECT_READ,
         project_id,
+        Permission.PROJECT_READ,
     )
     if not can_read_projects:
         raise HTTPException(
@@ -451,7 +439,9 @@ async def update_project(
     rbac_service = RBACService(db, tenant_id)
 
     can_update_projects = await rbac_service.check_permission(
-        current_user.id, Permission.PROJECT_WRITE, project_id
+        current_user.id,
+        project_id,
+        Permission.PROJECT_WRITE,
     )
     if not can_update_projects:
         raise HTTPException(
@@ -572,7 +562,9 @@ async def delete_project(
     rbac_service = RBACService(db, tenant_id)
 
     can_delete_projects = await rbac_service.check_permission(
-        current_user.id, Permission.PROJECT_DELETE, project_id
+        current_user.id,
+        project_id,
+        Permission.PROJECT_DELETE,
     )
     if not can_delete_projects:
         raise HTTPException(

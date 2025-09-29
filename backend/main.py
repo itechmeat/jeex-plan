@@ -1,6 +1,6 @@
 """
-JEEX Plan - Simple Main API Service
-Simplified implementation for Docker container
+JEEX Plan - Main API Service
+Full implementation with authentication and multi-tenancy
 """
 
 import time
@@ -11,9 +11,16 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import agent routes
+# Import routes
 from app.api.routes.agents import router as agents_router
+from app.api.routes.auth import router as auth_router
+from app.api.routes.health import router as health_router
+from app.api.routes.projects import router as projects_router
+from app.core.config import EXEMPT_PATHS
 from app.core.logger import get_logger
+
+# Import middleware
+from app.middleware.tenant import TenantIsolationMiddleware
 
 logger = get_logger()
 
@@ -32,26 +39,44 @@ def add_cors_middleware() -> None:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
-        allow_credentials=False,
+        allow_credentials=True,  # Enable credentials for auth
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
 
+def add_tenant_middleware() -> None:
+    """Add tenant isolation middleware."""
+    app.add_middleware(TenantIsolationMiddleware, excluded_path_prefixes=EXEMPT_PATHS)
+
+
+# Add middleware
 add_cors_middleware()
+add_tenant_middleware()
 
-# Include agent routes
-app.include_router(agents_router, prefix="/api/v1")
+# Include all routes
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(health_router, prefix="/api/v1", tags=["Health"])
+app.include_router(projects_router, prefix="/api/v1", tags=["Projects"])
+app.include_router(agents_router, prefix="/api/v1", tags=["Agents"])
 
-# Include document generation routes
+# Include document generation routes (optional)
 try:
     from app.api.routes.document_generation import router as document_generation_router
 
-    app.include_router(document_generation_router, prefix="/api/v1")
+    app.include_router(document_generation_router, prefix="/api/v1", tags=["Documents"])
 except ImportError as exc:
     logger.warning(
         "Could not import document generation routes", extra={"error": str(exc)}
     )
+
+# Include vector routes (optional)
+try:
+    from app.api.routes.vectors import router as vectors_router
+
+    app.include_router(vectors_router, prefix="/api/v1", tags=["Vectors"])
+except ImportError as exc:
+    logger.warning("Could not import vector routes", extra={"error": str(exc)})
 
 
 @app.get("/")
@@ -93,23 +118,25 @@ async def check_service_health(url: str, timeout: float = 5.0) -> dict[str, Any]
     """External service health check"""
     start_time = time.time()
     try:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as session:
-            async with session.get(url) as response:
-                response_time = round((time.time() - start_time) * 1000)
-                if response.status == 200:
-                    return {
-                        "status": "pass",
-                        "response_time": response_time,
-                        "details": "Service operational",
-                    }
-                else:
-                    return {
-                        "status": "fail",
-                        "response_time": response_time,
-                        "details": f"HTTP {response.status}",
-                    }
+        async with (
+            aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as session,
+            session.get(url) as response,
+        ):
+            response_time = round((time.time() - start_time) * 1000)
+            if response.status == 200:
+                return {
+                    "status": "pass",
+                    "response_time": response_time,
+                    "details": "Service operational",
+                }
+            else:
+                return {
+                    "status": "fail",
+                    "response_time": response_time,
+                    "details": f"HTTP {response.status}",
+                }
     except TimeoutError:
         return {
             "status": "fail",

@@ -1,13 +1,25 @@
 FROM python:3.11-slim
 
+# Create non-root user and group
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies as root
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 RUN pip install fastapi uvicorn aiohttp
 
-# Copy simple main.py
+# Copy application files
 COPY main.py .
+
+# Set proper ownership for application files
+RUN chown -R appuser:appuser /app
+
+# Create necessary directories for the application
+RUN mkdir -p /app/logs /app/cache && chown -R appuser:appuser /app/logs /app/cache
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8000

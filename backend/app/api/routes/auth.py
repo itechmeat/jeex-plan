@@ -19,9 +19,10 @@ from ...api.schemas.auth import (
     UserResponse,
 )
 from ...core.auth import (
+    AuthDependency,
     AuthService,
+    auth_dependency,
     get_current_active_user_dependency,
-    get_current_user_dependency,
 )
 from ...core.config import get_settings
 from ...core.database import get_db
@@ -86,18 +87,18 @@ async def register_user(
         )
 
         user_response = UserResponse(
-            id=str(result["user"].id),
-            email=result["user"].email,
-            name=result["user"].full_name or result["user"].username,
-            tenant_id=str(result["user"].tenant_id),
-            is_active=result["user"].is_active,
-            created_at=result["user"].created_at,
-            last_login_at=result["user"].last_login_at,
+            id=result["user"]["id"],
+            email=result["user"]["email"],
+            name=result["user"]["full_name"] or result["user"]["username"],
+            tenant_id=result["user"]["tenant_id"],
+            is_active=result["user"]["is_active"],
+            created_at=result["user"]["created_at"],
+            last_login_at=result["user"]["last_login_at"],
         )
 
         token = Token(**result["tokens"])
 
-        logger.info("Registration successful", user_id=str(result["user"].id))
+        logger.info("Registration successful", user_id=result["user"]["id"])
 
         return LoginResponse(user=user_response, token=token)
 
@@ -137,18 +138,18 @@ async def login_user(
         )
 
         user_response = UserResponse(
-            id=str(result["user"].id),
-            email=result["user"].email,
-            name=result["user"].full_name or result["user"].username,
-            tenant_id=str(result["user"].tenant_id),
-            is_active=result["user"].is_active,
-            created_at=result["user"].created_at,
-            last_login_at=result["user"].last_login_at,
+            id=result["user"]["id"],
+            email=result["user"]["email"],
+            name=result["user"]["full_name"] or result["user"]["username"],
+            tenant_id=result["user"]["tenant_id"],
+            is_active=result["user"]["is_active"],
+            created_at=result["user"]["created_at"],
+            last_login_at=result["user"]["last_login_at"],
         )
 
         token = Token(**result["tokens"])
 
-        logger.info("Login successful", user_id=str(result["user"].id))
+        logger.info("Login successful", user_id=result["user"]["id"])
 
         return LoginResponse(user=user_response, token=token)
 
@@ -200,20 +201,46 @@ async def refresh_access_token(
 
 @router.post("/logout", response_model=LogoutResponse)
 async def logout_user(
-    current_user: User = Depends(get_current_user_dependency),
+    auth: AuthDependency = Depends(auth_dependency),
+    db: AsyncSession = Depends(get_db),
 ) -> LogoutResponse:
     """
     User logout endpoint.
 
-    Invalidates the current session (for future token blacklisting).
+    Invalidates the current session by blacklisting the JWT token.
     """
-    logger.info("Logout successful", user_id=str(current_user.id))
+    if not auth.user or not auth.token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
 
-    # NOTE: Token blacklisting in Redis not implemented for security
-    # Should store invalidated tokens in Redis with expiration for proper logout
-    # For now, client should discard the tokens
+    logger.info("Logout attempt", user_id=str(auth.user.id))
 
-    return LogoutResponse(message="Successfully logged out")
+    auth_service = AuthService(db)
+
+    try:
+        # Blacklist the current access token
+        logout_success = await auth_service.logout_user(auth.token)
+
+        if not logout_success:
+            logger.error("Token blacklisting failed", user_id=str(auth.user.id))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Logout failed",
+            )
+
+        logger.info("Logout successful", user_id=str(auth.user.id))
+        return LogoutResponse(message="Successfully logged out")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Logout error", user_id=str(auth.user.id), error=str(e), exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Logout failed"
+        )
 
 
 @router.get("/me", response_model=UserResponse)
@@ -564,3 +591,32 @@ async def validate_token(
         "email": current_user.email,
         "is_active": current_user.is_active,
     }
+
+
+@router.get("/blacklist/stats")
+async def get_blacklist_stats(
+    current_user: User = Depends(get_current_active_user_dependency),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Get token blacklist statistics (for administrators).
+    """
+    logger.info("Blacklist stats request", user_id=str(current_user.id))
+
+    auth_service = AuthService(db)
+
+    try:
+        stats = await auth_service.token_blacklist.get_blacklist_stats()
+        return stats
+
+    except Exception as e:
+        logger.error(
+            "Failed to get blacklist stats",
+            user_id=str(current_user.id),
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve blacklist statistics",
+        )

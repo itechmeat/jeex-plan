@@ -8,8 +8,7 @@ from collections.abc import Iterable
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..core.auth import AuthService
-from ..core.database import get_db
+# Removed auth and database imports - no longer needed in middleware
 
 
 class TenantIsolationMiddleware(BaseHTTPMiddleware):
@@ -42,16 +41,9 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
         # Extract tenant context from JWT token
         tenant_id = await self._extract_tenant_from_request(request)
 
-        if tenant_id:
-            # Add tenant context to request state
-            request.state.tenant_id = tenant_id
-        else:
-            # For authenticated endpoints, tenant is required
-            if request.url.path.startswith("/api/"):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required",
-                )
+        # Always add tenant context to request state (may be None)
+        # The actual auth enforcement is handled by individual endpoints
+        request.state.tenant_id = tenant_id
 
         response = await call_next(request)
         return response
@@ -75,18 +67,22 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
 
             token = authorization.split(" ")[1]
 
-            # Get database session
-            async for db in get_db():
-                auth_service = AuthService(db)
-                user = await auth_service.get_user_by_token(token)
+            # Extract tenant_id directly from JWT without database call
+            from ..core.token_service import TokenService
 
-                if user and user.is_active:
-                    return user.tenant_id
-                break
+            token_service = TokenService()
+            payload = token_service.verify_token(token)
 
-            return None
+            if not payload:
+                return None
 
-        except Exception:
+            tenant_id_str = payload.get("tenant_id")
+            if not tenant_id_str:
+                return None
+
+            return uuid.UUID(tenant_id_str)
+
+        except (ValueError, TypeError, Exception):
             return None
 
 

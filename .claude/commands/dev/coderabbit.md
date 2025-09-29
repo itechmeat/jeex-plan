@@ -25,12 +25,12 @@ Run CodeRabbit CLI analysis in prompt-only mode optimized for AI agents, then sy
 
 ## Scope Examples
 
-- `/dev:cr frontend` - analyze frontend directory with tech-frontend agent
-- `/dev:cr backend` - analyze backend directory with tech-python agent
-- `/dev:cr frontend/components/ui` - analyze specific frontend module with tech-frontend agent
-- `/dev:cr backend/app` - analyze specific backend module with tech-python agent
-- `/dev:cr all` - analyze entire project with appropriate agents
-- `/dev:cr` - same as 'all' - analyze entire project
+- `/dev:coderabbit frontend` - analyze frontend directory with tech-frontend agent
+- `/dev:coderabbit backend` - analyze backend directory with tech-python agent
+- `/dev:coderabbit frontend/components/ui` - analyze specific frontend module with tech-frontend agent
+- `/dev:coderabbit backend/app` - analyze specific backend module with tech-python agent
+- `/dev:coderabbit all` - analyze entire project with appropriate agents
+- `/dev:coderabbit` - same as 'all' - analyze entire project
 
 ## Instructions
 
@@ -134,10 +134,10 @@ The activated agent must:
 
 ## Usage Examples
 
-- `/dev:cr frontend` - full analysis and remediation of the frontend code by the tech-frontend agent
-- `/dev:cr backend` - full analysis and remediation of the backend code by the tech-python agent
-- `/dev:cr frontend/src/components` - focused analysis of specific frontend components
-- `/dev:cr backend/app/services` - focused analysis of specific backend services
-- `/dev:cr` - full project analysis with automatic agent selection
+- `/dev:coderabbit frontend` - full analysis and remediation of the frontend code by the tech-frontend agent
+- `/dev:coderabbit backend` - full analysis and remediation of the backend code by the tech-python agent
+- `/dev:coderabbit frontend/src/components` - focused analysis of specific frontend components
+- `/dev:coderabbit backend/app/services` - focused analysis of specific backend services
+- `/dev:coderabbit` - full project analysis with automatic agent selection
 
 **Important:** Always verify that the agent actually activated—the agent must introduce itself at the start of its response!

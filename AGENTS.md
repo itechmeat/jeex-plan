@@ -64,7 +64,7 @@ make vault-status # Check Vault readiness
 
 - Execute `docker-compose exec api pytest` for backend suites; target ≥80% line coverage.
 - Use `docker-compose exec api pytest tests/test_models.py` for focused runs.
-- Run `cd frontend && npm run test` for UI coverage (≥70%).
+- Run `cd frontend && pnpm run test` for UI coverage (≥70%).
 - Prefer async pytest patterns and reuse fixtures from `backend/tests/conftest.py`.
 
 ## Secret Handling & Observability

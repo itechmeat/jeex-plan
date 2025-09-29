@@ -326,6 +326,7 @@ test("project creation workflow", async ({ page }) => {
 6. **Skipping Prettier/ESLint checks**
 7. **Using zustand/redux/mobx for state**
 8. **Creating frontend with anything other than `npx create-vite@latest frontend --template react-ts`**
+9. **Creating index files for components (e.g., `src/pages/Register/index.ts`)**
 
 ## Quality Standards
 
