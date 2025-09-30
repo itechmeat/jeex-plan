@@ -2,7 +2,9 @@
 OAuth2 providers for Google and GitHub authentication.
 """
 
+import secrets
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -12,7 +14,7 @@ from sqlalchemy import func
 
 from ..core.config import get_settings
 from ..core.logger import get_logger
-from ..models.tenant import Tenant
+from ..core.token_service import TokenService
 from ..models.user import User
 from ..repositories.tenant import TenantRepository
 from ..repositories.user import UserRepository
@@ -238,20 +240,136 @@ class OAuthService:
         provider = self.get_provider(provider_name)
         return await provider.get_authorization_url(state)
 
+    def create_oauth_state(
+        self, tenant_id: uuid.UUID | None = None, csrf_token: str | None = None
+    ) -> str:
+        """Create signed OAuth state parameter with tenant context.
+
+        Args:
+            tenant_id: Optional tenant ID to encode in state
+            csrf_token: Optional CSRF token for additional security
+
+        Returns:
+            JWT-signed state string containing tenant context and CSRF token
+
+        Security:
+            - State is JWT-signed to prevent tampering
+            - Short expiration (5 minutes) to prevent replay attacks
+            - Includes random nonce for additional entropy
+        """
+        if not csrf_token:
+            csrf_token = secrets.token_urlsafe(32)
+
+        payload = {
+            "csrf": csrf_token,
+            "nonce": secrets.token_urlsafe(16),
+            "exp": datetime.now(UTC) + timedelta(minutes=5),
+        }
+
+        if tenant_id:
+            payload["tenant_id"] = str(tenant_id)
+
+        # Use TokenService to create signed JWT
+        token_service = TokenService()
+        return token_service.create_access_token(
+            payload, expires_delta=timedelta(minutes=5)
+        )
+
+    def decode_oauth_state(self, state: str) -> dict[str, Any]:
+        """Decode and validate OAuth state parameter.
+
+        Args:
+            state: JWT-signed state string from OAuth callback
+
+        Returns:
+            Decoded payload containing tenant_id (if present) and CSRF token
+
+        Raises:
+            HTTPException: If state is invalid, expired, or tampered with
+
+        Security:
+            - Validates JWT signature to prevent tampering
+            - Checks expiration to prevent replay attacks
+            - Verifies required fields are present
+        """
+        token_service = TokenService()
+        payload = token_service.verify_token(state)
+
+        if not payload:
+            logger.warning("Invalid OAuth state token", state_prefix=state[:10])
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired OAuth state",
+            )
+
+        # Verify required fields
+        if "csrf" not in payload or "nonce" not in payload:
+            logger.warning(
+                "OAuth state missing required fields", payload_keys=list(payload.keys())
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid OAuth state structure",
+            )
+
+        # Extract tenant_id if present
+        tenant_id = None
+        if "tenant_id" in payload:
+            try:
+                tenant_id = uuid.UUID(payload["tenant_id"])
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    "Invalid tenant_id in OAuth state",
+                    tenant_id=payload.get("tenant_id"),
+                    error=str(e),
+                )
+                # Don't fail here - just log and continue without tenant_id
+
+        return {
+            "csrf": payload["csrf"],
+            "nonce": payload["nonce"],
+            "tenant_id": tenant_id,
+        }
+
     async def authenticate_user(
         self,
         provider_name: str,
         code: str,
         state: str,
-        tenant_id: uuid.UUID | None = None,
+        tenant_id: uuid.UUID,
     ) -> User:
-        """Authenticate user with OAuth provider."""
+        """Authenticate user with OAuth provider.
+
+        Args:
+            provider_name: OAuth provider name (google, github)
+            code: Authorization code from OAuth callback
+            state: State parameter for CSRF validation (contains tenant context)
+            tenant_id: Required tenant ID for multi-tenant isolation
+
+        Returns:
+            Authenticated or newly created User
+
+        Raises:
+            HTTPException: If tenant_id is not provided
+
+        Security:
+            - Validates OAuth provider response
+            - Enforces tenant isolation for user lookup and creation
+            - Logs all authentication attempts for audit trail
+            - Prevents cross-tenant user hijacking
+            - Requires explicit tenant context (no defaults)
+        """
         provider = self.get_provider(provider_name)
         user_info = await provider.get_user_info(code, state)
 
-        # Find or create tenant if not specified
-        if not tenant_id:
-            tenant_id = await self._get_or_create_default_tenant()
+        # SECURITY: Log OAuth authentication attempt
+        logger.info(
+            "OAuth authentication attempt",
+            provider=provider_name,
+            email=user_info.get("email"),
+            provider_id=user_info.get("provider_id"),
+            tenant_id=str(tenant_id),
+        )
 
         # Find existing user or create new one
         tenant_user_repo = UserRepository(self.db, tenant_id)
@@ -261,23 +379,40 @@ class OAuthService:
         )
 
         if user:
+            # SECURITY: User already exists with OAuth ID in this tenant
+            logger.info(
+                "OAuth user authenticated successfully",
+                user_id=str(user.id),
+                tenant_id=str(tenant_id),
+                provider=provider_name,
+                email=user_info.get("email"),
+            )
             # Update last login
             user.last_login_at = func.now()
             await self.db.commit()
             return user
 
-        # Check if user exists with same email
+        # Check if user exists with same email in THIS tenant
         existing_user = await tenant_user_repo.get_by_email(user_info["email"])
 
         if existing_user:
-            # Link OAuth account to existing user
+            # SECURITY: Link OAuth account to existing user in SAME tenant
+            # This prevents duplicate accounts for the same person
+            logger.info(
+                "Linking OAuth account to existing email-based user",
+                user_id=str(existing_user.id),
+                tenant_id=str(tenant_id),
+                provider=provider_name,
+                email=user_info.get("email"),
+            )
             existing_user.oauth_provider = user_info["provider"]
             existing_user.oauth_id = user_info["provider_id"]
             existing_user.last_login_at = func.now()
             await self.db.commit()
             return existing_user
 
-        # Create new user
+        # SECURITY: Create new user in specified tenant
+        # User doesn't exist by OAuth ID or email in this tenant
         username = await self._generate_unique_username(
             tenant_user_repo, user_info["email"]
         )
@@ -297,24 +432,15 @@ class OAuthService:
         await self.db.commit()
         await self.db.refresh(new_user)
 
+        logger.info(
+            "New OAuth user created",
+            user_id=str(new_user.id),
+            tenant_id=str(tenant_id),
+            provider=provider_name,
+            email=user_info.get("email"),
+        )
+
         return new_user
-
-    async def _get_or_create_default_tenant(self) -> uuid.UUID:
-        """Get or create default tenant."""
-        default_tenant = await self.tenant_repo.get_by_slug("default")
-
-        if not default_tenant:
-            default_tenant = Tenant(
-                name="Default Tenant",
-                slug="default",
-                description="Default tenant for new users",
-                is_active=True,
-            )
-            self.db.add(default_tenant)
-            await self.db.commit()
-            await self.db.refresh(default_tenant)
-
-        return default_tenant.id
 
     async def _generate_unique_username(
         self, user_repo: UserRepository, email: str

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import text
 from sqlalchemy.engine import Result
@@ -22,10 +23,38 @@ from app.models.base import Base
 
 logger = get_logger()
 
+
+def _sanitize_database_url(database_url: str) -> str:
+    """Remove credentials from DATABASE_URL for safe logging."""
+    try:
+        parsed = urlparse(database_url)
+        if parsed.hostname:
+            safe_netloc = parsed.hostname
+            if parsed.port:
+                safe_netloc = f"{safe_netloc}:{parsed.port}"
+        else:
+            safe_netloc = ""
+        return urlunparse((parsed.scheme, safe_netloc, parsed.path, "", "", ""))
+    except Exception:
+        return "configured"
+
+
 # Create async engine with optimized settings
-ASYNC_DATABASE_URL = settings.DATABASE_URL.replace(
-    "postgresql://", "postgresql+asyncpg://"
-)
+# SECURITY: Validate and normalize DATABASE_URL properly
+# Check if already using asyncpg driver to avoid double-replacement corruption
+if "postgresql+asyncpg://" in settings.DATABASE_URL:
+    ASYNC_DATABASE_URL = settings.DATABASE_URL
+elif "postgresql://" in settings.DATABASE_URL:
+    ASYNC_DATABASE_URL = settings.DATABASE_URL.replace(
+        "postgresql://", "postgresql+asyncpg://"
+    )
+else:
+    logger.error(
+        "Invalid DATABASE_URL format", url=_sanitize_database_url(settings.DATABASE_URL)
+    )
+    raise ValueError(
+        "DATABASE_URL must start with postgresql:// or postgresql+asyncpg://"
+    )
 
 if settings.is_development:
     # Development: use NullPool (no pool parameters)
@@ -33,8 +62,7 @@ if settings.is_development:
         ASYNC_DATABASE_URL,
         echo=settings.DEBUG,
         poolclass=NullPool,
-        pool_pre_ping=True,
-        pool_recycle=300,
+        connect_args={"server_settings": settings.get_pg_server_settings_dev()},
     )
 else:
     # Production: use connection pooling
@@ -45,6 +73,7 @@ else:
         max_overflow=30,
         pool_pre_ping=True,
         pool_recycle=300,
+        connect_args={"server_settings": settings.get_pg_server_settings_prod()},
     )
 
 # Create session factory
@@ -105,7 +134,7 @@ class DatabaseManager:
                     "status": "healthy",
                     "message": "Database connection successful",
                     "details": {
-                        "database_url": settings.DATABASE_URL.split("@")[-1],
+                        "database_url": _sanitize_database_url(settings.DATABASE_URL),
                     },
                 }
         except Exception as e:
@@ -129,5 +158,15 @@ class DatabaseManager:
             rows = result.fetchall()
             return [tuple(row) for row in rows]
         except Exception as e:
-            logger.error("Raw SQL execution failed", error=str(e), sql=sql)
+            # SECURITY: Avoid logging raw SQL and params to prevent sensitive data exposure
+            sql_preview = (
+                sql[:50] + "..." if isinstance(sql, str) and len(sql) > 50 else "query"
+            )
+            logger.error(
+                "Raw SQL execution failed",
+                error=str(e),
+                sql_type=type(sql).__name__,
+                sql_preview=sql_preview,
+                has_params=bool(params),
+            )
             raise

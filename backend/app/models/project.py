@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import (
     ForeignKeyConstraint,
+    Index,
     String,
     Text,
     UniqueConstraint,
-    and_,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship, remote
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
 
@@ -56,30 +56,32 @@ class Project(BaseModel):
     owner: Mapped[User] = relationship(
         "User",
         back_populates="projects",
-        primaryjoin=lambda: and_(
-            foreign(Project.owner_id) == remote(User.id),
-            foreign(Project.tenant_id) == remote(User.tenant_id),
+        primaryjoin=(
+            "and_(Project.owner_id == User.id, Project.tenant_id == User.tenant_id)"
         ),
-        foreign_keys=lambda: [Project.owner_id, Project.tenant_id],
+        foreign_keys="[Project.owner_id, Project.tenant_id]",
     )
 
     # Tenant relationship
     tenant: Mapped[Tenant] = relationship(
         "Tenant",
         back_populates="projects",
-        primaryjoin=lambda: foreign(Project.tenant_id) == remote(Tenant.id),
-        foreign_keys=lambda: [Project.tenant_id],
+        primaryjoin="Project.tenant_id == Tenant.id",
+        foreign_keys="[Project.tenant_id]",
+        overlaps="owner",
     )
 
     # Documents relationship
     documents: Mapped[list[Document]] = relationship(
         "Document",
         back_populates="project",
-        primaryjoin=lambda: and_(
-            foreign(Document.project_id) == remote(Project.id),
-            foreign(Document.tenant_id) == remote(Project.tenant_id),
+        primaryjoin=(
+            "and_("
+            "Document.project_id == Project.id, "
+            "Document.tenant_id == Project.tenant_id"
+            ")"
         ),
-        foreign_keys=lambda: [Document.project_id, Document.tenant_id],
+        foreign_keys="[Document.project_id, Document.tenant_id]",
     )
 
     # Document versions relationship
@@ -123,6 +125,8 @@ class Project(BaseModel):
             ["users.id", "users.tenant_id"],
             ondelete="RESTRICT",
         ),
+        # Multi-column index for PostgreSQL 18 skip scans
+        Index("idx_project_tenant_status", "tenant_id", "status"),
     )
 
     class Config:

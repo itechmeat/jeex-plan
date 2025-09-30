@@ -24,6 +24,7 @@ export interface WizardProps {
   onCancel?: () => void;
   initialData?: Record<string, unknown>;
   className?: string;
+  emptyStateMessage?: string;
 }
 
 export const Wizard: React.FC<WizardProps> = ({
@@ -32,15 +33,11 @@ export const Wizard: React.FC<WizardProps> = ({
   onCancel,
   initialData = {},
   className,
+  emptyStateMessage = 'No steps available',
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [wizardData, setWizardData] = useState(initialData);
   const [stepValidation, setStepValidation] = useState<Record<string, boolean>>({});
-
-  const currentStep = steps[currentStepIndex];
-  const isFirstStep = currentStepIndex === 0;
-  const isLastStep = currentStepIndex === steps.length - 1;
-  const progress = ((currentStepIndex + 1) / steps.length) * 100;
 
   const handleDataChange = useCallback(
     (stepId: string, data: Record<string, unknown>) => {
@@ -58,6 +55,20 @@ export const Wizard: React.FC<WizardProps> = ({
       [stepId]: isValid,
     }));
   }, []);
+
+  // Handle empty steps array gracefully
+  if (!steps || steps.length === 0) {
+    return (
+      <div className={classNames(styles.wizard, styles.empty, className)}>
+        <div className={styles.emptyMessage}>{emptyStateMessage}</div>
+      </div>
+    );
+  }
+
+  const currentStep = steps[currentStepIndex];
+  const isFirstStep = currentStepIndex === 0;
+  const isLastStep = currentStepIndex === steps.length - 1;
+  const progress = ((currentStepIndex + 1) / steps.length) * 100;
 
   const isCurrentStepValid = () => {
     return Boolean(stepValidation[currentStep.id] ?? currentStep.isValid ?? false);

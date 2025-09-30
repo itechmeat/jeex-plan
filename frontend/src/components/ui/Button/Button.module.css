@@ -98,6 +98,7 @@
 .loading {
   color: transparent;
   pointer-events: none;
+  position: relative;
 }
 
 @keyframes spin {
@@ -113,14 +114,23 @@
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid var(--color-border);
-  border-top: 2px solid var(--color-primary);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+/* Secondary, outline, and ghost variants use primary color for spinner */
+.secondary .spinner,
+.outline .spinner,
+.ghost .spinner {
+  border: 2px solid var(--color-primary-light);
+  border-top: 2px solid var(--color-primary);
 }
 
 .leftIcon,

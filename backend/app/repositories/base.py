@@ -34,11 +34,19 @@ class BaseRepository(ABC, Generic[ModelType]):
             await (
                 self.session.flush()
             )  # Use flush instead of commit for better transaction control
-            await self.session.refresh(instance)
+            # Try to refresh, but don't fail if it doesn't work (e.g., SQLite or constrained backends)
+            try:
+                await self.session.refresh(instance)
+                # If refresh worked, get ID from instance
+                entity_id = str(instance.id)
+            except Exception:
+                # Refresh failed; prefer ID if it was populated by flush/RETURNING
+                _id = getattr(instance, "id", None)
+                entity_id = str(_id) if _id else "unknown"
             logger.info(
                 "Created entity",
                 model=self.model.__name__,
-                entity_id=str(instance.id),
+                entity_id=entity_id,
             )
             return instance
         except SQLAlchemyError as exc:

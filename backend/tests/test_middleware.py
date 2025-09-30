@@ -108,17 +108,20 @@ class TestTenantIsolationMiddleware:
 
     @pytest.mark.asyncio
     async def test_missing_auth_for_api_path(self, middleware, mock_request) -> None:
-        """Test that API paths require authentication."""
+        """Test that API paths without authentication set tenant_id to None."""
         mock_request.url.path = "/api/v1/projects"
         mock_request.headers = {}  # No Authorization header
+        call_next = AsyncMock(return_value=Response())
 
         with patch.object(
             middleware, "_extract_tenant_from_request", new=AsyncMock(return_value=None)
         ):
-            with pytest.raises(HTTPException) as exc_info:
-                await middleware.dispatch(mock_request, AsyncMock())
+            response = await middleware.dispatch(mock_request, call_next)
 
-            assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+            # Middleware sets tenant_id to None, actual auth is enforced by endpoints
+            assert hasattr(mock_request.state, "tenant_id")
+            assert mock_request.state.tenant_id is None
+            call_next.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_valid_tenant_extraction(self, middleware, mock_request) -> None:
@@ -144,26 +147,17 @@ class TestTenantIsolationMiddleware:
         self, middleware, mock_request
     ) -> None:
         """Test tenant extraction from valid JWT token."""
+        tenant_id_expected = uuid.uuid4()
         mock_request.headers = {"Authorization": "Bearer valid_token"}
 
-        async def fake_get_db():
-            yield mock_db
+        with patch("app.core.token_service.TokenService") as mock_token_service:
+            mock_token_service.return_value.verify_token.return_value = {
+                "tenant_id": str(tenant_id_expected)
+            }
 
-        mock_db = AsyncMock()
+            tenant_id = await middleware._extract_tenant_from_request(mock_request)
 
-        with patch("app.middleware.tenant.get_db", side_effect=fake_get_db):
-            with patch("app.middleware.tenant.AuthService") as mock_auth_service:
-                mock_user = Mock()
-                mock_user.is_active = True
-                mock_user.tenant_id = uuid.uuid4()
-
-                mock_auth_service.return_value.get_user_by_token = AsyncMock(
-                    return_value=mock_user
-                )
-
-                tenant_id = await middleware._extract_tenant_from_request(mock_request)
-
-                assert tenant_id == mock_user.tenant_id
+            assert tenant_id == tenant_id_expected
 
     @pytest.mark.asyncio
     async def test_extract_tenant_from_invalid_token(
@@ -172,20 +166,12 @@ class TestTenantIsolationMiddleware:
         """Test tenant extraction from invalid token."""
         mock_request.headers = {"Authorization": "Bearer invalid_token"}
 
-        async def fake_get_db():
-            yield mock_db
+        with patch("app.core.token_service.TokenService") as mock_token_service:
+            mock_token_service.return_value.verify_token.return_value = None
 
-        mock_db = AsyncMock()
+            tenant_id = await middleware._extract_tenant_from_request(mock_request)
 
-        with patch("app.middleware.tenant.get_db", side_effect=fake_get_db):
-            with patch("app.middleware.tenant.AuthService") as mock_auth_service:
-                mock_auth_service.return_value.get_user_by_token = AsyncMock(
-                    side_effect=HTTPException(status_code=401, detail="Invalid token")
-                )
-
-                tenant_id = await middleware._extract_tenant_from_request(mock_request)
-
-                assert tenant_id is None
+            assert tenant_id is None
 
     def test_tenant_context_manager_get_tenant_id(self) -> None:
         """Test TenantContextManager get_tenant_id."""
@@ -534,8 +520,12 @@ class TestCSRFProtectionMiddleware:
 
     @pytest.mark.asyncio
     async def test_api_endpoints_bypass(self, middleware, mock_request) -> None:
-        """Test that API endpoints bypass CSRF protection."""
+        """Test that API endpoints bypass CSRF protection with Bearer token."""
         mock_request.url.path = "/api/v1/projects"
+        mock_request.headers = {
+            "authorization": "Bearer test-token"
+        }  # Stateless API request
+        mock_request.cookies = {}  # No cookies = truly stateless
         call_next = AsyncMock(return_value=Response())
 
         await middleware.dispatch(mock_request, call_next)
@@ -547,6 +537,8 @@ class TestCSRFProtectionMiddleware:
         """Test CSRF protection with missing token."""
         # Non-API, state-changing request without CSRF token
         mock_request.url.path = "/form-submit"
+        # Enable CSRF testing mode (bypasses test environment CSRF exemption)
+        mock_request.headers = {"X-CSRF-Test": "enabled"}
 
         with patch.object(
             middleware, "_validate_csrf_token", new=AsyncMock(return_value=False)

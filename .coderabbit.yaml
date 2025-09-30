@@ -1,257 +1,254 @@
-# 🤖 JEEX Plan - Advanced CodeRabbit Configuration
-# Multi-tenant documentation generation system
-# Updated for CodeRabbit 2025 with all advanced features
+# 🤖 JEEX Plan - CodeRabbit Configuration
+# Focus: Security, Architecture, Critical Issues Only
+# Philosophy: Find real problems, not style preferences
 
 reviews:
-  # Assertive profile for comprehensive analysis
+  # Assertive profile for thorough analysis
   profile: "assertive"
 
-  # Advanced auto-review settings
+  # Auto-review settings
   auto_review:
     enabled: true
     drafts: false
     base_branches: ["master", "main", "develop"]
 
-  # Enhanced review features
+  # Review features
   high_level_summary: true
-  poem: true
+  poem: false  # Disabled - focus on substance
   review_status: true
   request_changes_workflow: false
   collapse_walkthrough: false
 
-  # Comprehensive toolchain integration
+  # Toolchain integration - CRITICAL ONLY
   tools:
-    # 🐍 Python backend analysis
-    ruff:
+    # Security scanning (CRITICAL)
+    gitleaks:
       enabled: true
 
+    # Backend critical checks
+    ruff:
+      enabled: true
     sqlfluff:
       enabled: true
 
-    # ⚡ Frontend code quality
+    # Frontend critical checks
     eslint:
       enabled: true
     biome:
       enabled: true
 
-    # 🔐 Security scanning
-    gitleaks:
-      enabled: true
-
-    # 🐳 Docker best practices
+    # Infrastructure security
     hadolint:
       enabled: true
     checkov:
       enabled: true
 
-    # 🖥️ Shell script validation
+    # Disabled tools (covered by linters/formatters)
     shellcheck:
-      enabled: true
+      enabled: false  # Not critical for this project
     markdownlint:
-      enabled: true
-
-    # 🔄 GitHub Actions linting
+      enabled: false  # Style, not security
     actionlint:
-      enabled: true
-
-    # 📦 Additional quality tools
+      enabled: false  # Covered by CI
     oxc:
-      enabled: true
+      enabled: false  # Redundant with biome/eslint
 
-
-  # 📁 Path-specific intelligent instructions
+  # 📁 CRITICAL ISSUES ONLY - Path-specific instructions
   path_instructions:
-    # 🔐 Critical security modules
-    - path: "backend/app/core/auth.py"
+    # 🚨 GLOBAL CRITICAL RULES - ALL FILES
+    - path: "**/*.{py,ts,tsx,js,jsx}"
       instructions: |
-        🔐 **CRITICAL AUTHENTICATION MODULE**
-        Security Focus Areas:
-        - JWT token validation completeness and security
-        - Timing attack prevention in token comparison
-        - Proper session management and cleanup
-        - Multi-factor authentication implementation
-        - Rate limiting for auth endpoints
-        - Secure password reset flows
-        - **MANDATORY**: Tenant isolation in all auth flows
+        🚨 **ZERO-TOLERANCE VIOLATIONS** (BLOCK IMMEDIATELY):
 
-    - path: "backend/app/core/database.py"
+        **1. FALLBACKS, MOCKS, STUBS in Production Code:**
+        ```python
+        # ❌ CRITICAL - Default tenant fallback
+        if not tenant_id:
+            tenant_id = get_default_tenant()  # BLOCK!
+
+        # ❌ CRITICAL - String conversion fallback
+        return str(value)  # Lossy conversion - BLOCK!
+
+        # ❌ CRITICAL - Mock/stub implementation
+        async def send_email(...):
+            logger.info("Email sent")  # Not actually sending - BLOCK!
+            return True
+
+        # ❌ CRITICAL - Placeholder values
+        API_KEY = "placeholder-key"  # BLOCK!
+        ```
+
+        **2. SECURITY VIOLATIONS:**
+        - SQL injection vulnerabilities (raw SQL, string formatting)
+        - Hardcoded secrets (API keys, passwords, tokens)
+        - Missing tenant_id in multi-tenant queries
+        - XSS vulnerabilities (unsanitized user input)
+        - CSRF token missing on state-changing operations
+        - Authentication bypass (missing auth checks)
+
+        **3. DATA LEAKS:**
+        - Cross-tenant data access
+        - Missing tenant filtering in queries
+        - Tenant ID not validated in requests
+        - Sensitive data in logs (passwords, tokens, PII)
+
+        **4. CRITICAL BUGS:**
+        - Race conditions in concurrent code
+        - Unhandled exceptions in async code
+        - Resource leaks (unclosed connections, files)
+        - Infinite loops or recursion without exit
+
+        **ALLOWED (Not Critical):**
+        - TODO/FIXME comments (better explicit than hidden fallback)
+        - NotImplementedError for planned features
+        - Architectural patterns: Vault→Env, JWT→Headers, Tenant→IP
+
+        **DO NOT REPORT:**
+        - Code style issues (handled by formatters)
+        - Minor refactoring suggestions
+        - Variable naming (unless truly confusing)
+        - Comment formatting
+        - Import ordering (handled by tools)
+
+    # 🔐 AUTHENTICATION & AUTHORIZATION
+    - path: "backend/app/core/{auth,oauth,token_service}.py"
       instructions: |
-        🗄️ **DATABASE CORE MODULE**
-        Critical Checks:
-        - Connection pooling security and limits
-        - Transaction isolation levels
-        - Prepared statement usage
-        - Database migration safety
-        - Tenant-scoped connection validation
-        - Backup and recovery considerations
+        🔐 **AUTHENTICATION CRITICAL CHECKS:**
 
-    # 🏗️ Data models and architecture
+        **MUST VERIFY:**
+        - JWT token validation is complete (signature, expiration, issuer)
+        - Timing-safe token comparison (no early returns)
+        - Session management (proper cleanup, expiration)
+        - Password reset flows are secure (token entropy, single-use)
+        - Rate limiting on auth endpoints (prevent brute force)
+        - **CRITICAL**: tenant_id in ALL auth flows (no default tenant!)
+
+        **SECURITY VIOLATIONS:**
+        - Missing tenant_id validation
+        - Weak token generation (predictable)
+        - Password in plain text (logs, storage)
+        - Missing rate limits
+        - Timing attacks possible
+
+    # 🗄️ DATABASE & MODELS
     - path: "backend/app/models/**/*.py"
       instructions: |
-        🏗️ **DATABASE MODELS**
-        Architecture Review:
-        - **MANDATORY**: tenant_id in all tenant-scoped models
-        - Foreign key relationships respect tenant boundaries
-        - Proper indexing strategy for tenant queries
-        - Soft delete implementation consistency
-        - Data validation and constraints
-        - Migration compatibility
-        - Performance optimization for large datasets
+        🗄️ **DATABASE MODEL CRITICAL CHECKS:**
 
+        **MUST VERIFY:**
+        - tenant_id field exists in ALL tenant-scoped models
+        - Foreign keys respect tenant boundaries
+        - Indexes on tenant_id + commonly filtered fields
+        - Soft delete consistency (deleted_at field)
+
+        **BLOCK IF:**
+        - Missing tenant_id in tenant-scoped model
+        - Foreign key without tenant_id validation
+        - No index on tenant_id (performance issue)
+
+    # 📊 REPOSITORIES & DATA ACCESS
     - path: "backend/app/repositories/**/*.py"
       instructions: |
-        📊 **DATA ACCESS LAYER**
-        Repository Pattern Review:
-        - Tenant isolation in all queries (CRITICAL)
-        - SQL injection prevention
-        - Query optimization and N+1 prevention
-        - Proper error handling and logging
-        - Transaction management
-        - Cache invalidation strategies
+        📊 **REPOSITORY CRITICAL CHECKS:**
 
-    # 🌐 API endpoints and security
+        **MUST VERIFY:**
+        - ALL queries include tenant_id filter
+        - No SQL injection (use prepared statements)
+        - N+1 query prevention (eager loading)
+        - Transaction management (rollback on error)
+
+        **BLOCK IF:**
+        - Query missing tenant_id filter
+        - Raw SQL with string formatting
+        - Missing error handling in database operations
+
+    # 🌐 API ENDPOINTS
     - path: "backend/app/api/**/*.py"
       instructions: |
-        🌐 **API ENDPOINTS**
-        Security & Architecture:
-        - Input validation and sanitization (Pydantic models)
-        - Proper HTTP status codes and error responses
-        - Rate limiting implementation
-        - Authentication and authorization checks
-        - Request/response logging (no sensitive data)
-        - API versioning considerations
-        - OpenAPI documentation accuracy
-        - **CRITICAL**: Multi-tenant access control
+        🌐 **API ENDPOINT CRITICAL CHECKS:**
 
-    # ⚛️ React components and frontend architecture
-    - path: "frontend/src/components/**/*.tsx"
+        **MUST VERIFY:**
+        - Input validation (Pydantic models)
+        - Authentication required (no anonymous access to sensitive data)
+        - Authorization checks (user can access resource)
+        - tenant_id extracted from JWT and validated
+        - Rate limiting on expensive operations
+
+        **BLOCK IF:**
+        - Missing input validation
+        - Missing authentication check
+        - Missing tenant_id validation
+        - Sensitive data in error messages
+
+    # ⚛️ FRONTEND COMPONENTS
+    - path: "frontend/src/{components,hooks,services}/**/*.{ts,tsx}"
       instructions: |
-        ⚛️ **REACT COMPONENTS**
-        Modern React 19+ Best Practices:
-        - Component composition and reusability
-        - Proper TypeScript prop validation
-        - Performance optimization (memo, useMemo, useCallback)
-        - Accessibility compliance (ARIA, keyboard navigation)
-        - Error boundary integration
-        - Security: XSS prevention in dynamic content
-        - State management patterns
-        - Testing considerations
+        ⚛️ **FRONTEND CRITICAL CHECKS:**
 
-    - path: "frontend/src/hooks/**/*.ts"
+        **MUST VERIFY:**
+        - XSS prevention (sanitize user input before rendering)
+        - No secrets in client code (API keys, tokens)
+        - Proper error handling (don't expose stack traces)
+        - Authentication state management
+        - CSRF token in state-changing requests
+
+        **BLOCK IF:**
+        - Dangerously set inner HTML without sanitization
+        - API keys or secrets in code
+        - Missing error boundaries
+        - Sensitive data in localStorage (use httpOnly cookies)
+
+    # 🐳 DOCKER & INFRASTRUCTURE
+    - path: "{docker-compose.yml,Dockerfile,*.Dockerfile}"
       instructions: |
-        🪝 **CUSTOM HOOKS**
-        Hook Architecture Review:
-        - Proper dependency arrays (exhaustive-deps)
-        - Cleanup in useEffect for subscriptions/timers
-        - Error handling and loading states
-        - Hook composition patterns
-        - Performance considerations
-        - Reusability and abstraction levels
+        🐳 **DOCKER SECURITY CHECKS:**
 
-    - path: "frontend/src/services/**/*.ts"
-      instructions: |
-        🔌 **FRONTEND SERVICES**
-        Service Layer Architecture:
-        - API error handling and retry logic
-        - Request cancellation (AbortController)
-        - Authentication token management
-        - Response data validation
-        - Caching strategies
-        - Offline handling considerations
-        - Security: No sensitive data in logs
+        **MUST VERIFY:**
+        - Non-root user (no USER root)
+        - No hardcoded secrets (use environment variables)
+        - Health checks defined
+        - Resource limits set (prevent DoS)
 
-    # 🔧 Configuration and infrastructure
-    - path: "docker-compose.yml"
-      instructions: |
-        🐳 **DOCKER ORCHESTRATION**
-        DevOps Security Review:
-        - Non-root user configuration
-        - Secrets management (no hardcoded values)
-        - Service networking and isolation
-        - Health checks implementation
-        - Resource limits and quotas
-        - Volume security and permissions
-        - Multi-stage build optimization
+        **BLOCK IF:**
+        - Running as root
+        - Secrets in Dockerfile
+        - Missing health checks on critical services
 
+    # 🔄 CI/CD PIPELINES
     - path: ".github/workflows/**/*.yml"
       instructions: |
-        🔄 **CI/CD PIPELINES**
-        Security & Automation:
-        - Secure secret handling (GitHub Secrets)
-        - Minimal permissions (GITHUB_TOKEN)
-        - Dependency vulnerability scanning
-        - Code quality gates
-        - Security policy enforcement
-        - Deployment strategies
-        - Monitoring and alerting
+        🔄 **CI/CD SECURITY CHECKS:**
 
-    # 📦 Dependency management
-    - path: "backend/pyproject.toml"
-      instructions: |
-        🔧 **PYTHON DEPENDENCIES**
-        Dependency Security:
-        - Version pinning strategy
-        - Security vulnerability scanning
-        - License compatibility
-        - Dependency tree analysis
-        - Development vs production dependencies
-        - Tool configuration consistency
+        **MUST VERIFY:**
+        - Secrets use GitHub Secrets (not hardcoded)
+        - Minimal GITHUB_TOKEN permissions
+        - Dependency vulnerability scanning enabled
+        - Security gates in deployment pipeline
 
-    - path: "frontend/package.json"
-      instructions: |
-        📦 **FRONTEND DEPENDENCIES**
-        Package Management:
-        - Security audit results (npm/yarn audit)
-        - Version compatibility matrix
-        - Peer dependency management
-        - Bundle size optimization
-        - Tree shaking considerations
-        - Runtime vs dev dependencies
+        **BLOCK IF:**
+        - Hardcoded credentials
+        - Overly permissive token
+        - Missing security scans
 
-    # 🧪 Testing strategies
-    - path: "backend/tests/**/*.py"
-      instructions: |
-        🧪 **BACKEND TESTING**
-        Test Quality Review:
-        - Test coverage completeness
-        - Security test scenarios
-        - Integration test patterns
-        - Mocking strategies
-        - Test data management
-        - Performance test considerations
-        - Multi-tenant test isolation
-
-    - path: "frontend/src/**/*.test.{ts,tsx}"
-      instructions: |
-        🎯 **FRONTEND TESTING**
-        Component Testing:
-        - User interaction testing (Testing Library)
-        - Accessibility testing integration
-        - Error state testing
-        - Performance testing (React DevTools)
-        - Integration test coverage
-        - Mock service strategies
-
-# 💬 Chat integration for enhanced collaboration
+# 💬 Chat integration
 chat:
   auto_reply: true
 
-# 🧠 Knowledge base integration for learning
+# 🧠 Knowledge base
 knowledge_base:
   learnings:
     scope: "auto"
   web_search:
     enabled: true
 
-# 🤖 AI-powered code generation
+# 🤖 Code generation (disabled - we prefer explicit code)
 code_generation:
   docstrings: {}
   unit_tests: {}
 
-# 🌍 Global configuration
+# 🌍 Configuration
 language: "en"
 early_access: true
 
-# 🎨 Custom AI personality and focus
-tone_instructions: >
-  Focus reviews on JEEX Plan security, architecture, performance, and reliability; stay constructive, avoid style nitpicks already covered by linters, and keep multi-tenant isolation top of mind.
+# 🎯 CRITICAL FOCUS - Custom instructions
+tone_instructions: "Focus on security vulnerabilities, data leaks, production fallbacks/mocks, and critical bugs. Ignore style issues. Be direct and cite line numbers."

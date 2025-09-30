@@ -5,16 +5,17 @@ from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Security, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 from app.agents.contracts.base import ProjectContext
 from app.agents.orchestration.orchestrator import orchestrator
 from app.agents.orchestration.workflow import workflow_engine
+from app.core.auth import get_current_active_user_dependency
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.models.user import User
 
 logger = get_logger()
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -90,30 +91,12 @@ class AgentResponse(BaseModel):
     correlation_id: str = Field(..., description="Request correlation ID")
 
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-async def get_current_user(api_key: str = Security(api_key_header)) -> dict:
-    """Simple API key auth; replace with real auth provider."""
-    if not api_key:
-        logger.warning("Authentication failed: missing API key")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
-        )
-    # NOTE: API key validation not implemented - returning 501
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Authentication not implemented",
-    )
-
-
 @router.post("/business-analysis", response_model=AgentResponse)
 async def execute_business_analysis(
-    request: BusinessAnalysisRequest, current_user: dict | None = None
+    request: BusinessAnalysisRequest,
+    current_user: User = Depends(get_current_active_user_dependency),
 ) -> AgentResponse:
     """Execute business analysis workflow step."""
-    if current_user is None:
-        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -160,11 +143,10 @@ async def execute_business_analysis(
 
 @router.post("/architecture-design", response_model=AgentResponse)
 async def execute_architecture_design(
-    request: ArchitectureDesignRequest, current_user: dict | None = None
+    request: ArchitectureDesignRequest,
+    current_user: User = Depends(get_current_active_user_dependency),
 ) -> AgentResponse:
     """Execute architecture design workflow step."""
-    if current_user is None:
-        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -201,11 +183,10 @@ async def execute_architecture_design(
 
 @router.post("/implementation-planning", response_model=AgentResponse)
 async def execute_implementation_planning(
-    request: PlanningRequest, current_user: dict | None = None
+    request: PlanningRequest,
+    current_user: User = Depends(get_current_active_user_dependency),
 ) -> AgentResponse:
     """Execute implementation planning workflow step."""
-    if current_user is None:
-        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -243,11 +224,10 @@ async def execute_implementation_planning(
 
 @router.post("/engineering-standards", response_model=AgentResponse)
 async def execute_engineering_standards(
-    request: StandardsRequest, current_user: dict | None = None
+    request: StandardsRequest,
+    current_user: User = Depends(get_current_active_user_dependency),
 ) -> AgentResponse:
     """Execute engineering standards workflow step."""
-    if current_user is None:
-        current_user = await get_current_user()
     correlation_id = str(uuid.uuid4())
 
     try:
@@ -284,8 +264,15 @@ async def execute_engineering_standards(
 
 
 @router.get("/health")
-async def agent_health_check() -> dict:
-    """Health check for agent system."""
+async def agent_health_check(
+    current_user: User = Depends(get_current_active_user_dependency),
+) -> dict:
+    """
+    Health check for agent system (authenticated users only).
+
+    Returns status of agent orchestration system and workflow execution.
+    Requires authentication to prevent information disclosure.
+    """
     try:
         health = await orchestrator.health_check()
         status_str = health.get("status", "unhealthy")
@@ -485,11 +472,10 @@ async def generate_progress_stream(
 
 @router.post("/workflow/execute-stream")
 async def execute_full_workflow_stream(
-    request: FullWorkflowRequest, current_user: dict | None = None
+    request: FullWorkflowRequest,
+    current_user: User = Depends(get_current_active_user_dependency),
 ) -> StreamingResponse:
     """Execute complete agent workflow with real-time progress updates via SSE."""
-    if current_user is None:
-        current_user = await get_current_user()
     workflow_id = str(uuid.uuid4())
 
     context = ProjectContext(
@@ -522,11 +508,10 @@ async def execute_full_workflow_stream(
 
 @router.get("/workflow/{workflow_id}/status")
 async def get_workflow_status(
-    workflow_id: str, current_user: dict | None = None
+    workflow_id: str,
+    current_user: User = Depends(get_current_active_user_dependency),
 ) -> dict:
     """Get current workflow execution status."""
-    if current_user is None:
-        current_user = await get_current_user()
     # NOTE: Workflow status tracking not implemented - returns HTTP 501
     # Should track workflow execution state in Redis or database
     raise HTTPException(
@@ -537,11 +522,10 @@ async def get_workflow_status(
 
 @router.get("/history/{project_id}")
 async def get_agent_execution_history(
-    project_id: str, current_user: dict | None = None
+    project_id: str,
+    current_user: User = Depends(get_current_active_user_dependency),
 ) -> dict:
     """Get agent execution history for a project."""
-    if current_user is None:
-        current_user = await get_current_user()
     # NOTE: Execution history tracking not implemented - returns HTTP 501
     # Should store and retrieve execution history from database
     raise HTTPException(

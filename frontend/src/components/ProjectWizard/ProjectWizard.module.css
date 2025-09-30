@@ -3,6 +3,7 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem var(--spacing-lg);
+  min-height: 100dvh;
   min-height: 100vh;
 }
 

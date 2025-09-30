@@ -1,9 +1,20 @@
-"""Password service for hashing and verification with Passlib."""
+"""Password service for hashing and verification with Passlib.
+
+This service provides secure password hashing using Argon2id by default,
+with bcrypt support for legacy password verification during migration.
+
+Security features:
+- Argon2id with explicit parameters for consistent KDF strength
+- bcrypt support for seamless migration from legacy systems
+- Password strength validation
+- Hash update detection for deprecated schemes
+"""
 
 import secrets
+from typing import cast
 
-from passlib.context import CryptContext
-from passlib.exc import UnknownHashError
+from passlib.context import CryptContext  # type: ignore[import-untyped]
+from passlib.exc import UnknownHashError  # type: ignore[import-untyped]
 
 
 class PasswordService:
@@ -11,8 +22,19 @@ class PasswordService:
 
     def __init__(self, schemes: list[str] | None = None) -> None:
         """Initialize password service with configurable schemes."""
-        schemes = schemes or ["bcrypt"]
-        self.pwd_context = CryptContext(schemes=schemes, deprecated="auto")
+        schemes = schemes or [
+            "argon2",
+            "bcrypt",
+        ]  # bcrypt allowed for legacy verification
+        self.pwd_context = CryptContext(
+            schemes=schemes,
+            deprecated="auto",  # marks non-first schemes as deprecated
+            # Argon2id parameters (tune per infra/latency budgets)
+            argon2__type="ID",
+            argon2__time_cost=3,
+            argon2__memory_cost=65536,  # 64 MiB
+            argon2__parallelism=4,
+        )
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a plaintext password against its hash."""
@@ -20,7 +42,10 @@ class PasswordService:
             return False
 
         try:
-            return self.pwd_context.verify(plain_password, hashed_password)
+            result: bool = cast(
+                bool, self.pwd_context.verify(plain_password, hashed_password)
+            )
+            return result
         except (UnknownHashError, ValueError):
             return False
 
@@ -33,7 +58,8 @@ class PasswordService:
         self._validate_password_strength(password)
 
         try:
-            return self.pwd_context.hash(password)
+            hashed: str = cast(str, self.pwd_context.hash(password))
+            return hashed
         except Exception as e:
             raise ValueError(f"Failed to hash password: {e}") from e
 
@@ -119,3 +145,25 @@ class PasswordService:
             return self.get_password_hash(plain_password)
 
         return None
+
+    def identify_hash_scheme(self, hashed_password: str) -> str | None:
+        """Identify the scheme used for a password hash."""
+        if not hashed_password:
+            return None
+
+        try:
+            result: str | None = self.pwd_context.identify(hashed_password)
+            return result
+        except (UnknownHashError, ValueError):
+            return None
+
+    def is_deprecated_hash(self, hashed_password: str) -> bool:
+        """Check if a hash uses a deprecated scheme (e.g., bcrypt)."""
+        if not hashed_password:
+            return False
+
+        try:
+            scheme = self.identify_hash_scheme(hashed_password)
+            return scheme is not None and scheme != "argon2"
+        except (UnknownHashError, ValueError):
+            return False

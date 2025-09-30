@@ -151,13 +151,16 @@ class TestRBACModels:
         async_db.add_all([perm1, perm2])
         await async_db.commit()
 
+        # Refresh role to load permissions relationship
+        await async_db.refresh(role, attribute_names=["permissions"])
+
         # Associate permissions with role
         role.permissions.append(perm1)
         role.permissions.append(perm2)
         await async_db.commit()
 
         # Verify relationship
-        await async_db.refresh(role)
+        await async_db.refresh(role, attribute_names=["permissions"])
         assert len(role.permissions) == 2
         permission_names = [p.name for p in role.permissions]
         assert "PERM1" in permission_names
@@ -404,7 +407,7 @@ class TestRBACService:
         has_read = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_READ,
+            permission=Permission.PROJECT_READ,
         )
         assert has_read is True
 
@@ -412,7 +415,7 @@ class TestRBACService:
         has_write = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_WRITE,
+            permission=Permission.PROJECT_WRITE,
         )
         assert has_write is False
 
@@ -420,7 +423,7 @@ class TestRBACService:
         has_admin = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_ADMIN,
+            permission=Permission.PROJECT_ADMIN,
         )
         assert has_admin is False
 
@@ -444,7 +447,7 @@ class TestRBACService:
         has_write_before = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_WRITE,
+            permission=Permission.PROJECT_WRITE,
         )
         assert has_write_before is False
 
@@ -459,7 +462,7 @@ class TestRBACService:
         has_write_after = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_WRITE,
+            permission=Permission.PROJECT_WRITE,
         )
         assert has_write_after is True
 
@@ -483,7 +486,7 @@ class TestRBACService:
         has_permission_before = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_READ,
+            permission=Permission.PROJECT_READ,
         )
         assert has_permission_before is True
 
@@ -497,7 +500,7 @@ class TestRBACService:
         has_permission_after = await rbac_service.check_permission(
             user_id=test_users[1].id,
             project_id=test_project.id,
-            required_permission=Permission.PROJECT_READ,
+            permission=Permission.PROJECT_READ,
         )
         assert has_permission_after is False
 

@@ -9,6 +9,7 @@ import {
   PaginatedResponse,
   Project,
   RefreshTokenRequest,
+  RegisterRequest,
   User,
 } from '../types/api';
 
@@ -51,21 +52,85 @@ class ApiClient {
   private removeTokenFromStorage() {
     this.accessToken = null;
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    // SECURITY: Remove refresh token from sessionStorage
+    sessionStorage.removeItem('refreshToken');
+  }
+
+  // SECURITY: Helper methods for secure refresh token storage
+  private saveRefreshToken(token: string) {
+    // TODO: Migrate to HttpOnly cookies for maximum security
+    // Using sessionStorage as temporary mitigation - tokens clear on tab close
+    sessionStorage.setItem('refreshToken', token);
+  }
+
+  private getRefreshToken(): string | null {
+    return sessionStorage.getItem('refreshToken');
+  }
+
+  private removeRefreshToken() {
+    sessionStorage.removeItem('refreshToken');
+  }
+
+  // SECURITY: CSRF token handling for cookie-based authentication
+  private getCSRFToken(): string {
+    // Read CSRF token from non-HttpOnly cookie
+    const match = document.cookie.match(/csrf_token=([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  private shouldIncludeCSRF(method: string): boolean {
+    // CSRF protection needed for state-changing requests
+    return ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
+  }
+
+  // SECURITY: Check if access token is expiring soon
+  private isTokenExpiringSoon(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = payload.exp * 1000;
+      const currentTime = Date.now();
+      const fiveMinutes = 5 * 60 * 1000;
+
+      return expirationTime - currentTime < fiveMinutes;
+    } catch {
+      return true; // If we can't parse - consider expired
+    }
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
+    // SECURITY: Build headers with CSRF protection for state-changing requests
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Merge any existing headers
+    if (options.headers) {
+      const existingHeaders = options.headers as Record<string, string>;
+      Object.assign(headers, existingHeaders);
+    }
+
+    // Add Authorization header if we have an access token
+    if (this.accessToken) {
+      headers.Authorization = `Bearer ${this.accessToken}`;
+    }
+
+    // SECURITY: Add CSRF token for state-changing requests
+    const method = options.method || 'GET';
+    if (this.shouldIncludeCSRF(method)) {
+      const csrfToken = this.getCSRFToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
     const config: RequestInit = {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-        ...(this.accessToken && {
-          Authorization: `Bearer ${this.accessToken}`,
-        }),
-      },
+      headers,
+      // SECURITY: Include credentials for cookie-based authentication
+      // Currently keeping for future cookie migration
+      credentials: 'include',
     };
 
     try {
@@ -113,7 +178,27 @@ class ApiClient {
     });
 
     this.saveTokenToStorage(response.data.accessToken);
-    localStorage.setItem('refreshToken', response.data.refreshToken);
+    this.saveRefreshToken(response.data.refreshToken);
+
+    return response.data;
+  }
+
+  async register(userData: RegisterRequest): Promise<LoginResponse> {
+    // Transform frontend data structure to backend expected format
+    const backendData = {
+      email: userData.email,
+      name: `${userData.firstName} ${userData.lastName}`,
+      password: userData.password,
+      confirm_password: userData.confirmPassword,
+    };
+
+    const response = await this.request<ApiResponse<LoginResponse>>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(backendData),
+    });
+
+    this.saveTokenToStorage(response.data.accessToken);
+    this.saveRefreshToken(response.data.refreshToken);
 
     return response.data;
   }
@@ -130,7 +215,7 @@ class ApiClient {
   }
 
   async refreshToken(): Promise<string> {
-    const refreshToken = localStorage.getItem('refreshToken');
+    const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
       throw new ApiError('No refresh token available', 401);
     }

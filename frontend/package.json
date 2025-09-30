@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22.14.0"
+  },
   "scripts": {
     "dev": "vite --port 5200",
     "build": "pnpm run type-check && vite build",
@@ -18,7 +22,7 @@
     "format:check": "biome format .",
     "check": "biome check .",
     "check:fix": "biome check --write .",
-    "pre-commit": "pnpm run lint:js && pnpm run lint:styles && pnpm run type-check && pnpm run format:check",
+    "pre-commit": "pnpm run check",
     "biome:version": "biome --version",
     "biome:lsp": "biome lsp-proxy"
   },

@@ -5,9 +5,9 @@ Vault integration, and type validation using Pydantic settings.
 
 import logging
 from functools import lru_cache
-from typing import Any
+from typing import Any, Final
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 try:
@@ -38,16 +38,32 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = Field(
-        default="postgresql://postgres:password@localhost:5432/jeex_plan",
+        description="PostgreSQL connection URL. Required in all environments.",
     )
 
+    # PostgreSQL Server Settings
+    PG_APPLICATION_NAME_DEV: str = Field(default="jeex-plan-dev")
+    PG_APPLICATION_NAME_PROD: str = Field(default="jeex-plan")
+    PG_EFFECTIVE_IO_CONCURRENCY: int = Field(default=200)
+    PG_RANDOM_PAGE_COST: float = Field(default=1.1)
+
     # Redis
-    REDIS_URL: str = Field(default="redis://localhost:6379")
-    REDIS_PASSWORD: str | None = Field(default=None)
+    REDIS_URL: str = Field(
+        description="Redis connection URL. Required in all environments."
+    )
+    REDIS_PASSWORD: str | None = Field(
+        default=None,
+        description="Redis password if authentication is required.",
+    )
 
     # Qdrant Vector Database
-    QDRANT_URL: str = Field(default="http://localhost:6333")
-    QDRANT_API_KEY: str | None = Field(default=None)
+    QDRANT_URL: str = Field(
+        description="Qdrant vector database URL. Required in all environments."
+    )
+    QDRANT_API_KEY: str | None = Field(
+        default=None,
+        description="Qdrant API key if authentication is required.",
+    )
     QDRANT_COLLECTION: str = Field(default="jeex_plan_documents")
 
     # HashiCorp Vault
@@ -101,14 +117,15 @@ class Settings(BaseSettings):
     EXPORT_DIR: str = Field(default="/app/exports")
 
     # Multi-tenancy
-    DEFAULT_TENANT_ID: str = Field(default="default")
+    # REMOVED: DEFAULT_TENANT_ID default value - no default tenant fallbacks allowed
+    # Tenant context must be explicitly provided at all times
     ENABLE_TENANT_ISOLATION: bool = Field(default=True)
 
     @field_validator("ENVIRONMENT")
     @classmethod
     def validate_environment(cls, v: str) -> str:
         """Validate environment setting"""
-        allowed = ["development", "staging", "production"]
+        allowed = ["development", "staging", "production", "testing"]
         if v not in allowed:
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return v
@@ -120,18 +137,61 @@ class Settings(BaseSettings):
     ) -> str | None:
         """Ensure Vault token is provided when Vault is enabled."""
         use_vault = info.data.get("USE_VAULT", True)
-        placeholder = "__REPLACE_WITH_TOKEN__"
-
         if not use_vault:
             return token
 
-        if token in (None, "", placeholder):
+        if token in (None, ""):
             raise ValueError("VAULT_TOKEN must be set when USE_VAULT is true")
 
         if isinstance(token, str) and len(token) < 10:
             raise ValueError("VAULT_TOKEN appears to be too short to be valid")
 
         return token
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        """
+        Enforce production security requirements.
+
+        SECURITY: DEBUG must be False in production to prevent sensitive data exposure
+        including stack traces, SQL queries, internal paths, and configuration details.
+        This validation ensures no production deployment can bypass this requirement.
+        """
+        if self.ENVIRONMENT == "production" and self.DEBUG:
+            raise ValueError(
+                "DEBUG must be False in production environment. "
+                "Set DEBUG=False in environment variables or .env file. "
+                "This is a security requirement to prevent sensitive data exposure."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_required_connections(self) -> "Settings":
+        """
+        Validate that all required connection URLs are provided.
+
+        These connections are required for the application to function properly.
+        No defaults are provided to ensure explicit configuration in all environments.
+        """
+        required_urls = {
+            "DATABASE_URL": self.DATABASE_URL,
+            "REDIS_URL": self.REDIS_URL,
+            "QDRANT_URL": self.QDRANT_URL,
+        }
+
+        missing_urls = []
+        for name, url in required_urls.items():
+            if not url or url.strip() == "":
+                missing_urls.append(name)
+
+        if missing_urls:
+            raise ValueError(
+                f"The following required connection URLs are missing or empty: "
+                f"{', '.join(missing_urls)}. "
+                f"Please set these environment variables before starting the application."
+            )
+
+        return self
 
     @property
     def is_production(self) -> bool:
@@ -142,6 +202,10 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """Check if running in development"""
         return self.ENVIRONMENT == "development"
+
+    # TODO: MEDIUM - Add redundant UTC assignment cleanup
+    # TODO: MEDIUM - Implement structured logout status improvement
+    # These improvements are deferred for MVP but should be implemented in future iterations
 
     @property
     def ALLOWED_ORIGINS(self) -> list[str]:
@@ -187,6 +251,20 @@ class Settings(BaseSettings):
             settings_dict["password"] = self.REDIS_PASSWORD
 
         return settings_dict
+
+    def get_pg_server_settings_dev(self) -> dict[str, str]:
+        """Get PostgreSQL server settings for development"""
+        return {
+            "application_name": self.PG_APPLICATION_NAME_DEV,
+        }
+
+    def get_pg_server_settings_prod(self) -> dict[str, str]:
+        """Get PostgreSQL server settings for production"""
+        return {
+            "application_name": self.PG_APPLICATION_NAME_PROD,
+            "effective_io_concurrency": str(self.PG_EFFECTIVE_IO_CONCURRENCY),
+            "random_page_cost": str(self.PG_RANDOM_PAGE_COST),
+        }
 
 
 logger = logging.getLogger(__name__)
@@ -334,14 +412,43 @@ class VaultSettings:
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get application settings (cached)."""
-    return Settings()
+    """
+    Get application settings (cached).
+
+    Pydantic BaseSettings automatically loads environment variables,
+    making explicit constructor arguments unnecessary. MyPy requires
+    type: ignore because without the pydantic plugin it cannot infer
+    that required fields are loaded from environment variables.
+    """
+    return Settings()  # type: ignore[call-arg]
 
 
 def get_vault_settings() -> VaultSettings:
     """Get Vault-integrated settings."""
     return VaultSettings(get_settings())
 
+
+# Shared middleware configuration
+EXEMPT_PATHS: Final[frozenset[str]] = frozenset(
+    {
+        # Documentation and health endpoints
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/health",
+        "/ready",
+        "/system/status",
+        "/api/v1/info",
+        "/api/v1/health",
+        "/api/v1/auth/register",
+        "/api/v1/auth/login",
+        "/api/v1/auth/oauth",
+        "/api/v1/auth/providers",
+        "/api/v1/agents/health",
+        "/api/v1/auth/logout",
+        "/api/v1/test/cleanup",
+    }
+)
 
 # Global settings instance
 settings = get_settings()

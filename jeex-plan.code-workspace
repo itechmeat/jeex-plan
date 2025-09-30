@@ -11,6 +11,10 @@
     {
       "name": "Backend",
       "path": "./backend"
+    },
+    {
+      "name": "Tests",
+      "path": "./tests"
     }
   ],
   "settings": {

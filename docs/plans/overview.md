@@ -10,10 +10,11 @@
 | [04 — Agent Orchestration](04-agent-orchestration.md) | CrewAI агенты и мультиагентная система | Backend Developer | Epic 02, 03 (auth, vector store) | ✅ Completed (100%) |
 | [05 — Document Generation](05-document-generation.md) | Четырехэтапная генерация документов | Backend Developer | Epic 04 (agents) | ⏳ Not Started |
 | [06 — Frontend Implementation](06-frontend-implementation.md) | React интерфейс с SSE и прогресс-трекингом | Frontend Developer | Epic 05 (document API) | 🟡 In Progress (30%) |
-| [07 — Export System](07-export-system.md) | ZIP архивы и структурированный экспорт | Backend Developer | Epic 05, 06 (documents, UI) | ⏳ Not Started |
-| [08 — Quality Assurance](08-quality-assurance.md) | Валидация контента и обеспечение качества | Backend Developer | Epic 05 (generation) | ⏳ Not Started |
-| [09 — Observability](09-observability.md) | OpenTelemetry трассировка и мониторинг | DevOps Engineer | Epic 01 (infrastructure) | 🟡 In Progress (15%) |
-| [10 — Testing](10-testing.md) | Комплексное тестирование всей системы | QA Engineer | All previous epics | ⏳ Not Started |
+| [07 — Testing](07-testing.md) | Комплексное тестирование реализованной функциональности | QA Engineer | Epic 01-06 (all implemented features) | ⏳ Not Started |
+| [08 — Export System](08-export-system.md) | ZIP архивы и структурированный экспорт | Backend Developer | Epic 05, 06, 07 (documents, UI, testing) | ⏳ Not Started |
+| [09 — Quality Assurance](09-quality-assurance.md) | Валидация контента и обеспечение качества | Backend Developer | Epic 05, 07 (generation, testing) | ⏳ Not Started |
+| [10 — Observability](10-observability.md) | OpenTelemetry трассировка и мониторинг | DevOps Engineer | Epic 01 (infrastructure) | 🟡 In Progress (15%) |
+| [11 — Final Testing](11-testing.md) | Финальное тестирование всей системы | QA Engineer | All previous epics | ⏳ Not Started |
 
 ## Development Flow
 
@@ -32,29 +33,34 @@ graph TB
 
     subgraph "User Experience Phase"
         E06[Epic 06<br/>Frontend Implementation]
-        E07[Epic 07<br/>Export System]
+        E07[Epic 07<br/>Testing]
     end
 
-    subgraph "Quality & Operations Phase"
-        E08[Epic 08<br/>Quality Assurance]
-        E09[Epic 09<br/>Observability]
-        E10[Epic 10<br/>Testing]
+    subgraph "Advanced Features Phase"
+        E08[Epic 08<br/>Export System]
+        E09[Epic 09<br/>Quality Assurance]
+    end
+
+    subgraph "Operations & Final Testing Phase"
+        E10[Epic 10<br/>Observability]
+        E11[Epic 11<br/>Final Testing]
     end
 
     %% Dependencies
     E01 --> E02
     E01 --> E03
-    E01 --> E09
+    E01 --> E10
     E02 --> E04
     E03 --> E04
     E04 --> E05
     E05 --> E06
-    E05 --> E07
-    E05 --> E08
-    E06 --> E10
-    E07 --> E10
-    E08 --> E10
-    E09 --> E10
+    E06 --> E07
+    E07 --> E08
+    E07 --> E09
+    E05 --> E09
+    E08 --> E11
+    E09 --> E11
+    E10 --> E11
 
     %% Click links to epic files
     click E01 href "01-infrastructure.md"
@@ -63,21 +69,24 @@ graph TB
     click E04 href "04-agent-orchestration.md"
     click E05 href "05-document-generation.md"
     click E06 href "06-frontend-implementation.md"
-    click E07 href "07-export-system.md"
-    click E08 href "08-quality-assurance.md"
-    click E09 href "09-observability.md"
-    click E10 href "10-testing.md"
+    click E07 href "07-testing.md"
+    click E08 href "08-export-system.md"
+    click E09 href "09-quality-assurance.md"
+    click E10 href "10-observability.md"
+    click E11 href "11-testing.md"
 
     %% Styling
     classDef foundation fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef core fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     classDef ux fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    classDef quality fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef advanced fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef operations fill:#fce4ec,stroke:#ad1457,stroke-width:2px
 
     class E01,E02,E03 foundation
     class E04,E05 core
     class E06,E07 ux
-    class E08,E09,E10 quality
+    class E08,E09 advanced
+    class E10,E11 operations
 ```
 
 ## Technical Requirements

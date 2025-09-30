@@ -37,4 +37,6 @@ class Tenant(Base, TimestampMixin):
 
     # Relationships
     users: Mapped[list[User]] = relationship("User", back_populates="tenant")
-    projects: Mapped[list[Project]] = relationship("Project", back_populates="tenant")
+    projects: Mapped[list[Project]] = relationship(
+        "Project", back_populates="tenant", overlaps="owner"
+    )

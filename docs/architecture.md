@@ -385,7 +385,7 @@ services:
   # Инфраструктура (контейнеризована)
   - nginx: Reverse proxy и TLS терминация
   - api: FastAPI backend
-  - postgres: PostgreSQL 18 Beta 2
+  - postgres: PostgreSQL 18 with UUID v7 and AIO
   - redis: Cache и очереди
   - qdrant: Vector database
   - otel-collector: Телеметрия

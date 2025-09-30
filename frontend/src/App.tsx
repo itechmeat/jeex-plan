@@ -3,11 +3,13 @@ import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-d
 import { Layout } from './components/Layout/Layout';
 import { ProjectWizard } from './components/ProjectWizard/ProjectWizard';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { PublicRoute } from './components/PublicRoute';
 import { AuthProvider } from './contexts/AuthContext';
 import { Dashboard } from './pages/Dashboard/Dashboard';
 import HealthStatus from './pages/HealthStatus/HealthStatus';
 import { Login } from './pages/Login/Login';
 import { Projects } from './pages/Projects/Projects';
+import { Register } from './pages/Register/Register';
 import { DBProvider } from './providers/DBProvider';
 
 const App: React.FC = () => {
@@ -17,7 +19,22 @@ const App: React.FC = () => {
         <Router>
           <Routes>
             {/* Public Routes */}
-            <Route path='/login' element={<Login />} />
+            <Route
+              path='/login'
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path='/register'
+              element={
+                <PublicRoute>
+                  <Register />
+                </PublicRoute>
+              }
+            />
 
             {/* Protected Routes */}
             <Route

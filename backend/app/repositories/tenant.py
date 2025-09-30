@@ -22,7 +22,39 @@ class TenantRepository:
         self.model = Tenant
 
     async def create(self, **kwargs: Any) -> Tenant:
-        """Create a new tenant entity."""
+        """
+        Create a new tenant entity.
+
+        Accepted fields:
+            - name (str, required): Tenant name
+            - slug (str, required): Unique tenant slug
+            - description (str, optional): Tenant description
+            - max_projects (int, optional): Maximum projects limit
+            - max_storage_mb (int, optional): Maximum storage in MB
+            - is_active (bool, optional): Active status (default: True)
+
+        Raises:
+            ValueError: If required fields are missing or invalid fields provided
+        """
+        # Validate required fields
+        if "name" not in kwargs or not kwargs["name"]:
+            raise ValueError("Field 'name' is required")
+        if "slug" not in kwargs or not kwargs["slug"]:
+            raise ValueError("Field 'slug' is required")
+
+        # Validate only accepted fields are provided
+        allowed_fields = {
+            "name",
+            "slug",
+            "description",
+            "max_projects",
+            "max_storage_mb",
+            "is_active",
+        }
+        invalid_fields = set(kwargs.keys()) - allowed_fields
+        if invalid_fields:
+            raise ValueError(f"Invalid fields provided: {', '.join(invalid_fields)}")
+
         instance = self.model(**kwargs)
         self.session.add(instance)
         await self.session.flush()
@@ -54,8 +86,10 @@ class TenantRepository:
         return tenant
 
     async def get_by_slug(self, slug: str) -> Tenant | None:
-        """Get tenant by slug."""
-        stmt = select(self.model).where(self.model.slug == slug)
+        """Get tenant by slug (active tenants only)."""
+        stmt = select(self.model).where(
+            self.model.slug == slug, self.model.is_active.is_(True)
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -137,16 +171,8 @@ class TenantRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is None
 
-    async def get_default_tenant(self) -> Tenant | None:
-        """Get tenant with slug 'default'."""
-        stmt = select(self.model).where(self.model.slug == "default")
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+    # REMOVED: get_default_tenant() and create_default() methods
 
-    async def create_default(self) -> Tenant:
-        """Create default tenant if missing."""
-        return await self.create_tenant(
-            name="Default Tenant",
-            slug="default",
-            description="Default tenant for new users",
-        )
+
+# These violate the strict no-fallback architecture rule.
+# Tenants must be explicitly created and provided - no default tenant fallbacks.

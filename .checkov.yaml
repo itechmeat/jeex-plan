@@ -9,6 +9,13 @@ framework:
 # Skip specific checks that are not relevant or too strict for development
 skip-check:
   # Docker checks that might be too strict for development
+  - CKV_DOCKER_3  # Ensure healthcheck exists - may not be needed for all services
+  - CKV_DOCKER_7  # Ensure USER is used - not always needed for development containers
+  - CKV_DOCKER_8  # Pin versions - development may float versions for testing
+
+  # Docker compose checks for development-only rules
+  - CKV2_DOCKER_1  # Image digest pinning - not needed for development
+  - CKV2_DOCKER_3  # Volume mounts - development needs flexible volume configs
 
 # Output format
 output: cli

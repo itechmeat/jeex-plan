@@ -65,9 +65,10 @@ vault-status:
 lint:
 	@echo "🔍 Running all linting checks..."
 	@$(MAKE) frontend-lint
-	@echo "📋 Checking markdown..."
-	npx markdownlint-cli2
 	@$(MAKE) backend-lint
+	@$(MAKE) sql-lint
+	@$(MAKE) docker-lint
+	@$(MAKE) markdown-lint
 	@echo "✅ All lint checks completed"
 
 frontend-lint:
@@ -81,14 +82,20 @@ frontend-fix:
 backend-fix:
 	@echo "🗃️ Fixing backend SQL..."
 	docker-compose exec api python -m sqlfluff fix .
-	@echo "🐍 Fixing backend Python..."
+	@echo "🐍 Fixing backend Python linting..."
 	docker-compose exec api python -m ruff check app --fix --extend-ignore E501,B904,BLE001,G201,ANN001,ANN002,ANN003,ANN201,ANN202,ANN205,RUF012,S101,S104,S105,S107,SIM102,SIM103,UP038,C901,RUF001
+	@echo "🐍 Fixing backend Python formatting..."
+	docker-compose exec api ruff format .
 
 backend-lint:
 	@echo "🗃️ Checking backend SQL..."
 	docker-compose exec api python -m sqlfluff lint .
-	@echo "🐍 Checking backend (Python)..."
+	@echo "🐍 Checking backend Python linting..."
 	docker-compose exec api python -m ruff check app --extend-ignore E501,B904,BLE001,G201,ANN001,ANN002,ANN003,ANN201,ANN202,ANN205,RUF012,S101,S104,S105,S107,SIM102,SIM103,UP038,C901,RUF001
+	@echo "🐍 Checking backend Python formatting..."
+	docker-compose exec api ruff format . --check
+	@echo "🐍 Checking backend Python types..."
+	docker-compose exec api python -m mypy app/
 
 lint-fix:
 	@echo "🔧 Fixing all linting issues..."

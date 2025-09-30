@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from ..core.config import get_settings
 from ..core.database import get_db
 from ..core.logger import get_logger
 from ..core.password_service import PasswordService
+from ..core.token_blacklist import TokenBlacklistService
 from ..core.token_service import TokenService
 from ..models.user import User
 from ..repositories.tenant import TenantRepository
@@ -44,10 +45,18 @@ class AuthService:
         # Use separate services for specific responsibilities
         self.password_service = PasswordService()
         self.token_service = TokenService()
+        self.token_blacklist = TokenBlacklistService()
         self.logger = logger or get_logger("auth_service")
 
     async def get_user_by_token(self, token: str) -> User | None:
         """Get user from JWT token."""
+        # First check if token is blacklisted
+        if await self.token_blacklist.is_token_blacklisted(token):
+            self.logger.warning(
+                "auth.token_blacklisted", extra={"reason": "token_in_blacklist"}
+            )
+            return None
+
         payload = self.token_service.verify_token(token)
         if not payload:
             self.logger.warning(
@@ -62,6 +71,11 @@ class AuthService:
                 "auth.invalid_token",
                 extra={"reason": "missing_subject"},
             )
+            return None
+
+        # Check if user is blacklisted (for account compromise scenarios)
+        if await self.token_blacklist.is_user_blacklisted(user_id):
+            self.logger.warning("auth.user_blacklisted", extra={"user_id": user_id})
             return None
 
         try:
@@ -131,11 +145,8 @@ class AuthService:
         scoped_tenant = tenant_id or self.tenant_id
         if scoped_tenant:
             stmt = stmt.where(User.tenant_id == scoped_tenant)
-        else:
-            self.logger.warning(
-                "auth.tenant_scope_missing_for_login",
-                extra={"email": email},
-            )
+        # For login without tenant scope, we search across all tenants
+        # The user's tenant will be determined from the found user
 
         try:
             result = await self.db.execute(stmt)
@@ -218,6 +229,42 @@ class AuthService:
 
         return await self.create_tokens_for_user(user)
 
+    async def logout_user(
+        self, access_token: str, refresh_token: str | None = None
+    ) -> bool:
+        """
+        Logout user by blacklisting their tokens.
+
+        Args:
+            access_token: The access token to blacklist
+            refresh_token: The refresh token to blacklist (optional)
+
+        Returns:
+            True if logout successful, False otherwise
+        """
+        try:
+            success = True
+
+            # Blacklist access token
+            if not await self.token_blacklist.blacklist_token(access_token):
+                self.logger.error("Failed to blacklist access token")
+                success = False
+
+            # Blacklist refresh token if provided
+            if refresh_token:
+                if not await self.token_blacklist.blacklist_token(refresh_token):
+                    self.logger.error("Failed to blacklist refresh token")
+                    success = False
+
+            if success:
+                self.logger.info("User logged out successfully")
+
+            return success
+
+        except Exception as e:
+            self.logger.error("Error during logout", error=str(e))
+            return False
+
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials, db: AsyncSession
@@ -248,6 +295,53 @@ async def get_current_user(
         raise credentials_exception from exc
 
 
+class AuthDependency:
+    """Enhanced auth dependency that provides both user and token access."""
+
+    def __init__(self, user: User | None = None, token: str | None = None) -> None:
+        # Use instance variables instead of shared mutable state
+        self.user = user
+        self.token = token
+
+    async def __call__(
+        self,
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        db: AsyncSession = Depends(get_db),
+    ) -> "AuthDependency":
+        """Get current user and return new instance with token for logout purposes."""
+        auth_service = AuthService(db)
+
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+        try:
+            token = credentials.credentials
+            user = await auth_service.get_user_by_token(token)
+
+            if user is None:
+                raise credentials_exception
+
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
+                )
+
+            # Return new instance to avoid shared mutable state
+            return AuthDependency(user=user, token=token)
+
+        except Exception as exc:
+            raise credentials_exception from exc
+
+
+# Create factory function instead of shared instance
+def create_auth_dependency() -> AuthDependency:
+    """Factory function to create new auth dependency instances."""
+    return AuthDependency()
+
+
 async def get_current_active_user(
     credentials: HTTPAuthorizationCredentials, db: AsyncSession
 ) -> User:
@@ -275,5 +369,39 @@ async def get_current_active_user_dependency(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """FastAPI dependency to get current active user."""
+    """FastAPI dependency to get current active user from Bearer token."""
+    return await get_current_active_user(credentials, db)
+
+
+async def get_current_active_user_flexible(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    FastAPI dependency to get current active user from either Bearer token or cookies.
+
+    Supports both authentication methods:
+    - Authorization: Bearer <token> header (preferred for API clients)
+    - access_token cookie (for browser-based clients)
+    """
+    # Try to get token from Authorization header first
+    auth_header = request.headers.get("authorization", "")
+    token = None
+
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:]  # Remove "Bearer " prefix
+    else:
+        # Fall back to cookie-based authentication
+        token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Create HTTPAuthorizationCredentials object for compatibility
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
     return await get_current_active_user(credentials, db)

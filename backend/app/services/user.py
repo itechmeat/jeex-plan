@@ -1,36 +1,123 @@
-"""
-User management service with authentication and profile operations.
-"""
+"""User management service with authentication and profile operations."""
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import AuthService
+from ..core.exceptions import AuthenticationError
 from ..core.password_service import PasswordService
 from ..models.user import User
 from ..repositories.tenant import TenantRepository
 from ..repositories.user import UserRepository
 
+logger = logging.getLogger(__name__)
+
 
 class UserService:
     """Service for user management operations."""
 
-    def __init__(self, db: AsyncSession, tenant_id: uuid.UUID | None = None) -> None:
+    def __init__(self, db: AsyncSession, tenant_id: uuid.UUID) -> None:
+        """
+        Initialize UserService with required tenant context.
+
+        Args:
+            db: Async database session
+            tenant_id: REQUIRED tenant ID for multi-tenant isolation
+
+        Raises:
+            ValueError: If tenant_id is None or empty
+        """
+        if not tenant_id:
+            raise ValueError("Tenant ID is required for UserService initialization")
+
         self.db = db
         self.tenant_id = tenant_id
         # Repositories that require tenant_id
-        if tenant_id:
-            self.user_repo = UserRepository(db, tenant_id)
-        else:
-            self.user_repo = None
+        self.user_repo = UserRepository(db, tenant_id)
         # Global repositories (no tenant scope)
         self.tenant_repo = TenantRepository(db)
         self.auth_service = AuthService(db, tenant_id)
         self.password_service = PasswordService()
+
+    async def create_user(
+        self,
+        email: str,
+        username: str,
+        password: str,
+        full_name: str | None = None,
+    ) -> User:
+        """
+        Create a new user without generating tokens (for internal use).
+
+        Args:
+            email: User's email address
+            username: User's username
+            password: User's password (will be validated for strength)
+            full_name: User's full name (optional)
+
+        Returns:
+            User: The created user object
+
+        Raises:
+            HTTPException: If email/username already exists or validation errors
+            ValueError: If password doesn't meet strength requirements
+
+        Note:
+            This method always enforces password validation for security.
+            For testing, use dependency injection to provide a test password service.
+        """
+        # Use service's tenant_id (required by constructor)
+        user_repo = self.user_repo
+
+        # Validate email availability (against correct tenant)
+        if not await user_repo.check_email_availability(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
+
+        # Validate username availability (against correct tenant)
+        if not await user_repo.check_username_availability(username):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
+            )
+
+        # Hash password with validation (always enforced for security)
+        hashed_password = self.password_service.get_password_hash(password)
+
+        # Create user
+        user = await user_repo.create(
+            email=email,
+            username=username,
+            full_name=full_name,
+            hashed_password=hashed_password,
+            is_active=True,
+            last_login_at=datetime.now(UTC),
+        )
+
+        try:
+            await self.db.commit()
+            await self.db.refresh(user)
+            return user
+        except IntegrityError as exc:
+            await self.db.rollback()
+            logger.warning(
+                "User creation conflict for tenant %s (email=%s, username=%s)",
+                self.tenant_id,
+                email,
+                username,
+                exc_info=exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email or username already in use",
+            ) from exc
 
     async def register_user(
         self,
@@ -38,20 +125,11 @@ class UserService:
         username: str,
         password: str,
         full_name: str | None = None,
-        tenant_id: uuid.UUID | None = None,
     ) -> dict[str, Any]:
         """Register a new user with password authentication."""
 
-        # Compute effective tenant_id first
-        if tenant_id:
-            effective_tenant_id = tenant_id
-        else:
-            effective_tenant_id = await self._get_or_create_default_tenant()
-
-        # Initialize repositories and auth service with effective tenant
-        self.tenant_id = effective_tenant_id
-        self.user_repo = UserRepository(self.db, self.tenant_id)
-        self.auth_service = AuthService(self.db, self.tenant_id)
+        # Use service's tenant_id (required by constructor)
+        # Repositories already initialized in constructor
 
         # Validate email availability (against correct tenant)
         if not await self.user_repo.check_email_availability(email):
@@ -79,6 +157,38 @@ class UserService:
             last_login_at=datetime.now(UTC),
         )
 
+        try:
+            await self.db.commit()
+            await self.db.refresh(user)
+        except IntegrityError as exc:
+            await self.db.rollback()
+            logger.warning(
+                "User registration conflict for tenant %s (email=%s, username=%s)",
+                self.tenant_id,
+                email,
+                username,
+                exc_info=exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email or username already in use",
+            ) from exc
+
+        # Initialize RBAC system for the tenant (if this is the first user)
+        from ..services.rbac import RBACService
+
+        rbac_service = RBACService(self.db, self.tenant_id)
+        try:
+            await rbac_service.initialize_default_roles_and_permissions(self.tenant_id)
+            await self.db.commit()  # Commit RBAC initialization
+        except Exception as exc:
+            await self.db.rollback()
+            logger.exception(
+                "RBAC initialization failed during register_user for tenant %s",
+                self.tenant_id,
+                exc_info=exc,
+            )
+
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)
 
@@ -89,30 +199,29 @@ class UserService:
     ) -> dict[str, Any]:
         """Authenticate user with email and password."""
 
+        # For authentication, we should search across all tenants if tenant_id not specified
+        # since we don't know which tenant the user belongs to
         user = await self.auth_service.authenticate_user(email, password, tenant_id)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
+            raise AuthenticationError("Invalid email or password")
 
         if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Account is deactivated",
-            )
+            raise AuthenticationError("Account is deactivated")
 
         # Update last login
         user.last_login_at = datetime.now(UTC)
         await self.db.commit()
+
+        # Refresh user object to ensure all fields are loaded after commit
+        await self.db.refresh(user)
 
         # Generate tokens
         tokens = await self.auth_service.create_tokens_for_user(user)
 
         return {"user": self._serialize_user(user), "tokens": tokens}
 
-    async def refresh_tokens(self, refresh_token: str) -> dict[str, Any] | None:
+    async def refresh_tokens(self, refresh_token: str) -> dict[str, Any]:
         """Refresh access token using refresh token."""
         tokens = await self.auth_service.refresh_access_token(refresh_token)
 
@@ -123,6 +232,16 @@ class UserService:
             )
 
         return tokens
+
+    async def get_user_by_email(self, email: str) -> User | None:
+        """Get user by email within the service's tenant scope."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized",
+            )
+
+        return await self.user_repo.get_by_email(email)
 
     async def get_user_profile(self, user_id: uuid.UUID) -> User:
         """Get user profile by ID."""
@@ -355,18 +474,15 @@ class UserService:
             "full_name": user.full_name,
             "is_active": user.is_active,
             "is_superuser": user.is_superuser,
-            "last_login_at": user.last_login_at.isoformat()
-            if user.last_login_at
-            else None,
+            "last_login_at": (
+                user.last_login_at.isoformat() if user.last_login_at else None
+            ),
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None,
         }
 
-    async def _get_or_create_default_tenant(self) -> uuid.UUID:
-        """Get or create default tenant."""
-        default_tenant = await self.tenant_repo.get_by_slug("default")
+    # REMOVED: _get_or_create_default_tenant() method
 
-        if not default_tenant:
-            default_tenant = await self.tenant_repo.create_default()
 
-        return default_tenant.id
+# This violates the strict no-fallback architecture rule.
+# Tenant context must be explicitly provided at all times.

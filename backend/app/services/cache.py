@@ -21,7 +21,16 @@ logger = get_logger(__name__)
 
 
 def _cache_json_default(value: Any) -> Any:
-    """Provide deterministic serialization for cache key components."""
+    """
+    Provide deterministic serialization for cache key components.
+
+    Returns primitives as-is for deterministic hashing. For complex types,
+    attempts structured serialization. Raises TypeError for non-serializable types.
+    """
+    # Return primitive types as-is (deterministic)
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return value
+
     if isinstance(value, Enum):
         return value.value
 
@@ -47,11 +56,15 @@ def _cache_json_default(value: Any) -> Any:
         return [_cache_json_default(item) for item in value]
 
     # For types that cannot be deterministically serialized, raise TypeError
-    if hasattr(value, "__dict__") or callable(value):
-        typename = type(value).__name__
-        raise TypeError(f"Cannot deterministically serialize type {typename}")
-
-    return str(value)
+    typename = type(value).__name__
+    logger.error(
+        "Cannot serialize non-primitive type for cache key",
+        value_type=typename,
+    )
+    raise TypeError(
+        f"Cannot deterministically serialize type {typename} for cache key. "
+        f"Only primitives (str, int, float, bool, None), Enums, and collections are supported."
+    )
 
 
 class CacheKey:

@@ -410,6 +410,14 @@ class StreamingService:
                 parsed = json.loads(status_data)
                 if isinstance(parsed, dict):
                     return cast(dict[str, Any], parsed)
+                else:
+                    logger.warning(
+                        "Invalid status data format in Redis cache",
+                        cache_key=cache_key,
+                        tenant_id=tenant_id,
+                        project_id=project_id,
+                        data_type=type(parsed).__name__,
+                    )
 
             return {"project_id": project_id, "status": "unknown", "last_updated": None}
 

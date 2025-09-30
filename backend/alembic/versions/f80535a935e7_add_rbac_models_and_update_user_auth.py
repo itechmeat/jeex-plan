@@ -208,66 +208,84 @@ def upgrade() -> None:
     op.create_index("ix_project_members_is_active", "project_members", ["is_active"])
 
     # Create performance indexes for RBAC queries
-    op.execute("""
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS ix_project_members_user_project_active
         ON project_members(user_id, project_id, is_active)
         WHERE is_deleted = false
-    """)
+    """
+    )
 
-    op.execute("""
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS ix_project_members_project_active
         ON project_members(project_id, is_active)
         WHERE is_deleted = false
-    """)
+    """
+    )
 
-    op.execute("""
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS ix_roles_tenant_active
         ON roles(tenant_id, is_active)
         WHERE is_deleted = false
-    """)
+    """
+    )
 
-    op.execute("""
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS ix_permissions_tenant_resource
         ON permissions(tenant_id, resource_type)
         WHERE is_deleted = false
-    """)
+    """
+    )
 
     # Add check constraints for RBAC validation
-    op.execute("""
+    op.execute(
+        """
         ALTER TABLE permissions
         ADD CONSTRAINT ck_permissions_resource_type_valid
         CHECK (resource_type IN ('project', 'document', 'agent', 'analytics', 'export'))
-    """)
+    """
+    )
 
-    op.execute("""
+    op.execute(
+        """
         ALTER TABLE permissions
         ADD CONSTRAINT ck_permissions_action_valid
         CHECK (action IN ('read', 'write', 'delete', 'admin', 'execute', 'documents'))
-    """)
+    """
+    )
 
-    op.execute("""
+    op.execute(
+        """
         ALTER TABLE roles
         ADD CONSTRAINT ck_roles_name_valid
         CHECK (name IN ('OWNER', 'EDITOR', 'VIEWER') OR is_system = false)
-    """)
+    """
+    )
 
     # Add authentication password constraints
-    op.execute("""
+    op.execute(
+        """
         ALTER TABLE users
         ADD CONSTRAINT ck_users_auth_method
         CHECK (
             (hashed_password IS NOT NULL) OR
             (oauth_provider IS NOT NULL AND oauth_id IS NOT NULL)
         ) NOT VALID
-    """)
+    """
+    )
 
     # Backfill legacy rows without any authentication method
-    op.execute("""
+    op.execute(
+        """
         UPDATE users
         SET is_active = false
         WHERE hashed_password IS NULL
           AND (oauth_provider IS NULL OR oauth_id IS NULL)
-    """)
+    """
+    )
 
     op.execute("ALTER TABLE users VALIDATE CONSTRAINT ck_users_auth_method")
 

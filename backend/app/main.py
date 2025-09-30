@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from structlog import get_logger
 
-from app.api.routes import agents, auth, health, projects
+from app.api.routes import agents, auth, health, projects, test
 from app.core.config import settings
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security import (
@@ -171,6 +171,7 @@ app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
 app.include_router(projects.router, prefix="/api/v1", tags=["projects"])
 app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
+app.include_router(test.router, prefix="/api/v1/test", tags=["test"])
 
 
 # Root endpoint

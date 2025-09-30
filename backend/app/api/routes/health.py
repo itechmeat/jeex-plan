@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.qdrant import QdrantAdapter
 from app.adapters.redis import RedisAdapter
 from app.core.config import settings
-from app.core.database import DatabaseManager, get_db
+from app.core.database import DatabaseManager, _sanitize_database_url, get_db
 from app.core.logger import get_logger
 
 router = APIRouter()
@@ -94,8 +94,8 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         }
         health_status["status"] = "degraded"
 
-    # Vault health check (if configured)
-    if settings.VAULT_ADDR:
+    # Vault health check (if configured and in production)
+    if settings.VAULT_ADDR and settings.is_production:
         try:
             vault_health = await _check_vault_health()
             components["vault"] = vault_health
@@ -119,6 +119,35 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
                 "details": {"error": str(e)},
             }
             health_status["status"] = "degraded"
+    elif settings.VAULT_ADDR and settings.is_development:
+        # In development, mark Vault as optional
+        try:
+            vault_health = await _check_vault_health()
+            if vault_health["status"] == "healthy":
+                components["vault"] = vault_health
+            else:
+                # Don't affect overall health status in development if Vault is unhealthy
+                logger.info(
+                    "Vault unhealthy in development (optional)",
+                    status=vault_health["status"],
+                )
+                components["vault"] = {
+                    "status": "healthy",
+                    "message": "Vault optional in development - currently unhealthy",
+                    "details": {
+                        "note": "Vault health checks are optional in development mode",
+                        "actual_status": vault_health["status"],
+                    },
+                }
+        except Exception as e:
+            logger.info("Vault unavailable in development (optional)", error=str(e))
+            components["vault"] = {
+                "status": "healthy",
+                "message": "Vault optional in development - not available",
+                "details": {
+                    "note": "Vault health checks are optional in development mode"
+                },
+            }
 
     # Application-specific checks
     health_status["checks"] = {
@@ -217,9 +246,7 @@ async def health_metrics() -> dict[str, Any]:
         "uptime": "N/A",  # Would need to track application start time
         "components": {
             "database": {
-                "url": settings.DATABASE_URL.split("@")[-1]
-                if "@" in settings.DATABASE_URL
-                else "configured",
+                "url": _sanitize_database_url(settings.DATABASE_URL),
                 "configured": bool(settings.DATABASE_URL),
             },
             "redis": {

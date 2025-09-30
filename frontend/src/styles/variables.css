@@ -3,6 +3,7 @@
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
   --color-primary-light: #dbeafe;
+  --color-primary-alpha: #3b82f6 / 10%;
   --color-secondary: #6b7280;
   --color-secondary-hover: #4b5563;
   --color-success: #10b981;

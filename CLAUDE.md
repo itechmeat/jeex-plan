@@ -70,7 +70,7 @@ make api-logs  # Follow API logs
 
 # Frontend development (separate, not in Docker)
 cd frontend
-npm run dev  # Runs on port 5200
+pnpm run dev  # Runs on port 5200
 
 # Full rebuild
 make rebuild
@@ -109,7 +109,7 @@ docker-compose exec api pytest tests/test_models.py
 
 # Frontend tests
 cd frontend
-npm run test
+pnpm run test
 ```
 
 ## Key Architecture Patterns
@@ -140,7 +140,7 @@ npm run test
 - **Hot Reload**: Backend runs with `--reload` in development mode
 - **Environment Variables**: Set `ENVIRONMENT=development` for dev features
 - **Volumes**: Backend code mounted for instant updates
-- **No Frontend in Docker**: Frontend runs separately via npm
+- **No Frontend in Docker**: Frontend runs separately via pnpm
 
 ### Secret Management
 
@@ -257,16 +257,142 @@ When dependency conflicts occur, resolve by:
 
 ### Production Code Requirements (ABSOLUTE)
 
-- **NEVER use hardcoded values, mocks, stubs, or placeholders in production code**
-- **All code must be real, functional implementations with actual integrations**
-- **If an error occurs, display the actual error - no fallbacks or fake responses**
-- **No "TODO", "FIXME", or placeholder comments in production code**
+### CRITICAL: NO FALLBACKS, MOCKS, OR STUBS IN PRODUCTION CODE
+
+This is a **ZERO-TOLERANCE** policy. Better to have explicit TODO than hidden fallback.
+
+#### ❌ ABSOLUTELY PROHIBITED
+
+#### Fallback Logic
+
+```python
+# ❌ WRONG - Default tenant fallback
+async def get_or_create_default_tenant() -> UUID:
+    tenant = await repo.get_by_slug("default")
+    if not tenant:
+        tenant = Tenant(name="Default", slug="default")
+    return tenant.id
+
+# ❌ WRONG - Optional tenant_id with fallback
+async def authenticate(tenant_id: UUID | None = None):
+    if not tenant_id:
+        tenant_id = await get_default_tenant()  # PROHIBITED!
+
+# ❌ WRONG - String conversion fallback
+def serialize(value: Any) -> str:
+    return str(value)  # Lossy, hides errors
+```
+
+#### Mock/Stub Implementations
+
+```python
+# ❌ WRONG - Stub implementation
+async def send_email(to: str, subject: str):
+    logger.info("Email sent")  # Not actually sending!
+    return True
+
+# ❌ WRONG - Mock data
+MOCK_USER = {"id": "123", "name": "Test User"}
+```
+
+#### Placeholder Values
+
+```python
+# ❌ WRONG - Placeholder API key
+OPENAI_API_KEY = "sk-placeholder-key"
+
+# ❌ WRONG - Placeholder URL
+API_URL = "http://localhost:3000"  # Should use config
+```
+
+#### Generic Error Handling
+
+```python
+# ❌ WRONG - Lost original error
+except Exception as e:
+    return {"error": "Failed"}  # Original error lost!
+```
+
+#### ✅ REQUIRED PATTERNS
+
+#### Explicit Requirements
+
+```python
+# ✅ CORRECT - tenant_id is REQUIRED
+async def authenticate(tenant_id: UUID) -> User:
+    """Tenant ID is REQUIRED - no defaults, no fallbacks."""
+    if not tenant_id:
+        raise HTTPException(400, "Tenant ID is required")
+
+# ✅ CORRECT - Strict type checking
+def serialize(value: Any) -> str:
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return value
+    raise TypeError(f"Cannot serialize {type(value).__name__}")
+```
+
+#### Real Implementations
+
+```python
+# ✅ CORRECT - Real API call
+async def send_email(to: str, subject: str) -> bool:
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            settings.EMAIL_API_URL,
+            json={"to": to, "subject": subject}
+        )
+        response.raise_for_status()
+        return True
+```
+
+#### Preserve Errors
+
+```python
+# ✅ CORRECT - Preserve original error
+except HTTPException:
+    raise  # Re-raise as-is
+except Exception as e:
+    logger.error("Failed", error=str(e), exc_info=True)
+    raise  # Preserve original exception
+```
+
+#### ✅ ALLOWED (Better Explicit than Hidden)
+
+#### TODO/FIXME Comments
+
+```python
+# ✅ ALLOWED - Explicit TODO for unimplemented feature
+async def send_sms(to: str, message: str) -> bool:
+    # TODO: Implement SMS service integration
+    raise NotImplementedError("SMS service not yet implemented")
+```
+
+**Principle**: Better explicit `TODO` than hidden fallback/mock
+
+#### 🚫 ENFORCEMENT RULES
+
+1. **tenant_id**: REQUIRED (UUID, never Optional, never None)
+2. **No default tenant**: creation or fallback logic
+3. **No mocks/stubs**: outside test directories
+4. **No placeholders**: use config/environment variables
+5. **TODO/FIXME**: allowed for unimplemented functionality
+6. **All implementations**: production-ready or explicitly marked TODO
+7. **All errors**: preserve original context and stack traces
+
+#### 🔍 EXCEPTIONS (Legitimate Architectural Patterns)
+
+These fallbacks are **ALLOWED** as part of proper architecture
+
+- ✅ **Vault → Environment variables** (secrets management hierarchy)
+- ✅ **JWT → Headers** (development/testing authentication)
+- ✅ **Tenant → IP** (rate limiting for unauthenticated requests)
+- ✅ **Primary → Secondary** (database failover, service redundancy)
 
 ### Docker-First Development (MANDATORY)
 
 - **ALL backend work must be performed inside Docker containers**
 - **Execute scripts, commands, and development tasks within Docker environment**
-- **Frontend must work outside Docker** (runs via npm/pnpm on host)
+- **Frontend must work outside Docker** (runs via pnpm on host)
 - **Use `docker-compose exec` for backend operations**
 
 ### Code Architecture Principles (STRICT)
@@ -277,7 +403,7 @@ When dependency conflicts occur, resolve by:
   - Avoid code duplication across modules
   - Create shared components for common functionality
 
-- **Adhere to SOLID principles when writing code:**
+- **Adhere to SOLID principles when writing code**
   - **Single Responsibility**: Each class/function has one reason to change
   - **Open/Closed**: Open for extension, closed for modification
   - **Liskov Substitution**: Derived classes must be substitutable for base classes

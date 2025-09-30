@@ -209,4 +209,5 @@ class DocumentRepository(TenantRepository[Document]):
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalar() or 0
+        # Explicit int cast for type safety
+        return int(result.scalar() or 0)

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button/Button';
 import { Input } from '../../components/ui/Input/Input';
 import { useAuth } from '../../contexts/useAuth';
@@ -17,17 +17,9 @@ const FeatureIcon: React.FC<FeatureIconProps> = ({ icon, label }) => (
   </span>
 );
 
-type LoginLocationState = {
-  from?: {
-    pathname?: string;
-  };
-};
-
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const locationState = location.state as LoginLocationState | undefined;
-  const { login, isAuthenticated, error: authError, clearError } = useAuth();
+  const { login, error: authError, clearError } = useAuth();
   const {
     title: featuresTitle,
     subtitle: featuresSubtitle,
@@ -38,20 +30,10 @@ export const Login: React.FC = () => {
     email: '',
     password: '',
   });
-  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const redirectPath =
-    typeof locationState?.from?.pathname === 'string'
-      ? locationState.from.pathname
-      : '/dashboard';
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate(redirectPath, { replace: true });
-    }
-  }, [isAuthenticated, navigate, redirectPath]);
+  const isLoading = isSubmitting;
 
   // Clear auth errors when component mounts
   useEffect(() => {
@@ -82,12 +64,10 @@ export const Login: React.FC = () => {
       const value = e.target.value;
       setFormData(prev => ({ ...prev, [field]: value }));
 
-      // Clear field error when user starts typing
       if (errors[field]) {
         setErrors(prev => ({ ...prev, [field]: '' }));
       }
 
-      // Clear auth error when user modifies form
       if (authError) {
         clearError();
       }
@@ -96,22 +76,49 @@ export const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    // Prevent multiple submissions
+    if (isSubmitting) {
       return;
     }
 
-    setIsLoading(true);
+    // Set loading state immediately for better UX
+    setIsSubmitting(true);
+
+    if (!validateForm()) {
+      setIsSubmitting(false);
+      return;
+    }
+
+    const minLoadingTime = Number(import.meta.env.VITE_MIN_LOADING_TIME_MS) || 100;
+    const startTime = Date.now();
+
     try {
       await login({
         email: formData.email.trim(),
         password: formData.password,
       });
-      // Navigation will be handled by the useEffect above
     } catch (error) {
-      // Error is handled by AuthContext
-      console.error('Login failed:', error);
+      // Error is handled by AuthContext, but ensure we wait for it to propagate
+      console.error('Login submission error:', error);
     } finally {
-      setIsLoading(false);
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime < minLoadingTime) {
+        await new Promise(resolve => setTimeout(resolve, minLoadingTime - elapsedTime));
+      }
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Enter key submission
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isLoading) {
+      e.preventDefault();
+      const form = e.currentTarget.closest('form');
+      if (form) {
+        // Use dispatchEvent for better test compatibility
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(submitEvent);
+      }
     }
   };
 
@@ -123,9 +130,20 @@ export const Login: React.FC = () => {
           <p className={styles.subtitle}>Sign in to your account to continue</p>
         </div>
 
-        <form onSubmit={handleSubmit} className={styles.form} noValidate>
+        <form
+          onSubmit={handleSubmit}
+          className={styles.form}
+          noValidate
+          data-testid='login-form'
+          onKeyDown={handleKeyDown}
+        >
           {authError && (
-            <div className={styles.errorBanner} role='alert'>
+            <div
+              className={styles.errorBanner}
+              role='alert'
+              data-testid='error-message'
+              aria-live='polite'
+            >
               {authError}
             </div>
           )}
@@ -139,6 +157,9 @@ export const Login: React.FC = () => {
             placeholder='Enter your email'
             autoComplete='email'
             fullWidth
+            data-testid='email-input'
+            disabled={isLoading}
+            onKeyDown={handleKeyDown}
           />
 
           <Input
@@ -150,6 +171,9 @@ export const Login: React.FC = () => {
             placeholder='Enter your password'
             autoComplete='current-password'
             fullWidth
+            data-testid='password-input'
+            disabled={isLoading}
+            onKeyDown={handleKeyDown}
           />
 
           <Button
@@ -157,7 +181,18 @@ export const Login: React.FC = () => {
             variant='primary'
             size='lg'
             isLoading={isLoading}
+            disabled={isLoading}
             fullWidth
+            data-testid='sign-in-button'
+            aria-busy={isLoading}
+            onClick={e => {
+              // Prevent multiple clicks during loading
+              if (isLoading) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+            }}
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
@@ -170,6 +205,7 @@ export const Login: React.FC = () => {
               type='button'
               className={styles.linkButton}
               onClick={() => navigate('/register')}
+              data-testid='register-link'
             >
               Sign up here
             </button>
@@ -180,6 +216,7 @@ export const Login: React.FC = () => {
               type='button'
               className={styles.linkButton}
               onClick={() => navigate('/forgot-password')}
+              data-testid='forgot-password-link'
             >
               Forgot your password?
             </button>

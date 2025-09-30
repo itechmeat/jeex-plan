@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
@@ -44,8 +44,14 @@ class User(BaseModel):
         "Tenant", back_populates="users", foreign_keys="User.tenant_id"
     )
 
-    # Projects relationship
-    projects: Mapped[list[Project]] = relationship("Project", back_populates="owner")
+    # Projects relationship (enforce tenant isolation)
+    projects: Mapped[list[Project]] = relationship(
+        "Project",
+        back_populates="owner",
+        primaryjoin="and_(User.id == Project.owner_id, User.tenant_id == Project.tenant_id)",
+        foreign_keys="[Project.owner_id, Project.tenant_id]",
+        overlaps="tenant,owner",
+    )
     project_memberships: Mapped[list[ProjectMember]] = relationship(
         "ProjectMember", foreign_keys="ProjectMember.user_id", back_populates="user"
     )
@@ -53,6 +59,8 @@ class User(BaseModel):
     __table_args__ = (
         UniqueConstraint("tenant_id", "email", name="uq_user_tenant_email"),
         UniqueConstraint("tenant_id", "username", name="uq_user_tenant_username"),
+        # Multi-column index for PostgreSQL 18 skip scans
+        Index("idx_user_tenant_active", "tenant_id", "is_active"),
     )
 
     class Config:

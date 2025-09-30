@@ -1,6 +1,5 @@
 import { useLiveQuery } from '@tanstack/react-db';
 import React from 'react';
-import { t } from '../localization';
 import { useCollections } from '../providers/useCollections';
 import { type HealthCheck, type SystemHealthResponse } from '../services/healthService';
 
@@ -257,10 +256,20 @@ export const healthUtils = {
    * Get status message for display
    */
   getStatusMessage(status: string): string {
-    return t(`health.status.${status}`, {
-      fallbackKey: 'health.status.default',
-      defaultValue: 'System status unknown',
-    });
+    // TODO: Consider implementing a proper localization system
+    // Previously used react-i18next but was removed to reduce dependencies
+    // For now, messages are hardcoded in English as per project requirements
+
+    switch (status) {
+      case 'pass':
+        return 'All systems operational';
+      case 'warn':
+        return 'Some services have performance issues';
+      case 'fail':
+        return 'Critical system issues detected';
+      default:
+        return 'System status unknown';
+    }
   },
 
   /**

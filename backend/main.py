@@ -1,6 +1,6 @@
 """
-JEEX Plan - Simple Main API Service
-Simplified implementation for Docker container
+JEEX Plan - Main API Service
+Full implementation with authentication and multi-tenancy
 """
 
 import time
@@ -11,9 +11,17 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import agent routes
+# Import routes
 from app.api.routes.agents import router as agents_router
+from app.api.routes.auth import router as auth_router
+from app.api.routes.health import router as health_router
+from app.api.routes.projects import router as projects_router
+from app.core.config import EXEMPT_PATHS
 from app.core.logger import get_logger
+
+# Import middleware
+from app.middleware.security import CSRFProtectionMiddleware
+from app.middleware.tenant import TenantIsolationMiddleware
 
 logger = get_logger()
 
@@ -32,36 +40,73 @@ def add_cors_middleware() -> None:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
-        allow_credentials=False,
+        allow_credentials=True,  # Enable credentials for auth
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
 
-add_cors_middleware()
+def add_tenant_middleware() -> None:
+    """Add tenant isolation middleware."""
+    app.add_middleware(TenantIsolationMiddleware, excluded_path_prefixes=EXEMPT_PATHS)
 
-# Include agent routes
-app.include_router(agents_router, prefix="/api/v1")
 
-# Include document generation routes
+def add_csrf_middleware() -> None:
+    """Add CSRF protection middleware.
+
+    Note: Registered after tenant middleware to ensure tenant context is available.
+    In FastAPI, middleware is executed in reverse order of registration:
+    - CORS (executes first - handles preflight)
+    - Tenant Isolation (executes second - extracts tenant_id)
+    - CSRF Protection (executes last - validates CSRF with tenant context)
+    """
+    app.add_middleware(CSRFProtectionMiddleware, exempt_paths=EXEMPT_PATHS)
+
+
+# Add middleware in correct order
+# Execution order is REVERSED: last registered = first to execute
+add_cors_middleware()  # Executes first (CORS preflight handling)
+add_tenant_middleware()  # Executes second (extracts tenant context)
+add_csrf_middleware()  # Executes last (CSRF validation with tenant context)
+
+# Include all routes
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(health_router, prefix="/api/v1", tags=["Health"])
+app.include_router(projects_router, prefix="/api/v1", tags=["Projects"])
+app.include_router(agents_router, prefix="/api/v1", tags=["Agents"])
+
+# Include document generation routes (optional)
 try:
     from app.api.routes.document_generation import router as document_generation_router
 
-    app.include_router(document_generation_router, prefix="/api/v1")
+    app.include_router(document_generation_router, prefix="/api/v1", tags=["Documents"])
 except ImportError as exc:
     logger.warning(
         "Could not import document generation routes", extra={"error": str(exc)}
     )
 
+# Include vector routes (optional)
+try:
+    from app.api.routes.vectors import router as vectors_router
+
+    app.include_router(vectors_router, prefix="/api/v1", tags=["Vectors"])
+except ImportError as exc:
+    logger.warning("Could not import vector routes", extra={"error": str(exc)})
+
 
 @app.get("/")
 async def root() -> dict[str, str]:
     """Root endpoint"""
+    from ..app.core.config import get_settings
+
+    settings = get_settings()
+
     return {
         "service": "JEEX Plan API",
         "version": "1.0.0",
         "status": "running",
-        "hot_reload": "testing hot-reload functionality",
+        "environment": settings.ENVIRONMENT,
+        "hot_reload": settings.is_development,
     }
 
 
@@ -93,23 +138,25 @@ async def check_service_health(url: str, timeout: float = 5.0) -> dict[str, Any]
     """External service health check"""
     start_time = time.time()
     try:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as session:
-            async with session.get(url) as response:
-                response_time = round((time.time() - start_time) * 1000)
-                if response.status == 200:
-                    return {
-                        "status": "pass",
-                        "response_time": response_time,
-                        "details": "Service operational",
-                    }
-                else:
-                    return {
-                        "status": "fail",
-                        "response_time": response_time,
-                        "details": f"HTTP {response.status}",
-                    }
+        async with (
+            aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as session,
+            session.get(url) as response,
+        ):
+            response_time = round((time.time() - start_time) * 1000)
+            if response.status == 200:
+                return {
+                    "status": "pass",
+                    "response_time": response_time,
+                    "details": "Service operational",
+                }
+            else:
+                return {
+                    "status": "fail",
+                    "response_time": response_time,
+                    "details": f"HTTP {response.status}",
+                }
     except TimeoutError:
         return {
             "status": "fail",

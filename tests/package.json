@@ -1,0 +1,26 @@
+{
+  "name": "@jeex-plan/tests",
+  "version": "1.0.0",
+  "description": "Comprehensive test suite for JEEX Plan",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:auth": "playwright test auth.spec.ts",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "playwright:install": "npx playwright install --with-deps"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.45.0",
+    "event-source-polyfill": "^1.0.31"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.0.0"
+  }
+}

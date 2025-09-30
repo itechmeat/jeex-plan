@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.project import (
@@ -57,6 +58,51 @@ def _project_steps_completed(project: object) -> list[int]:
         return list(steps)
     except TypeError:
         return []
+
+
+def _handle_integrity_error(
+    ie: IntegrityError,
+    name_field: str | None = None,
+    operation: str = "operation",
+) -> HTTPException:
+    """Convert IntegrityError to appropriate HTTPException with sanitized messages.
+
+    Args:
+        ie: The IntegrityError caught from database operation
+        name_field: The project name that was attempted (for 409 responses)
+        operation: Description of the operation for logging (e.g., "create", "update")
+
+    Returns:
+        HTTPException with appropriate status code and sanitized message
+
+    Note:
+        Full error details are logged server-side for diagnostics,
+        but clients receive sanitized messages to avoid leaking DB internals.
+    """
+    # Log full error details server-side for diagnostics
+    logger.warning(
+        "IntegrityError during project %s",
+        operation,
+        error_type=type(ie).__name__,
+        error_message=str(ie),
+        original_error=str(ie.orig) if hasattr(ie, "orig") else None,
+        attempted_name=name_field,
+    )
+
+    # Check if this is specifically a name uniqueness violation
+    if "uq_project_tenant_name" in str(ie.orig):
+        attempted_name = name_field or "unknown"
+        return HTTPException(
+            status_code=409,
+            detail=f"Project name '{attempted_name}' already exists in this tenant",
+        )
+
+    # Other integrity errors (foreign key violations, etc.)
+    # Return sanitized message without exposing DB internals
+    return HTTPException(
+        status_code=400,
+        detail="Database constraint violation. Please check your input.",
+    )
 
 
 def _document_versions_loaded(project: object) -> list:
@@ -176,6 +222,7 @@ async def list_projects(
     # Check user permissions
     can_list_projects = await rbac_service.check_permission(
         current_user.id,
+        None,
         Permission.PROJECT_READ,
     )
     if not can_list_projects:
@@ -259,56 +306,53 @@ async def create_project(
         user_id=str(current_user.id),
     )
 
-    # Create repository with tenant isolation
     project_repo = ProjectRepository(db, tenant_id)
     rbac_service = RBACService(db, tenant_id)
 
-    # Check user permissions
-    can_create_projects = await rbac_service.check_permission(
-        current_user.id,
-        Permission.PROJECT_WRITE,
+    # SECURITY: Require write permission to create projects in this tenant
+    can_create = await rbac_service.check_permission(
+        current_user.id, None, Permission.PROJECT_WRITE
     )
-    if not can_create_projects:
+    if not can_create:
         raise HTTPException(
             status_code=403, detail="Insufficient permissions to create projects"
         )
 
     try:
-        # Check if project name is available within tenant
-        name_available = await project_repo.check_name_availability(project_data.name)
-        if not name_available:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Project name '{project_data.name}' is already taken",
+        # Remove TOCTOU race condition - rely on database unique constraint
+        # instead of checking name availability beforehand
+        try:
+            project = await project_repo.create(
+                name=project_data.name,
+                description=getattr(project_data, "description", ""),
+                language=getattr(project_data, "language", "en"),
+                owner_id=current_user.id,
+            )
+        except IntegrityError as ie:
+            await db.rollback()
+            raise _handle_integrity_error(
+                ie, name_field=project_data.name, operation="create"
             )
 
-        # Create project
-        from app.models.project import ProjectStatus
-
-        new_project = await project_repo.create_project(
-            name=project_data.name,
-            owner_id=current_user.id,
-            description=getattr(project_data, "description", None),
-            status=ProjectStatus.DRAFT,
+        # Initialize project permissions for the owner
+        await rbac_service.add_project_member(
+            project_id=project.id,
+            user_id=current_user.id,
+            role_name="OWNER",
+            invited_by_id=current_user.id,
         )
 
-        # Commit the transaction
         await db.commit()
-
-        # Convert to response format using persisted attributes
-        response = _to_project_response(
-            new_project,
-            language_fallback=project_data.language or "en",
-        )
+        await db.refresh(project)
 
         logger.info(
             "Project created successfully",
-            project_id=str(new_project.id),
+            project_id=str(project.id),
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
 
-        return response
+        return _to_project_response(project)
 
     except HTTPException:
         await db.rollback()
@@ -322,7 +366,7 @@ async def create_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=500, detail="Failed to create project")
+        raise HTTPException(status_code=500, detail=f"Database connection error: {e!s}")
     except (ValueError, KeyError, TypeError) as e:
         await db.rollback()
         logger.error(
@@ -332,18 +376,18 @@ async def create_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=400, detail="Invalid project data")
+        raise HTTPException(status_code=400, detail=f"Invalid project data: {e!s}")
     except Exception as e:
         await db.rollback()
         logger.error(
-            "Failed to create project",
+            "Unexpected error while creating project",
             name=project_data.name,
             error=str(e),
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail="Failed to create project")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e!s}")
 
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
@@ -373,8 +417,8 @@ async def get_project(
     # Check user permissions
     can_read_projects = await rbac_service.check_permission(
         current_user.id,
-        Permission.PROJECT_READ,
         project_id,
+        Permission.PROJECT_READ,
     )
     if not can_read_projects:
         raise HTTPException(
@@ -451,7 +495,9 @@ async def update_project(
     rbac_service = RBACService(db, tenant_id)
 
     can_update_projects = await rbac_service.check_permission(
-        current_user.id, Permission.PROJECT_WRITE, project_id
+        current_user.id,
+        project_id,
+        Permission.PROJECT_WRITE,
     )
     if not can_update_projects:
         raise HTTPException(
@@ -479,12 +525,14 @@ async def update_project(
             update_fields["name"] = project_update.name
 
         if project_update.language is not None:
-            logger.warning(
-                "Project language updates are not yet persisted",
-                project_id=str(project_id),
-                tenant_id=str(tenant_id),
-                user_id=str(current_user.id),
-                requested_language=project_update.language,
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "language_updates_not_supported",
+                    "message": "Project language updates are not supported. Language is set during project creation and cannot be modified.",
+                    "requested_language": project_update.language,
+                    "current_language": project.language,
+                },
             )
 
         if not update_fields:
@@ -499,8 +547,15 @@ async def update_project(
                 language_fallback=project_update.language or _project_language(project),
             )
 
-        updated_project = await project_repo.update(project_id, **update_fields)
-        await db.commit()
+        try:
+            updated_project = await project_repo.update(project_id, **update_fields)
+            await db.commit()
+        except IntegrityError as ie:
+            await db.rollback()
+            attempted_name = update_fields.get("name")
+            raise _handle_integrity_error(
+                ie, name_field=attempted_name, operation="update"
+            )
 
         target_project = updated_project or project
 
@@ -529,7 +584,7 @@ async def update_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=500, detail="Failed to update project")
+        raise HTTPException(status_code=500, detail=f"Database connection error: {e!s}")
     except (ValueError, KeyError, TypeError) as e:
         await db.rollback()
         logger.error(
@@ -539,18 +594,18 @@ async def update_project(
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=400, detail="Invalid project data")
+        raise HTTPException(status_code=400, detail=f"Invalid project data: {e!s}")
     except Exception as e:
         await db.rollback()
         logger.error(
-            "Failed to update project",
+            "Unexpected error while updating project",
             project_id=str(project_id),
             error=str(e),
             tenant_id=str(tenant_id),
             user_id=str(current_user.id),
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail="Failed to update project")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e!s}")
 
 
 @router.delete("/projects/{project_id}")
@@ -572,7 +627,9 @@ async def delete_project(
     rbac_service = RBACService(db, tenant_id)
 
     can_delete_projects = await rbac_service.check_permission(
-        current_user.id, Permission.PROJECT_DELETE, project_id
+        current_user.id,
+        project_id,
+        Permission.PROJECT_DELETE,
     )
     if not can_delete_projects:
         raise HTTPException(
@@ -636,20 +693,16 @@ async def generate_description_document(
     """
     logger.info("Generating description document", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and user has access
     # 2. Invoke Business Analyst agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Project description generation started",
-        "project_id": project_id,
-        "step": 1,
-        "status": "processing",
-        "estimated_duration": 30,  # seconds
-    }
+    raise NotImplementedError(
+        "Project description generation not yet implemented. "
+        "Requires Business Analyst agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/step2")
@@ -663,20 +716,16 @@ async def generate_standards_document(
     """
     logger.info("Generating engineering standards document", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and has completed step 1
     # 2. Invoke Engineering Standards agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Engineering standards generation started",
-        "project_id": project_id,
-        "step": 2,
-        "status": "processing",
-        "estimated_duration": 40,  # seconds
-    }
+    raise NotImplementedError(
+        "Engineering standards generation not yet implemented. "
+        "Requires Engineering Standards agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/step3")
@@ -690,20 +739,16 @@ async def generate_architecture_document(
     """
     logger.info("Generating architecture document", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and has completed steps 1-2
     # 2. Invoke Solution Architect agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Architecture generation started",
-        "project_id": project_id,
-        "step": 3,
-        "status": "processing",
-        "estimated_duration": 45,  # seconds
-    }
+    raise NotImplementedError(
+        "Architecture generation not yet implemented. "
+        "Requires Solution Architect agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/step4")
@@ -717,20 +762,16 @@ async def generate_implementation_plan(
     """
     logger.info("Generating implementation plan", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and has completed steps 1-3
     # 2. Invoke Project Planner agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Implementation plan generation started",
-        "project_id": project_id,
-        "step": 4,
-        "status": "processing",
-        "estimated_duration": 60,  # seconds
-    }
+    raise NotImplementedError(
+        "Implementation plan generation not yet implemented. "
+        "Requires Project Planner agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/export")
@@ -744,21 +785,17 @@ async def export_project_documents(
     """
     logger.info("Exporting project documents", project_id=project_id)
 
-    # NOTE: actual export functionality
+    # TODO: Implement actual export functionality
     # 1. Validate project exists and has required documents
     # 2. Gather active document versions
     # 3. Generate manifest and structure
     # 4. Create ZIP archive
     # 5. Return download URL
 
-    # Mock response for MVP
-    return {
-        "message": "Export started",
-        "project_id": project_id,
-        "export_id": "export_123",
-        "status": "processing",
-        "estimated_duration": 10,  # seconds
-    }
+    raise NotImplementedError(
+        "Project export not yet implemented. "
+        "Requires document generation and ZIP archive functionality."
+    )
 
 
 @router.get("/projects/{project_id}/progress")
@@ -770,21 +807,13 @@ async def get_project_progress(
     """
     logger.info("Getting project progress", project_id=project_id)
 
-    # NOTE: actual progress tracking
+    # TODO: Implement actual progress tracking
     # 1. Validate project exists and user has access
     # 2. Get current step status
     # 3. Get document generation progress
     # 4. Return comprehensive progress information
 
-    # Mock response for MVP
-    return {
-        "project_id": project_id,
-        "current_step": 1,
-        "steps": {
-            "step1": {"status": "completed", "progress": 100, "document_id": "doc_123"},
-            "step2": {"status": "pending", "progress": 0},
-            "step3": {"status": "pending", "progress": 0},
-            "step4": {"status": "pending", "progress": 0},
-        },
-        "overall_progress": 25,
-    }
+    raise NotImplementedError(
+        "Project progress tracking not yet implemented. "
+        "Requires agent orchestration and progress persistence."
+    )

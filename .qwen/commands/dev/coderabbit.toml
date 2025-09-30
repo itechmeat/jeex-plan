@@ -1,14 +1,11 @@
----
-allowed-tools: Bash(coderabbit:*), Task
-description: Run CodeRabbit analysis and automatically fix all found issues with smart agent selection
-argument-hint: [scope] [additional-instructions] (frontend/backend/all) (optional custom prompt)
----
+description = "Run CodeRabbit analysis and automatically fix all found issues with smart agent selection"
 
+prompt = """
 # CodeRabbit Code Review and Auto-Fix
 
 Run CodeRabbit CLI analysis in prompt-only mode optimized for AI agents, then systematically fix all identified issues using appropriate specialized agents.
 
-## Agent Selection Logic
+## Agent Selection Logic:
 
 **Step 1: Argument Analysis and Agent Selection**
 
@@ -16,28 +13,28 @@ Run CodeRabbit CLI analysis in prompt-only mode optimized for AI agents, then sy
 - Argument `backend` or path contains `backend/` → activate the `tech-python` agent
 - Argument `all` or no argument provided → analyze the entire project and auto-select agents based on results
 
-## Process
+## Process:
 
 1. **Analysis Phase**: Execute CodeRabbit CLI with `--prompt-only` flag to get AI-optimized output
 2. **Agent Activation**: Based on scope argument, activate appropriate specialized agent using Task tool
 3. **Fix Phase**: Let the specialized agent implement all suggested fixes
 4. **Verification**: Ensure all changes maintain code quality and follow project conventions
 
-## Scope Examples
+## Scope Examples:
 
-- `/dev:cr frontend` - analyze frontend directory with tech-frontend agent
-- `/dev:cr backend` - analyze backend directory with tech-python agent
-- `/dev:cr frontend/components/ui` - analyze specific frontend module with tech-frontend agent
-- `/dev:cr backend/app` - analyze specific backend module with tech-python agent
-- `/dev:cr all` - analyze entire project with appropriate agents
-- `/dev:cr` - same as 'all' - analyze entire project
+- /dev:coderabbit frontend - analyze frontend directory with tech-frontend agent
+- /dev:coderabbit backend - analyze backend directory with tech-python agent
+- /dev:coderabbit frontend/components/ui - analyze specific frontend module with tech-frontend agent
+- /dev:coderabbit backend/app - analyze specific backend module with tech-python agent
+- /dev:coderabbit all - analyze entire project with appropriate agents
+- /dev:coderabbit - same as 'all' - analyze entire project
 
-## Instructions
+## Instructions:
 
 **Step 1: CodeRabbit Analysis**
-Run CodeRabbit analysis on ${ARGUMENTS:-.} (current directory if no arguments provided):
+Run CodeRabbit analysis on {{args}} (current directory if no arguments provided):
 
-!timeout 1200 coderabbit --prompt-only ${ARGUMENTS:+--cwd $ARGUMENTS}
+!timeout 1200 coderabbit --prompt-only {{args}}
 
 **IMPORTANT: Analysis Duration**
 CodeRabbit analysis can take up to 10 minutes to complete, especially for large changesets or projects with many files. **Wait patiently** - do NOT interrupt the process.
@@ -62,30 +59,24 @@ Common error scenarios:
 
 **If the argument equals "frontend" or includes "frontend/":**
 
-```
 Use the Task tool with parameters:
 - subagent_type: "tech-frontend"
 - description: "Fix CodeRabbit frontend issues"
 - prompt: "Perform a systematic fix for every issue CodeRabbit found in the frontend code: [insert the CodeRabbit analysis output]. Resolve each issue according to the guidance in the 'Prompt for AI Agent' sections. Follow all React 19+, TypeScript, accessibility, and performance principles."
-```
 
 **If the argument equals "backend" or includes "backend/":**
 
-```
 Use the Task tool with parameters:
 - subagent_type: "tech-python"
 - description: "Fix CodeRabbit backend issues"
 - prompt: "Perform a systematic fix for every issue CodeRabbit found in the backend code: [insert the CodeRabbit analysis output]. Resolve each issue according to the guidance in the 'Prompt for AI Agent' sections. Follow architectural principles, security requirements, and multi-tenant isolation."
-```
 
 **If the argument equals "all" or is omitted:**
 
-```
 1. Review the CodeRabbit output and identify the types of files with issues
 2. If there are frontend issues, launch the tech-frontend agent
 3. If there are backend issues, launch the tech-python agent
 4. When required, run both agents in parallel
-```
 
 **Step 3: Specialized Agent Execution**
 
@@ -98,7 +89,7 @@ The activated agent must:
 5. **Follow project standards** - comply with the principles in CLAUDE.md
 6. **Test critical changes** - validate the complex fixes
 
-## Key Principles for Agents
+## Key Principles for Agents:
 
 - **No placeholders or hardcoded values** - implement real, functional code
 - **Follow DRY principles** - extract reusable code where suggested
@@ -107,14 +98,14 @@ The activated agent must:
 - **Preserve multi-tenant architecture** - ensure all changes respect tenant isolation
 - **Follow security best practices** - implement proper validation and sanitization
 
-## Critical Requirements
+## Critical Requirements:
 
 - **Always provide the exact `subagent_type`** in the Task tool
 - **Confirm the agent activation** - the agent must introduce itself when it starts
 - **Pass the full CodeRabbit output** into the agent prompt
 - **Retry with corrected parameters** if agent activation fails
 
-## Expected Output from Specialized Agents
+## Expected Output from Specialized Agents:
 
 - **Analysis Summary**: List of all issues found and their categorization
 - **Fix Status**: Status of each issue (fixed/skipped/needs-review)
@@ -123,7 +114,7 @@ The activated agent must:
 - **Quality Verification**: Confirmation that critical functionality remains intact
 - **Test Results**: Results of type-check, lint, or other verification commands
 
-## Command Execution Flow
+## Command Execution Flow:
 
 1. **Run the CodeRabbit analysis** with the provided scope
 2. **Determine the analysis type** based on the argument
@@ -132,12 +123,13 @@ The activated agent must:
 5. **Collect the agent report** detailing the applied changes
 6. **Verify quality** - run linters/type-checks when necessary
 
-## Usage Examples
+## Usage Examples:
 
-- `/dev:cr frontend` - full analysis and remediation of the frontend code by the tech-frontend agent
-- `/dev:cr backend` - full analysis and remediation of the backend code by the tech-python agent
-- `/dev:cr frontend/src/components` - focused analysis of specific frontend components
-- `/dev:cr backend/app/services` - focused analysis of specific backend services
-- `/dev:cr` - full project analysis with automatic agent selection
+- /dev:coderabbit frontend - full analysis and remediation of the frontend code by the tech-frontend agent
+- /dev:coderabbit backend - full analysis and remediation of the backend code by the tech-python agent
+- /dev:coderabbit frontend/src/components - focused analysis of specific frontend components
+- /dev:coderabbit backend/app/services - focused analysis of specific backend services
+- /dev:coderabbit - full project analysis with automatic agent selection
 
 **Important:** Always verify that the agent actually activated—the agent must introduce itself at the start of its response!
+"""

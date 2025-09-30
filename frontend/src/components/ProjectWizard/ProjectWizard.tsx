@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../config/routes';
 import { useCreateProject } from '../../hooks/useProjects';
 import { handleApiError } from '../../services/api';
 import {
@@ -118,7 +119,7 @@ export const ProjectWizard: React.FC<ProjectWizardProps> = ({
       if (onComplete) {
         onComplete(newProject.id);
       } else {
-        navigate(`/projects/${newProject.id}`);
+        navigate(ROUTES.PROJECT_DETAIL(newProject.id));
       }
     } catch (error) {
       console.error('Failed to create project:', error);
@@ -131,7 +132,7 @@ export const ProjectWizard: React.FC<ProjectWizardProps> = ({
     if (onCancel) {
       onCancel();
     } else {
-      navigate('/dashboard');
+      navigate(ROUTES.DASHBOARD);
     }
   };
 

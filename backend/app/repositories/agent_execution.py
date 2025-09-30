@@ -122,9 +122,11 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
 
         status_result = await self.session.execute(status_stmt)
         status_counts = {
-            row.status.value
-            if isinstance(row.status, ExecutionStatus)
-            else row.status: row.count
+            (
+                row.status.value
+                if isinstance(row.status, ExecutionStatus)
+                else row.status
+            ): row.count
             for row in status_result
         }
 
@@ -143,9 +145,11 @@ class AgentExecutionRepository(TenantRepository[AgentExecution]):
 
         agent_result = await self.session.execute(agent_stmt)
         agent_counts = {
-            row.agent_type.value
-            if isinstance(row.agent_type, AgentType)
-            else row.agent_type: row.count
+            (
+                row.agent_type.value
+                if isinstance(row.agent_type, AgentType)
+                else row.agent_type
+            ): row.count
             for row in agent_result
         }
 

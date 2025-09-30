@@ -8,8 +8,7 @@ from collections.abc import Iterable
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..core.auth import AuthService
-from ..core.database import get_db
+# Removed auth and database imports - no longer needed in middleware
 
 
 class TenantIsolationMiddleware(BaseHTTPMiddleware):
@@ -37,21 +36,15 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
 
         # Skip tenant isolation for excluded paths
         if self._is_excluded_path(request.url.path):
+            request.state.tenant_id = None
             return await call_next(request)
 
         # Extract tenant context from JWT token
         tenant_id = await self._extract_tenant_from_request(request)
 
-        if tenant_id:
-            # Add tenant context to request state
-            request.state.tenant_id = tenant_id
-        else:
-            # For authenticated endpoints, tenant is required
-            if request.url.path.startswith("/api/"):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required",
-                )
+        # Add tenant context to request state (may be None)
+        # Authentication is enforced by individual endpoints via dependencies
+        request.state.tenant_id = tenant_id
 
         response = await call_next(request)
         return response
@@ -67,26 +60,32 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
 
     async def _extract_tenant_from_request(self, request: Request) -> uuid.UUID | None:
         """Extract tenant ID from JWT token in request."""
-        try:
-            # Get Authorization header
-            authorization = request.headers.get("Authorization")
-            if not authorization or not authorization.startswith("Bearer "):
-                return None
-
-            token = authorization.split(" ")[1]
-
-            # Get database session
-            async for db in get_db():
-                auth_service = AuthService(db)
-                user = await auth_service.get_user_by_token(token)
-
-                if user and user.is_active:
-                    return user.tenant_id
-                break
-
+        # Get Authorization header
+        authorization = request.headers.get("Authorization")
+        if not authorization:
             return None
 
-        except Exception:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            return None
+
+        try:
+            # Extract tenant_id directly from JWT without database call
+            from ..core.token_service import TokenService
+
+            token_service = TokenService()
+            payload = token_service.verify_token(token)
+
+            if not payload:
+                return None
+
+            tenant_id_str = payload.get("tenant_id")
+            if not tenant_id_str:
+                return None
+
+            return uuid.UUID(tenant_id_str)
+
+        except (ValueError, TypeError):
             return None
 
 
@@ -102,6 +101,7 @@ class TenantContextManager:
         if not hasattr(state, "tenant_id"):
             return None
         tenant_id = state.tenant_id
+        # Check for None or empty string (defensive: should never be empty string in practice)
         if tenant_id in (None, ""):
             return None
         return tenant_id

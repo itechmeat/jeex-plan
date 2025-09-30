@@ -13,6 +13,7 @@ service:
     timeout_sec: 30
     write_concern: 1 # Faster writes for MVP
     read_fallback: true
+    api_key: ${QDRANT_API_KEY}
 
 log_level: info
 

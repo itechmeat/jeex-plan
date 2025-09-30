@@ -4,15 +4,27 @@ import { useCollections } from '../providers/useCollections';
 import { apiClient } from '../services/api';
 import { Document } from '../types/api';
 
+/**
+ * MIGRATION NOTE: useLiveQuery is the correct TanStack DB hook for reactive queries
+ * The old useApiQuery was from a different library and has been replaced
+ * useLiveQuery provides real-time updates from the local TanStack DB instance
+ */
+
 // Hooks for Documents using TanStack DB
 export const useProjectDocuments = (projectId: string, enabled = true) => {
   const collections = useCollections();
   const documentsQuery = useLiveQuery(collections.documents);
 
+  // NOTE: Client-side filtering is used here because the documents collection
+  // fetches all documents for all projects in a single sync operation.
+  // Future optimization: Implement server-side filtering or create indexed queries
+  // in TanStack DB to efficiently look up documents by projectId without full scans.
   const projectDocuments = React.useMemo(() => {
     if (!enabled || !projectId || !documentsQuery.data) return [];
 
-    return documentsQuery.data.filter(document => document.projectId === projectId);
+    // Use Array.from to ensure we have a proper array before filtering
+    const documentsArray = Array.from(documentsQuery.data);
+    return documentsArray.filter(document => document.projectId === projectId);
   }, [documentsQuery.data, projectId, enabled]);
 
   return {
@@ -20,7 +32,7 @@ export const useProjectDocuments = (projectId: string, enabled = true) => {
     isLoading: enabled ? collections.documents.status === 'loading' : false,
     error:
       enabled && collections.documents.status === 'error'
-        ? new Error('Failed to load project documents')
+        ? new Error('Failed to load documents')
         : null,
     refetch: () => collections.documents.preload(),
   };
@@ -38,7 +50,7 @@ export const useDocument = (projectId: string, documentId: string, enabled = tru
         document => document.id === documentId && document.projectId === projectId
       ) || null
     );
-  }, [documentsQuery.data, projectId, documentId, enabled]);
+  }, [enabled, documentsQuery.data, projectId, documentId]);
 
   return {
     data: documentData,
@@ -66,7 +78,9 @@ export const useUpdateDocument = (projectId: string, documentId: string) => {
       throw new Error(missingIdsMessage);
     }
 
-    console.warn(missingIdsMessage);
+    if (import.meta.env.DEV) {
+      console.warn(missingIdsMessage);
+    }
     return false;
   };
 
@@ -92,8 +106,42 @@ export const useUpdateDocument = (projectId: string, documentId: string) => {
 
         return updatedDocument;
       } catch (error) {
-        console.error('Update document error:', error);
-        throw error;
+        // Production-safe error handling with context preservation
+        const errorContext = {
+          projectId,
+          documentId,
+          timestamp: new Date().toISOString(),
+        };
+
+        // In development, log detailed error context
+        if (import.meta.env.DEV) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(
+            `Failed to update document ${documentId} in project ${projectId}:`,
+            {
+              error: errorMessage,
+              ...errorContext,
+            }
+          );
+        }
+
+        // Preserve original error with context for production error tracking
+        const enhancedError =
+          error instanceof Error
+            ? new Error(
+                `${error.message} (Project: ${projectId}, Document: ${documentId})`
+              )
+            : new Error(
+                `Failed to update document ${documentId} in project ${projectId}`
+              );
+
+        // Copy original error properties
+        if (error instanceof Error) {
+          enhancedError.stack = error.stack;
+          enhancedError.name = error.name;
+        }
+
+        throw enhancedError;
       }
     },
     mutate: (
@@ -108,17 +156,59 @@ export const useUpdateDocument = (projectId: string, documentId: string) => {
         return;
       }
 
-      apiClient
-        .updateDocument(projectId, documentId, content)
-        .then(async updatedDocument => {
+      // Wrap updateDocument + preload in try/catch with context logging
+      (async () => {
+        try {
+          const updatedDocument = await apiClient.updateDocument(
+            projectId,
+            documentId,
+            content
+          );
+
           // Refresh the documents collection to reflect changes
           await collections.documents.preload();
+
           options?.onSuccess?.(updatedDocument);
-        })
-        .catch(error => {
-          console.error('Update document error:', error);
-          options?.onError?.(error);
-        });
+        } catch (error) {
+          // Production-safe error handling with context preservation
+          const errorContext = {
+            projectId,
+            documentId,
+            timestamp: new Date().toISOString(),
+          };
+
+          // In development, log detailed error context
+          if (import.meta.env.DEV) {
+            const errorMessage =
+              error instanceof Error ? error.message : 'Unknown error';
+            console.error(
+              `Failed to update document ${documentId} in project ${projectId}:`,
+              {
+                error: errorMessage,
+                ...errorContext,
+              }
+            );
+          }
+
+          // Preserve original error with context for production error tracking
+          const enhancedError =
+            error instanceof Error
+              ? new Error(
+                  `${error.message} (Project: ${projectId}, Document: ${documentId})`
+                )
+              : new Error(
+                  `Failed to update document ${documentId} in project ${projectId}`
+                );
+
+          // Copy original error properties
+          if (error instanceof Error) {
+            enhancedError.stack = error.stack;
+            enhancedError.name = error.name;
+          }
+
+          options?.onError?.(enhancedError);
+        }
+      })();
     },
   };
 };
@@ -138,7 +228,9 @@ export const useRegenerateDocument = (projectId: string, documentId: string) => 
       throw new Error(missingIdsMessage);
     }
 
-    console.warn(missingIdsMessage);
+    if (import.meta.env.DEV) {
+      console.warn(missingIdsMessage);
+    }
     return false;
   };
 
@@ -153,15 +245,61 @@ export const useRegenerateDocument = (projectId: string, documentId: string) => 
       }
 
       try {
+        // Separate API call from preload for better error handling
         const result = await apiClient.regenerateDocument(projectId, documentId);
 
         // Refresh the documents collection to get updated content
-        await collections.documents.preload();
+        // This is done after the successful API call
+        try {
+          await collections.documents.preload();
+        } catch (preloadError) {
+          // Log preload error but don't fail the operation
+          if (import.meta.env.DEV) {
+            console.warn(
+              `Failed to preload documents after regenerating ${documentId}:`,
+              preloadError
+            );
+          }
+        }
 
         return result;
       } catch (error) {
-        console.error('Regenerate document error:', error);
-        throw error;
+        // Production-safe error handling with context preservation
+        const errorContext = {
+          projectId,
+          documentId,
+          timestamp: new Date().toISOString(),
+        };
+
+        // In development, log detailed error context
+        if (import.meta.env.DEV) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(
+            `Failed to regenerate document ${documentId} in project ${projectId}:`,
+            {
+              error: errorMessage,
+              ...errorContext,
+            }
+          );
+        }
+
+        // Preserve original error with context for production error tracking
+        const enhancedError =
+          error instanceof Error
+            ? new Error(
+                `${error.message} (Project: ${projectId}, Document: ${documentId})`
+              )
+            : new Error(
+                `Failed to regenerate document ${documentId} in project ${projectId}`
+              );
+
+        // Copy original error properties
+        if (error instanceof Error) {
+          enhancedError.stack = error.stack;
+          enhancedError.name = error.name;
+        }
+
+        throw enhancedError;
       }
     },
     mutate: (options?: {
@@ -173,17 +311,65 @@ export const useRegenerateDocument = (projectId: string, documentId: string) => 
         return;
       }
 
-      apiClient
-        .regenerateDocument(projectId, documentId)
-        .then(async result => {
-          // Refresh the documents collection to get updated content
-          await collections.documents.preload();
+      // Wrap API call and preload separately for better error handling
+      (async () => {
+        try {
+          // Separate API call from preload
+          const result = await apiClient.regenerateDocument(projectId, documentId);
+
+          // Handle preload separately to avoid failing the main operation
+          try {
+            await collections.documents.preload();
+          } catch (preloadError) {
+            if (import.meta.env.DEV) {
+              console.warn(
+                `Failed to preload documents after regenerating ${documentId}:`,
+                preloadError
+              );
+            }
+          }
+
           options?.onSuccess?.(result);
-        })
-        .catch(error => {
-          console.error('Regenerate document error:', error);
-          options?.onError?.(error);
-        });
+        } catch (error) {
+          // Production-safe error handling with context preservation
+          const errorContext = {
+            projectId,
+            documentId,
+            timestamp: new Date().toISOString(),
+          };
+
+          // In development, log detailed error context
+          if (import.meta.env.DEV) {
+            const errorMessage =
+              error instanceof Error ? error.message : 'Unknown error';
+            console.error(
+              `Failed to regenerate document ${documentId} in project ${projectId}:`,
+              {
+                error: errorMessage,
+                ...errorContext,
+              }
+            );
+          }
+
+          // Preserve original error with context for production error tracking
+          const enhancedError =
+            error instanceof Error
+              ? new Error(
+                  `${error.message} (Project: ${projectId}, Document: ${documentId})`
+                )
+              : new Error(
+                  `Failed to regenerate document ${documentId} in project ${projectId}`
+                );
+
+          // Copy original error properties
+          if (error instanceof Error) {
+            enhancedError.stack = error.stack;
+            enhancedError.name = error.name;
+          }
+
+          options?.onError?.(enhancedError);
+        }
+      })();
     },
   };
 };
@@ -199,9 +385,11 @@ export const useOptimisticDocumentUpdate = (projectId: string, documentId: strin
 
     // With TanStack DB, we'll refresh the collection instead of direct manipulation
     // This ensures data consistency with the server
-    console.warn(
-      'Optimistic updates not directly supported with TanStack DB. Consider using the mutation hooks instead.'
-    );
+    if (import.meta.env.DEV) {
+      console.warn(
+        'Optimistic updates not directly supported with TanStack DB. Consider using the mutation hooks instead.'
+      );
+    }
   };
 
   const revertOptimistic = () => {
