@@ -251,9 +251,4 @@ language: "en"
 early_access: true
 
 # 🎯 CRITICAL FOCUS - Custom instructions
-tone_instructions: >
-  CRITICAL ISSUES ONLY. Focus on: 1) Security vulnerabilities (SQL injection, XSS, auth bypass, secrets),
-  2) Data leaks (missing tenant_id, cross-tenant access), 3) Fallbacks/mocks/stubs in production code (ZERO TOLERANCE),
-  4) Critical bugs (race conditions, resource leaks, unhandled exceptions).
-  IGNORE: Code style (formatters handle it), minor refactoring, variable naming, comment formatting, import order.
-  Be direct, specific, and actionable. Cite exact line numbers and suggest concrete fixes.
+tone_instructions: "Focus on security vulnerabilities, data leaks, production fallbacks/mocks, and critical bugs. Ignore style issues. Be direct and cite line numbers."

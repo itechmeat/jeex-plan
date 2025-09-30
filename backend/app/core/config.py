@@ -412,17 +412,15 @@ class VaultSettings:
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get application settings (cached)."""
-    import os
+    """
+    Get application settings (cached).
 
-    # Create Settings instance with explicit required fields
-    # This satisfies MyPy's static type checking while still using
-    # Pydantic's environment variable loading
-    return Settings(
-        DATABASE_URL=os.getenv("DATABASE_URL", ""),
-        REDIS_URL=os.getenv("REDIS_URL", ""),
-        QDRANT_URL=os.getenv("QDRANT_URL", ""),
-    )
+    Pydantic BaseSettings automatically loads environment variables,
+    making explicit constructor arguments unnecessary. MyPy requires
+    type: ignore because without the pydantic plugin it cannot infer
+    that required fields are loaded from environment variables.
+    """
+    return Settings()  # type: ignore[call-arg]
 
 
 def get_vault_settings() -> VaultSettings:

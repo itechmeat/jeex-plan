@@ -4,7 +4,6 @@ Health check endpoints for monitoring system status.
 
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -13,39 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.qdrant import QdrantAdapter
 from app.adapters.redis import RedisAdapter
 from app.core.config import settings
-from app.core.database import DatabaseManager, get_db
+from app.core.database import DatabaseManager, _sanitize_database_url, get_db
 from app.core.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
-
-
-def _sanitize_database_url(database_url: str) -> str:
-    """
-    Remove credentials from DATABASE_URL for safe logging/display.
-
-    Args:
-        database_url: Full database URL with potential credentials
-
-    Returns:
-        Sanitized URL without username/password
-    """
-    try:
-        parsed = urlparse(database_url)
-        # Rebuild netloc without credentials
-        if parsed.hostname:
-            safe_netloc = parsed.hostname
-            if parsed.port:
-                safe_netloc = f"{safe_netloc}:{parsed.port}"
-        else:
-            safe_netloc = ""
-
-        # Reconstruct URL without credentials
-        sanitized = urlunparse((parsed.scheme, safe_netloc, parsed.path, "", "", ""))
-        return sanitized
-    except Exception as e:
-        logger.warning("Failed to sanitize database URL", error=str(e))
-        return "configured"
 
 
 @router.get("/health")

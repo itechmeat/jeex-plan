@@ -113,7 +113,11 @@
       "Bash(poetry run ruff:*)",
       "Bash(poetry run python:*)",
       "Bash(npx markdownlint:*)",
-      "Bash(markdownlint:*)"
+      "Bash(poetry run mypy:*)",
+      "Bash(poetry run safety:*)",
+      "Bash(poetry run bandit:*)",
+      "Bash(markdownlint:*)",
+      "Bash(rg:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",
