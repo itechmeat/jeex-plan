@@ -10,7 +10,6 @@ from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthenticationError
-from app.models.user import User
 from app.repositories.tenant import TenantRepository
 from app.repositories.user import UserRepository
 from app.services.user import UserService
@@ -20,15 +19,9 @@ class TestTenantIsolation:
     """Test strict tenant isolation in authentication and data access."""
 
     @pytest.fixture
-    def tenant_setup(self, db_session: AsyncSession, mock_password_service):
+    async def tenant_setup(self, db_session: AsyncSession, mock_password_service):
         """Create test tenants and users for isolation testing."""
-        import asyncio
-
-        async def setup():
-            return await self._async_tenant_setup(db_session, mock_password_service)
-
-        # Run the async setup synchronously for the fixture
-        return asyncio.get_event_loop().run_until_complete(setup())
+        return await self._async_tenant_setup(db_session, mock_password_service)
 
     async def _async_tenant_setup(
         self, db_session: AsyncSession, mock_password_service
@@ -101,7 +94,10 @@ class TestTenantIsolation:
         self, async_client: AsyncClient, tenant_setup
     ):
         """Test that authentication tokens respect tenant boundaries."""
+        from app.core.config import get_settings
+
         data = tenant_setup
+        settings = get_settings()
 
         # Attempt to login user A
         login_response_a = await async_client.post(
@@ -116,7 +112,19 @@ class TestTenantIsolation:
         # Token should be present
         assert "token" in token_data or "access_token" in token_data
 
-        # Extract tenant information from response if available
+        # Extract and decode JWT to verify tenant_id claim
+        access_token = token_data.get("token", {}).get(
+            "access_token"
+        ) or token_data.get("access_token")
+        if access_token:
+            decoded_token = jwt.decode(
+                access_token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+            )
+            assert decoded_token.get("tenant_id") == str(data["tenant_a"].id)
+
+        # Also check user info in response
         user_info = token_data.get("user", {})
         if user_info:
             assert user_info.get("tenant_id") == str(data["tenant_a"].id)
@@ -325,45 +333,42 @@ class TestTenantContextValidation:
 class TestTenantResourceAccess:
     """Test resource access control within tenant boundaries."""
 
-    def test_project_isolation_between_tenants(self):
+    @pytest.mark.asyncio
+    async def test_project_isolation_between_tenants(self, async_client: AsyncClient):
         """Test that projects are isolated between tenants - verifies access control."""
-        # This test verifies that unauthenticated requests are properly rejected
-        from starlette.testclient import TestClient
-        from app.main import app
+        # Test project creation endpoint without authentication
+        response = await async_client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Test Project",
+                "description": "Test project description",
+            },
+        )
 
-        with TestClient(app) as client:
-            # Test project creation endpoint without authentication
-            response = client.post(
-                "/api/v1/projects",
-                json={
-                    "name": "Test Project",
-                    "description": "Test project description",
-                },
-            )
+        # Should be rejected - either 401 (Unauthorized) or 403 (CSRF/Forbidden)
+        # Both indicate proper access control
+        assert response.status_code in [
+            401,
+            403,
+        ], f"Expected 401 or 403, got {response.status_code}"
 
-            # Should be rejected - either 401 (Unauthorized) or 403 (CSRF/Forbidden)
-            # Both indicate proper access control
-            assert response.status_code in [401, 403]
-
-    def test_document_isolation_between_tenants(self):
+    @pytest.mark.asyncio
+    async def test_document_isolation_between_tenants(self, async_client: AsyncClient):
         """Test that documents are isolated between tenants - verifies access control."""
-        # ENVIRONMENT=testing is set in conftest.py, so CSRF is disabled
-        # This test verifies that unauthenticated requests are properly rejected
-        from starlette.testclient import TestClient
-        from app.main import app
-
         fake_project_id = str(uuid.uuid4())
         fake_document_id = str(uuid.uuid4())
 
-        with TestClient(app) as client:
-            # Test document access endpoint without authentication
-            response = client.get(
-                f"/api/v1/projects/{fake_project_id}/documents/{fake_document_id}"
-            )
+        # Test document access endpoint without authentication
+        response = await async_client.get(
+            f"/api/v1/projects/{fake_project_id}/documents/{fake_document_id}"
+        )
 
-            # Should require authentication (401) or not found (404) if endpoint doesn't exist
-            # CSRF is bypassed in testing mode
-            assert response.status_code in [401, 404]
+        # Should require authentication (401) or not found (404) if endpoint doesn't exist
+        # CSRF is bypassed in testing mode
+        assert response.status_code in [
+            401,
+            404,
+        ], f"Expected 401 or 404, got {response.status_code}"
 
 
 class TestTenantSecurityBoundaries:
@@ -473,9 +478,6 @@ class TestTenantDataLeakagePrevention:
         assert user_b_not_found is None
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="TODO: Flaky test - passes when run individually but fails during full test run due to test isolation/race condition issues"
-    )
     async def test_api_response_data_filtering(self, async_client: AsyncClient):
         """Test that API responses don't include data from other tenants."""
         # Test user listing endpoint
@@ -489,9 +491,6 @@ class TestTenantDataLeakagePrevention:
         # This would need proper authentication setup to test fully
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="TODO: Flaky test - passes when run individually but fails during full test run due to test isolation/race condition issues"
-    )
     async def test_error_messages_dont_leak_tenant_info(
         self, async_client: AsyncClient
     ):
@@ -563,9 +562,6 @@ class TestTenantPerformanceIsolation:
         return tenant_mapping
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="TODO: Flaky test - passes when run individually but fails during full test run due to test isolation/race condition issues"
-    )
     async def test_concurrent_tenant_operations(
         self, async_client: AsyncClient, concurrent_test_data: dict
     ):
@@ -621,10 +617,10 @@ class TestTenantPerformanceIsolation:
                 )
 
     @pytest.mark.asyncio
-    async def test_tenant_resource_limits(
+    async def test_tenant_operations_and_isolation(
         self, db_session: AsyncSession, mock_password_service
     ):
-        """Test that tenants have appropriate resource limits."""
+        """Test tenant operations and isolation enforcement."""
         # This would test rate limiting, connection pooling, etc.
         # For now, ensure basic tenant operations work
 

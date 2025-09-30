@@ -35,11 +35,18 @@ class CodeQualityChecker:
         self.issues.extend(visitor.issues)
 
     def _check_content(self, content: str, file_path: Path) -> None:
-        """Check content for pattern-based issues."""
+        """
+        Check content for pattern-based issues.
+
+        Note: This basic secret detection has limited scope and is intended only
+        for catching obvious hardcoded secrets. For comprehensive secret scanning,
+        integrate a dedicated tool like detect-secrets or truffleHog into CI/CD pipeline.
+        See CI configuration for integration steps.
+        """
         lines = content.split("\n")
 
         for line_num, line in enumerate(lines, 1):
-            # Check for hardcoded secrets (basic patterns)
+            # Check for hardcoded secrets (basic patterns - limited scope)
             if self._contains_hardcoded_secret(line):
                 self.issues.append(
                     f"{file_path}:{line_num}: Potential hardcoded secret"

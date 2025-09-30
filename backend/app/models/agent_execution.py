@@ -54,7 +54,7 @@ class AgentExecution(BaseModel):
 
     # Status and timing
     status: Mapped[ExecutionStatus] = mapped_column(
-        SQLEnum(ExecutionStatus, name="agentexecutionstatus", native_enum=False),
+        SQLEnum(ExecutionStatus, name="agentexecutionstatus", native_enum=True),
         default=ExecutionStatus.PENDING,
         nullable=False,
         index=True,

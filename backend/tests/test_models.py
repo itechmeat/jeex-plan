@@ -88,8 +88,8 @@ class TestUserModel:
 
         assert user.id is not None
         assert user.tenant_id == sample_tenant.id
-        assert f"test-{unique_suffix}@example.com" in user.email
-        assert f"testuser-{unique_suffix}" in user.username
+        assert user.email == f"test-{unique_suffix}@example.com"
+        assert user.username == f"testuser-{unique_suffix}"
         assert user.is_active is True
         assert user.is_superuser is False
         assert user.is_deleted is False
@@ -118,15 +118,17 @@ class TestUserModel:
         """Test that email is unique within a tenant."""
         unique_suffix = uuid.uuid4().hex[:8]
         same_email = f"same-{unique_suffix}@example.com"
+        username1 = f"user1-{unique_suffix}"
+        username2 = f"user2-{unique_suffix}"
         user1 = User(
             tenant_id=sample_tenant.id,
             email=same_email,
-            username=f"user1-{unique_suffix}",
+            username=username1,
         )
         user2 = User(
             tenant_id=sample_tenant.id,
             email=same_email,
-            username=f"user2-{unique_suffix}",
+            username=username2,
         )
 
         test_session.add(user1)

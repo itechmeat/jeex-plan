@@ -136,9 +136,11 @@ class TestUserRegistration:
             )
             # Should either reject weak password (400/422) or accept if validation disabled (201)
             # HTTP 500 should never occur - it would indicate a server bug
-            assert response.status_code in [400, 422, 201], (
-                f"Password {weak_password} handling"
-            )
+            assert response.status_code in [
+                400,
+                422,
+                201,
+            ], f"Password {weak_password} handling"
 
     @pytest.mark.asyncio
     async def test_registration_duplicate_email(
@@ -157,7 +159,6 @@ class TestUserRegistration:
             username="first_user",
             password="StrongDuplicateTestPassword123!",
             full_name="First User",
-            tenant_id=test_tenant.id,
         )
 
         # Try to create second user with same email in same tenant
@@ -167,7 +168,6 @@ class TestUserRegistration:
                 username="second_user",
                 password="StrongDuplicateTestPassword456!",
                 full_name="Second User",
-                tenant_id=test_tenant.id,
             )
 
         assert exc_info.value.status_code in [400, 409, 422]
@@ -300,6 +300,57 @@ class TestLogout:
         """Test logout without authentication token."""
         response = await async_client.post("/api/v1/auth/logout")
         assert response.status_code in [401, 403]
+
+    @pytest.mark.asyncio
+    async def test_logout_invalidates_token(self, async_client: AsyncClient):
+        """Test that logout properly invalidates the access token."""
+        # First, register and login to get a token
+        unique_suffix = uuid.uuid4().hex[:8]
+        register_response = await async_client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": f"logout_test_{unique_suffix}@example.com",
+                "name": "Logout Test User",
+                "password": "testpassword123",
+                "confirm_password": "testpassword123",
+            },
+        )
+        assert register_response.status_code == 201
+
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": f"logout_test_{unique_suffix}@example.com",
+                "password": "testpassword123",
+            },
+        )
+        assert login_response.status_code == 200
+        response_data = login_response.json()
+        access_token = response_data["token"]["access_token"]
+        refresh_token = response_data["token"]["refresh_token"]
+
+        # Set authorization header
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        # Verify token works by accessing protected endpoint
+        profile_response = await async_client.get("/api/v1/auth/me", headers=headers)
+        assert profile_response.status_code == 200
+
+        # Logout
+        logout_response = await async_client.post(
+            "/api/v1/auth/logout", headers=headers
+        )
+        assert logout_response.status_code in [200, 204]
+
+        # Try to use the same token again - should be invalid
+        profile_after_logout = await async_client.get(
+            "/api/v1/auth/me", headers=headers
+        )
+        assert profile_after_logout.status_code in [401, 403]
+
+        # Verify token blacklist functionality is working
+        # The access token should now be invalid since it was blacklisted during logout
+        # This is the critical security requirement: logout must invalidate existing tokens
 
 
 class TestMultiTenantIsolation:
@@ -478,15 +529,16 @@ class TestPasswordSecurity:
     ):
         """Test that passwords are properly hashed in database."""
         # Create a user and verify password is not stored in plain text
+        test_tenant_id = uuid.uuid4()
         user = User(
             email="test@example.com",
             username="testuser",
             hashed_password="placeholder",  # This should be hashed
-            tenant_id=uuid.uuid4(),
+            tenant_id=test_tenant_id,
         )
 
         # Test password hashing through the user service
-        user_service = UserService(db_session)
+        user_service = UserService(db_session, test_tenant_id)
 
         user_service.password_service = mock_password_service  # Use mock for testing
         hashed = user_service.password_service.get_password_hash("SecurePassword123!")
@@ -599,9 +651,11 @@ class TestErrorHandling:
                 json={"email": malicious_input, "password": "password123"},
             )
             # Should either reject or handle safely (not 500 internal error)
-            assert response.status_code in [400, 401, 422], (
-                f"Unsafe handling of: {malicious_input}"
-            )
+            assert response.status_code in [
+                400,
+                401,
+                422,
+            ], f"Unsafe handling of: {malicious_input}"
 
 
 class TestPerformance:
@@ -609,22 +663,59 @@ class TestPerformance:
 
     @pytest.mark.asyncio
     async def test_concurrent_login_requests(self, async_client: AsyncClient):
-        """Test handling of concurrent login requests."""
+        """Test handling of concurrent login requests under load."""
 
-        async def login_request():
+        async def login_request(user_suffix: str):
             return await async_client.post(
                 "/api/v1/auth/login",
-                json={"email": "test@example.com", "password": "password123"},
+                json={
+                    "email": f"perf_test_{user_suffix}@example.com",
+                    "password": "password123",
+                },
             )
 
-        # Make concurrent requests
-        tasks = [login_request() for _ in range(5)]
+        # Create users first for performance testing
+        for i in range(20):
+            user_suffix = f"perf_{uuid.uuid4().hex[:8]}"
+            await async_client.post(
+                "/api/v1/auth/register",
+                json={
+                    "email": f"perf_test_{user_suffix}@example.com",
+                    "name": f"Performance Test User {i}",
+                    "password": "password123",
+                    "confirm_password": "password123",
+                },
+            )
+
+        # Make higher concurrent requests (20 instead of 5)
+        tasks = [login_request(f"perf_{uuid.uuid4().hex[:8]}") for _ in range(20)]
+
+        # Measure performance
+        import time
+
+        start_time = time.time()
+
         responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        # Performance assertions
+        assert total_time < 10.0, f"Too slow: {total_time:.2f}s for 20 requests"
 
         # All should complete without exceptions
         for response in responses:
             assert not isinstance(response, Exception)
             assert hasattr(response, "status_code")
+
+        # Check response time distribution
+        successful_responses = [r for r in responses if hasattr(r, "status_code")]
+        status_codes = [r.status_code for r in successful_responses]
+
+        # Most should be 401 (invalid credentials) or succeed
+        assert all(code in [200, 401, 422] for code in status_codes), (
+            f"Unexpected status codes: {status_codes}"
+        )
 
     @pytest.mark.asyncio
     async def test_authentication_response_time(self, async_client: AsyncClient):
@@ -665,18 +756,20 @@ class TestCompleteAuthFlow:
         )
 
         # Step 1: Registration must succeed
-        assert register_response.status_code in [200, 201], (
-            f"Registration should succeed, got {register_response.status_code}"
-        )
+        assert register_response.status_code in [
+            200,
+            201,
+        ], f"Registration should succeed, got {register_response.status_code}"
 
         # Step 2: Login with same credentials must succeed
         login_response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": unique_email, "password": "test123456"},
         )
-        assert login_response.status_code in [200, 201], (
-            f"Login should succeed, got {login_response.status_code}"
-        )
+        assert login_response.status_code in [
+            200,
+            201,
+        ], f"Login should succeed, got {login_response.status_code}"
 
         # Step 3: Token must be present in response
         login_data = login_response.json()

@@ -537,6 +537,8 @@ class TestCSRFProtectionMiddleware:
         """Test CSRF protection with missing token."""
         # Non-API, state-changing request without CSRF token
         mock_request.url.path = "/form-submit"
+        # Enable CSRF testing mode (bypasses test environment CSRF exemption)
+        mock_request.headers = {"X-CSRF-Test": "enabled"}
 
         with patch.object(
             middleware, "_validate_csrf_token", new=AsyncMock(return_value=False)

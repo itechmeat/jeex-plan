@@ -15,7 +15,6 @@ from sqlalchemy import func
 from ..core.config import get_settings
 from ..core.logger import get_logger
 from ..core.token_service import TokenService
-from ..models.tenant import Tenant
 from ..models.user import User
 from ..repositories.tenant import TenantRepository
 from ..repositories.user import UserRepository
@@ -337,7 +336,7 @@ class OAuthService:
         provider_name: str,
         code: str,
         state: str,
-        tenant_id: uuid.UUID | None = None,
+        tenant_id: uuid.UUID,
     ) -> User:
         """Authenticate user with OAuth provider.
 
@@ -345,16 +344,20 @@ class OAuthService:
             provider_name: OAuth provider name (google, github)
             code: Authorization code from OAuth callback
             state: State parameter for CSRF validation (contains tenant context)
-            tenant_id: Optional tenant ID (if None, creates default tenant)
+            tenant_id: Required tenant ID for multi-tenant isolation
 
         Returns:
             Authenticated or newly created User
+
+        Raises:
+            HTTPException: If tenant_id is not provided
 
         Security:
             - Validates OAuth provider response
             - Enforces tenant isolation for user lookup and creation
             - Logs all authentication attempts for audit trail
             - Prevents cross-tenant user hijacking
+            - Requires explicit tenant context (no defaults)
         """
         provider = self.get_provider(provider_name)
         user_info = await provider.get_user_info(code, state)
@@ -365,18 +368,8 @@ class OAuthService:
             provider=provider_name,
             email=user_info.get("email"),
             provider_id=user_info.get("provider_id"),
-            tenant_id=str(tenant_id) if tenant_id else "default",
+            tenant_id=str(tenant_id),
         )
-
-        # Find or create tenant if not specified
-        # WARNING: Default tenant usage should be monitored for multi-tenant security
-        if not tenant_id:
-            logger.warning(
-                "OAuth authentication without tenant context - using default tenant",
-                provider=provider_name,
-                email=user_info.get("email"),
-            )
-            tenant_id = await self._get_or_create_default_tenant()
 
         # Find existing user or create new one
         tenant_user_repo = UserRepository(self.db, tenant_id)
@@ -448,23 +441,6 @@ class OAuthService:
         )
 
         return new_user
-
-    async def _get_or_create_default_tenant(self) -> uuid.UUID:
-        """Get or create default tenant."""
-        default_tenant = await self.tenant_repo.get_by_slug("default")
-
-        if not default_tenant:
-            default_tenant = Tenant(
-                name="Default Tenant",
-                slug="default",
-                description="Default tenant for new users",
-                is_active=True,
-            )
-            self.db.add(default_tenant)
-            await self.db.commit()
-            await self.db.refresh(default_tenant)
-
-        return default_tenant.id
 
     async def _generate_unique_username(
         self, user_repo: UserRepository, email: str

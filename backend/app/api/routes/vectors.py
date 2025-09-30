@@ -289,9 +289,11 @@ async def embed_and_store(
             "processing_time_ms": embedding_result.processing_time_ms,
             "total_tokens": embedding_result.total_tokens,
             "deduplication_stats": embedding_result.deduplication_stats,
-            "vector_dimensions": len(embedding_result.embeddings[0])
-            if embedding_result.embeddings
-            else 0,
+            "vector_dimensions": (
+                len(embedding_result.embeddings[0])
+                if embedding_result.embeddings
+                else 0
+            ),
         }
 
         logger.info(
@@ -454,9 +456,11 @@ async def vector_health_check(
         embedding_healthy = embedding_service._embedding_client is not None
 
         health_status = {
-            "status": "healthy"
-            if qdrant_health["status"] == "healthy" and embedding_healthy
-            else "unhealthy",
+            "status": (
+                "healthy"
+                if qdrant_health["status"] == "healthy" and embedding_healthy
+                else "unhealthy"
+            ),
             "services": {
                 "qdrant": qdrant_health,
                 "embedding_service": {

@@ -158,15 +158,19 @@ class VectorBenchmark:
             "median_latency_ms": statistics.median(latencies),
             "min_latency_ms": min(latencies),
             "max_latency_ms": max(latencies),
-            "p95_latency_ms": statistics.quantiles(latencies, n=20)[18]
-            if len(latencies) >= 20
-            else max(latencies),  # 95th percentile
-            "p99_latency_ms": statistics.quantiles(latencies, n=100)[98]
-            if len(latencies) >= 100
-            else max(latencies),
-            "std_deviation_ms": statistics.stdev(latencies)
-            if len(latencies) > 1
-            else 0,
+            "p95_latency_ms": (
+                statistics.quantiles(latencies, n=20)[18]
+                if len(latencies) >= 20
+                else max(latencies)
+            ),  # 95th percentile
+            "p99_latency_ms": (
+                statistics.quantiles(latencies, n=100)[98]
+                if len(latencies) >= 100
+                else max(latencies)
+            ),
+            "std_deviation_ms": (
+                statistics.stdev(latencies) if len(latencies) > 1 else 0
+            ),
         }
 
         print("📈 Search latency stats:")
@@ -239,13 +243,13 @@ class VectorBenchmark:
             "total_time": total_time,
             "successful_requests": len(successful_results),
             "error_count": errors,
-            "throughput_rps": len(successful_results) / total_time
-            if total_time > 0
-            else 0,
+            "throughput_rps": (
+                len(successful_results) / total_time if total_time > 0 else 0
+            ),
             "avg_latency_ms": statistics.mean(latencies) if latencies else 0,
-            "p95_latency_ms": statistics.quantiles(latencies, n=20)[18]
-            if len(latencies) >= 20
-            else 0,
+            "p95_latency_ms": (
+                statistics.quantiles(latencies, n=20)[18] if len(latencies) >= 20 else 0
+            ),
             "error_rate": errors / concurrent_users if concurrent_users > 0 else 0,
         }
 

@@ -380,24 +380,26 @@ class TestTokenBlacklistService:
         assert service is not None
         assert service.redis is not None
 
-    async def test_token_hashing(self) -> None:
-        """Test token hashing functionality."""
+    async def test_token_blacklist_service_methods(self) -> None:
+        """Test TokenBlacklistService key methods."""
         from app.core.token_blacklist import TokenBlacklistService
 
         service = TokenBlacklistService()
-        token1 = "test.token.here"
-        token2 = "different.token.here"
 
-        hash1 = service._hash_token(token1)
-        hash2 = service._hash_token(token2)
+        # Test blacklist key generation
+        jti = "test-jti-123456"
+        key = service._get_blacklist_key(jti)
+        assert key == "blacklist:token:test-jti-123456"
 
-        assert hash1 != hash2
-        assert len(hash1) == 64  # SHA256 produces 64 character hex string
-        assert len(hash2) == 64
+        # Test that service initializes properly
+        assert service.redis is not None
+        assert service.secret_key is not None
+        assert service.algorithm is not None
 
-        # Same token should produce same hash
-        hash1_again = service._hash_token(token1)
-        assert hash1 == hash1_again
+        # Test the methods exist
+        assert hasattr(service, "_extract_jti")
+        assert hasattr(service, "_get_token_expiry")
+        assert hasattr(service, "_calculate_ttl")
 
     async def test_blacklist_key_generation(self) -> None:
         """Test blacklist key generation."""

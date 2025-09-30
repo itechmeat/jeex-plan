@@ -166,9 +166,8 @@ component design, and scalability considerations."""
     def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
         # Fix regex quantifier: remove space in {1,2}
-        pattern = (
-            rf"#{{{1, 2}}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{{1, 2}}}|\Z)"
-        )
+        escaped_section = re.escape(section_name)
+        pattern = rf"#{{1,2}}\s+{escaped_section}.*?\n(.*?)(?=#{{1,2}}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -184,9 +183,8 @@ component design, and scalability considerations."""
     def _extract_text_section(self, content: str, section_name: str) -> str:
         """Extract text content from a markdown section (non-bullet format)."""
         # Fix regex quantifier: remove space in {1,2}
-        pattern = (
-            rf"#{{{1, 2}}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{{1, 2}}}|\Z)"
-        )
+        escaped_section = re.escape(section_name)
+        pattern = rf"#{{1,2}}\s+{escaped_section}.*?\n(.*?)(?=#{{1,2}}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -274,9 +272,8 @@ component design, and scalability considerations."""
         ) or self._parse_markdown_section(content, "Risks")
 
         # Calculate confidence score based on populated sections
-        # Use generator expression for efficiency
         populated_sections = sum(
-            1 if section else 0
+            1
             for section in [
                 technology_stack,
                 architecture_pattern,
@@ -287,6 +284,7 @@ component design, and scalability considerations."""
                 deployment_strategy,
                 technical_risks,
             ]
+            if section
         )
 
         total_sections = 8

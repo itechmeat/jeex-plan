@@ -2,6 +2,8 @@
 Authentication endpoints with OAuth2 support and full JWT implementation.
 """
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -19,7 +21,7 @@ from ...api.schemas.auth import (
 from ...core.auth import (
     AuthDependency,
     AuthService,
-    auth_dependency,
+    create_auth_dependency,
     get_current_active_user_dependency,
     get_current_active_user_flexible,
 )
@@ -28,6 +30,7 @@ from ...core.database import get_db
 from ...core.logger import get_logger
 from ...core.oauth import OAuthService
 from ...models.user import User
+from ...repositories.tenant import TenantRepository
 from ...services.user import UserService
 
 router = APIRouter()
@@ -80,7 +83,26 @@ async def register_user(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match"
         )
 
-    user_service = UserService(db)
+    # Create or get a tenant for the user
+    tenant_repo = TenantRepository(db)
+
+    # Extract domain from email for tenant slug
+    email_domain = user_data.email.split("@")[-1]
+    tenant_slug = email_domain.replace(".", "-").lower()
+
+    # Try to get existing tenant by slug, or create new one
+    tenant = await tenant_repo.get_by_slug(tenant_slug)
+    if not tenant:
+        # Create new tenant with email domain as name
+        tenant = await tenant_repo.create_tenant(
+            name=email_domain.capitalize(),
+            slug=tenant_slug,
+            description=f"Tenant for {email_domain}",
+        )
+        await db.commit()
+        await db.refresh(tenant)
+
+    user_service = UserService(db, tenant.id)
 
     try:
         # Register user and get tokens
@@ -124,8 +146,7 @@ async def register_user(
             path="/",
         )
 
-        # Include tokens in response for backwards compatibility
-        # TODO: Remove token from response body once frontend migrates to cookies
+        # Return tokens for frontend consumption
         token = Token(**result["tokens"])
 
         logger.info("Registration successful", user_id=result["user"]["id"])
@@ -162,22 +183,45 @@ async def login_user(
     """
     logger.info("Login attempt", email=login_data.email)
 
-    user_service = UserService(db)
+    # For login, we need to search across all tenants initially
+    # since we don't know which tenant the user belongs to
+    # Use AuthService directly to avoid tenant context requirement
+    auth_service = AuthService(db)
 
     try:
-        # Authenticate user
-        result = await user_service.authenticate_user(
-            email=login_data.email, password=login_data.password
+        # Authenticate user (searches across all tenants when tenant_id=None)
+        user = await auth_service.authenticate_user(
+            email=login_data.email, password=login_data.password, tenant_id=None
         )
 
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is deactivated",
+            )
+
+        # Update last login
+        user.last_login_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(user)
+
+        # Generate tokens
+        tokens = await auth_service.create_tokens_for_user(user)
+
         user_response = UserResponse(
-            id=result["user"]["id"],
-            email=result["user"]["email"],
-            name=result["user"]["full_name"] or result["user"]["username"],
-            tenant_id=result["user"]["tenant_id"],
-            is_active=result["user"]["is_active"],
-            created_at=result["user"]["created_at"],
-            last_login_at=result["user"]["last_login_at"],
+            id=str(user.id),
+            email=user.email,
+            name=user.full_name or user.username,
+            tenant_id=str(user.tenant_id),
+            is_active=user.is_active,
+            created_at=user.created_at,
+            last_login_at=user.last_login_at,
         )
 
         # SECURITY: Set tokens as HttpOnly cookies
@@ -186,7 +230,7 @@ async def login_user(
 
         response.set_cookie(
             key="access_token",
-            value=result["tokens"]["access_token"],
+            value=tokens["access_token"],
             max_age=access_max_age,
             httponly=True,
             secure=settings.is_production,
@@ -195,7 +239,7 @@ async def login_user(
         )
         response.set_cookie(
             key="refresh_token",
-            value=result["tokens"]["refresh_token"],
+            value=tokens["refresh_token"],
             max_age=refresh_max_age,
             httponly=True,
             secure=settings.is_production,
@@ -203,11 +247,10 @@ async def login_user(
             path="/",
         )
 
-        # Include tokens in response for backwards compatibility
-        # TODO: Remove token from response body once frontend migrates to cookies
-        token = Token(**result["tokens"])
+        # Return tokens for frontend consumption
+        token = Token(**tokens)
 
-        logger.info("Login successful", user_id=result["user"]["id"])
+        logger.info("Login successful", user_id=str(user.id))
 
         return LoginResponse(user=user_response, token=token)
 
@@ -247,17 +290,24 @@ async def refresh_access_token(
     # Fallback to request body for backwards compatibility
     if not refresh_token and refresh_data:
         refresh_token = refresh_data.refresh_token
-        logger.warning("Refresh token received in body (insecure, migrate to cookies)")
+        logger.info("Refresh token received in body (migrate to cookies recommended)")
 
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided"
         )
 
-    user_service = UserService(db)
+    # For refresh token, use AuthService directly to extract tenant from token
+    auth_service = AuthService(db)
 
     try:
-        tokens = await user_service.refresh_tokens(refresh_token)
+        tokens = await auth_service.refresh_access_token(refresh_token)
+
+        if not tokens:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token",
+            )
 
         # SECURITY: Set new tokens as HttpOnly cookies
         access_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
@@ -309,7 +359,7 @@ async def refresh_access_token(
 async def logout_user(
     request: Request,
     response: Response,
-    auth: AuthDependency = Depends(auth_dependency),
+    auth: AuthDependency = Depends(create_auth_dependency()),
     db: AsyncSession = Depends(get_db),
 ) -> LogoutResponse:
     """
@@ -523,11 +573,21 @@ async def oauth_callback(
         state_payload = oauth_service.decode_oauth_state(state)
         tenant_id = state_payload.get("tenant_id")
 
+        # SECURITY: Tenant context is REQUIRED for OAuth authentication
+        if not tenant_id:
+            logger.error(
+                "OAuth callback failed: tenant_id missing from state",
+                provider=provider,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="OAuth state missing tenant context",
+            )
+
         logger.info(
             "OAuth callback with decoded state",
             provider=provider,
-            tenant_id=str(tenant_id) if tenant_id else "default",
-            has_tenant_context=tenant_id is not None,
+            tenant_id=str(tenant_id),
         )
 
         # Validate state parameter in Redis (additional CSRF check)
@@ -539,7 +599,7 @@ async def oauth_callback(
                 logger.warning(
                     "OAuth state not found in Redis",
                     provider=provider,
-                    tenant_id=str(tenant_id) if tenant_id else None,
+                    tenant_id=str(tenant_id),
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -548,9 +608,7 @@ async def oauth_callback(
             await redis_client.delete(cache_key)
 
         # Authenticate user with OAuth provider, passing tenant context
-        user = await oauth_service.authenticate_user(
-            provider, code, state, tenant_id=tenant_id
-        )
+        user = await oauth_service.authenticate_user(provider, code, state, tenant_id)
 
         # Generate JWT tokens
         tokens = await auth_service.create_tokens_for_user(user)
@@ -658,6 +716,21 @@ async def oauth_callback_post(
     auth_service = AuthService(db)
 
     try:
+        # Decode and validate state to extract tenant_id
+        state_payload = oauth_service.decode_oauth_state(callback_data.state)
+        tenant_id = state_payload.get("tenant_id")
+
+        # SECURITY: Tenant context is REQUIRED for OAuth authentication
+        if not tenant_id:
+            logger.error(
+                "OAuth callback POST failed: tenant_id missing from state",
+                provider=callback_data.provider,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="OAuth state missing tenant context",
+            )
+
         # Validate state parameter
         redis_client = getattr(request.app.state, "redis_client", None)
         if redis_client:
@@ -672,7 +745,7 @@ async def oauth_callback_post(
 
         # Authenticate user with OAuth provider
         user = await oauth_service.authenticate_user(
-            callback_data.provider, callback_data.code, callback_data.state
+            callback_data.provider, callback_data.code, callback_data.state, tenant_id
         )
 
         # Generate JWT tokens

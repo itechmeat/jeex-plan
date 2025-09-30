@@ -525,12 +525,14 @@ async def update_project(
             update_fields["name"] = project_update.name
 
         if project_update.language is not None:
-            logger.warning(
-                "Project language updates are not yet persisted",
-                project_id=str(project_id),
-                tenant_id=str(tenant_id),
-                user_id=str(current_user.id),
-                requested_language=project_update.language,
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "language_updates_not_supported",
+                    "message": "Project language updates are not supported. Language is set during project creation and cannot be modified.",
+                    "requested_language": project_update.language,
+                    "current_language": project.language,
+                },
             )
 
         if not update_fields:
@@ -691,20 +693,16 @@ async def generate_description_document(
     """
     logger.info("Generating description document", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and user has access
     # 2. Invoke Business Analyst agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Project description generation started",
-        "project_id": project_id,
-        "step": 1,
-        "status": "processing",
-        "estimated_duration": 30,  # seconds
-    }
+    raise NotImplementedError(
+        "Project description generation not yet implemented. "
+        "Requires Business Analyst agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/step2")
@@ -718,20 +716,16 @@ async def generate_standards_document(
     """
     logger.info("Generating engineering standards document", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and has completed step 1
     # 2. Invoke Engineering Standards agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Engineering standards generation started",
-        "project_id": project_id,
-        "step": 2,
-        "status": "processing",
-        "estimated_duration": 40,  # seconds
-    }
+    raise NotImplementedError(
+        "Engineering standards generation not yet implemented. "
+        "Requires Engineering Standards agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/step3")
@@ -745,20 +739,16 @@ async def generate_architecture_document(
     """
     logger.info("Generating architecture document", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and has completed steps 1-2
     # 2. Invoke Solution Architect agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Architecture generation started",
-        "project_id": project_id,
-        "step": 3,
-        "status": "processing",
-        "estimated_duration": 45,  # seconds
-    }
+    raise NotImplementedError(
+        "Architecture generation not yet implemented. "
+        "Requires Solution Architect agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/step4")
@@ -772,20 +762,16 @@ async def generate_implementation_plan(
     """
     logger.info("Generating implementation plan", project_id=project_id)
 
-    # NOTE: actual agent orchestration
+    # TODO: Implement actual agent orchestration
     # 1. Validate project exists and has completed steps 1-3
     # 2. Invoke Project Planner agent
     # 3. Stream progress updates via SSE
     # 4. Save generated document
 
-    # Mock response for MVP
-    return {
-        "message": "Implementation plan generation started",
-        "project_id": project_id,
-        "step": 4,
-        "status": "processing",
-        "estimated_duration": 60,  # seconds
-    }
+    raise NotImplementedError(
+        "Implementation plan generation not yet implemented. "
+        "Requires Project Planner agent integration."
+    )
 
 
 @router.post("/projects/{project_id}/export")
@@ -799,21 +785,17 @@ async def export_project_documents(
     """
     logger.info("Exporting project documents", project_id=project_id)
 
-    # NOTE: actual export functionality
+    # TODO: Implement actual export functionality
     # 1. Validate project exists and has required documents
     # 2. Gather active document versions
     # 3. Generate manifest and structure
     # 4. Create ZIP archive
     # 5. Return download URL
 
-    # Mock response for MVP
-    return {
-        "message": "Export started",
-        "project_id": project_id,
-        "export_id": "export_123",
-        "status": "processing",
-        "estimated_duration": 10,  # seconds
-    }
+    raise NotImplementedError(
+        "Project export not yet implemented. "
+        "Requires document generation and ZIP archive functionality."
+    )
 
 
 @router.get("/projects/{project_id}/progress")
@@ -825,21 +807,13 @@ async def get_project_progress(
     """
     logger.info("Getting project progress", project_id=project_id)
 
-    # NOTE: actual progress tracking
+    # TODO: Implement actual progress tracking
     # 1. Validate project exists and user has access
     # 2. Get current step status
     # 3. Get document generation progress
     # 4. Return comprehensive progress information
 
-    # Mock response for MVP
-    return {
-        "project_id": project_id,
-        "current_step": 1,
-        "steps": {
-            "step1": {"status": "completed", "progress": 100, "document_id": "doc_123"},
-            "step2": {"status": "pending", "progress": 0},
-            "step3": {"status": "pending", "progress": 0},
-            "step4": {"status": "pending", "progress": 0},
-        },
-        "overall_progress": 25,
-    }
+    raise NotImplementedError(
+        "Project progress tracking not yet implemented. "
+        "Requires agent orchestration and progress persistence."
+    )

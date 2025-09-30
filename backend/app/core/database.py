@@ -158,5 +158,15 @@ class DatabaseManager:
             rows = result.fetchall()
             return [tuple(row) for row in rows]
         except Exception as e:
-            logger.error("Raw SQL execution failed", error=str(e), sql=sql)
+            # SECURITY: Avoid logging raw SQL and params to prevent sensitive data exposure
+            sql_preview = (
+                sql[:50] + "..." if isinstance(sql, str) and len(sql) > 50 else "query"
+            )
+            logger.error(
+                "Raw SQL execution failed",
+                error=str(e),
+                sql_type=type(sql).__name__,
+                sql_preview=sql_preview,
+                has_params=bool(params),
+            )
             raise

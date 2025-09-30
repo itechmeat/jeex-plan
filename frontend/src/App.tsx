@@ -8,8 +8,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Dashboard } from './pages/Dashboard/Dashboard';
 import HealthStatus from './pages/HealthStatus/HealthStatus';
 import { Login } from './pages/Login/Login';
-import { Register } from './pages/Register/Register';
 import { Projects } from './pages/Projects/Projects';
+import { Register } from './pages/Register/Register';
 import { DBProvider } from './providers/DBProvider';
 
 const App: React.FC = () => {

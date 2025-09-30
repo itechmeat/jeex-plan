@@ -190,8 +190,14 @@ class TestCSRFProtection:
         )
 
         # Should be rejected for missing CSRF (403) not 404
-        if response.status_code == status.HTTP_403_FORBIDDEN:
-            assert "CSRF" in response.json()["detail"]
+        # Explicit assertion that fails loudly if wrong status
+        assert response.status_code == status.HTTP_403_FORBIDDEN, (
+            f"Expected 403 FORBIDDEN for missing CSRF token, got {response.status_code}"
+        )
+        response_data = response.json()
+        assert "CSRF" in response_data.get("detail", ""), (
+            f"Expected CSRF error message, got: {response_data.get('detail')}"
+        )
 
     @pytest.mark.asyncio
     async def test_put_requires_csrf(self, authenticated_client: dict):
@@ -208,8 +214,14 @@ class TestCSRFProtection:
             headers={"Authorization": f"Bearer {authenticated_client['access_token']}"},
         )
 
-        if response.status_code == status.HTTP_403_FORBIDDEN:
-            assert "CSRF" in response.json()["detail"]
+        # Explicit assertion that fails loudly if wrong status
+        assert response.status_code == status.HTTP_403_FORBIDDEN, (
+            f"Expected 403 FORBIDDEN for missing CSRF token, got {response.status_code}"
+        )
+        response_data = response.json()
+        assert "CSRF" in response_data.get("detail", ""), (
+            f"Expected CSRF error message, got: {response_data.get('detail')}"
+        )
 
     @pytest.mark.asyncio
     async def test_patch_requires_csrf(self, authenticated_client: dict):
@@ -226,8 +238,14 @@ class TestCSRFProtection:
             headers={"Authorization": f"Bearer {authenticated_client['access_token']}"},
         )
 
-        if response.status_code == status.HTTP_403_FORBIDDEN:
-            assert "CSRF" in response.json()["detail"]
+        # Explicit assertion that fails loudly if wrong status
+        assert response.status_code == status.HTTP_403_FORBIDDEN, (
+            f"Expected 403 FORBIDDEN for missing CSRF token, got {response.status_code}"
+        )
+        response_data = response.json()
+        assert "CSRF" in response_data.get("detail", ""), (
+            f"Expected CSRF error message, got: {response_data.get('detail')}"
+        )
 
     @pytest.mark.asyncio
     async def test_login_exempt_from_csrf(self, async_client: AsyncClient):

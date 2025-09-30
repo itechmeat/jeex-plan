@@ -97,11 +97,16 @@ except ImportError as exc:
 @app.get("/")
 async def root() -> dict[str, str]:
     """Root endpoint"""
+    from ..app.core.config import get_settings
+
+    settings = get_settings()
+
     return {
         "service": "JEEX Plan API",
         "version": "1.0.0",
         "status": "running",
-        "hot_reload": "testing hot-reload functionality",
+        "environment": settings.ENVIRONMENT,
+        "hot_reload": settings.is_development,
     }
 
 

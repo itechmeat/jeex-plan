@@ -1,5 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../config/routes';
+import { useCreateProject } from '../../hooks/useProjects';
+import { handleApiError } from '../../services/api';
 import {
   ArchitectureStyle,
   CreateProjectRequest,
@@ -13,9 +16,6 @@ import {
   TimeUnit,
   WizardData,
 } from '../../types/api';
-import { ROUTES } from '../../config/routes';
-import { handleApiError } from '../../services/api';
-import { useCreateProject } from '../../hooks/useProjects';
 import { Step1ProjectDescription } from '../Wizard/steps/Step1ProjectDescription';
 import { Step2ArchitecturePreferences } from '../Wizard/steps/Step2ArchitecturePreferences';
 import { Step3PlanningConfiguration } from '../Wizard/steps/Step3PlanningConfiguration';

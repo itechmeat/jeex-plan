@@ -17,6 +17,37 @@ Before adding export system, quality assurance, and other advanced features, we 
 - Zero critical bugs in core authentication and document generation flows
 - Testing framework ready for continuous development
 
+## Service Level Objectives (SLOs)
+
+### Performance SLOs
+
+- **Authentication endpoints**: p95 response time ≤ 200ms
+- **Project CRUD operations**: p95 response time ≤ 300ms
+- **Document generation initiation**: p95 response time ≤ 500ms
+- **SSE streaming latency**: ≤ 100ms for progress updates
+- **Concurrent user handling**: Support 50+ concurrent tenants without degradation
+
+### Reliability SLOs
+
+- **Authentication success rate**: ≥ 99.9% for valid credentials
+- **Multi-tenant isolation**: 0 cross-tenant data access violations
+- **Token invalidation**: Immediate (≤ 1s) after logout
+- **Database connection reliability**: ≥ 99.5% successful transactions
+
+### Security SLOs
+
+- **SQL injection protection**: 100% successful blockage of malicious inputs
+- **CSRF protection**: 100% enforcement for state-changing operations
+- **Rate limiting**: Effective throttling under load (≥ 100 req/min per user)
+- **JWT validation**: 100% rejection of expired/invalid tokens
+
+### Test Coverage SLOs
+
+- **Unit test coverage**: ≥ 80% for core business logic
+- **Integration test coverage**: 100% for authentication flows
+- **E2E test coverage**: 100% for critical user journeys
+- **Multi-tenant test scenarios**: 100% coverage of isolation scenarios
+
 ## Stakeholders & Interfaces
 
 - **Primary Owner**: QA Engineer

@@ -1,6 +1,7 @@
 """
 Comprehensive tests for authentication system.
 """
+
 # cSpell:ignore authuser wrongpass correctpassword refreshuser changepass oldpassword wrongcurrent wrongpassword Aemail
 
 import uuid
@@ -544,7 +545,7 @@ class TestAuthenticationEndpoints:
 
         assert response.status_code == 401
         data = response.json()
-        assert "Invalid credentials" in data["detail"]
+        assert "Invalid email or password" in data["detail"]
 
     def test_refresh_token_endpoint(self, client) -> None:
         """Test token refresh endpoint."""

@@ -28,7 +28,7 @@ logger = get_logger()
 retry_logger = logging.getLogger("llm.retry")
 
 
-def _retryable_exc(exc: BaseException) -> bool:
+def _retryable_exc(exc: Exception) -> bool:
     # Handle wrapped exceptions from Tenacity
     if hasattr(exc, "__cause__"):
         exc = exc.__cause__
@@ -574,9 +574,7 @@ class LLMManager:
         """Get default model for provider."""
         if provider == LLMProvider.OPENAI:
             # Try environment variable, then fallback to current recommended models
-            return (
-                os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-4o"  # Legacy fallback
-            )
+            return os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-4o"  # Legacy fallback
         elif provider == LLMProvider.ANTHROPIC:
             # Try environment variable, then fallback to current recommended models
             return (

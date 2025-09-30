@@ -190,6 +190,18 @@ def sample_user_data():
 
 
 @pytest.fixture
+async def sample_tenant(test_session):
+    """Create a sample tenant for testing."""
+    from app.repositories.tenant import TenantRepository
+
+    tenant_repo = TenantRepository(test_session)
+    unique_suffix = uuid.uuid4().hex[:8]
+    return await tenant_repo.create(
+        name="Test Tenant", slug=f"test-tenant-{unique_suffix}", is_active=True
+    )
+
+
+@pytest.fixture
 def auth_headers(test_client):
     """Get authentication headers for testing"""
     # Create user and get token with unique email
@@ -435,7 +447,6 @@ async def tenant_setup(test_session):
         username=f"user_a_{unique_suffix_a}",
         password="TenantTestPassword123!",
         full_name="User A",
-        tenant_id=tenant_a.id,
     )
     # Get user object from repository
     user_repo_a = UserRepository(test_session, tenant_a.id)
@@ -448,7 +459,6 @@ async def tenant_setup(test_session):
         username=f"user_b_{unique_suffix_b}",
         password="TenantTestPassword456!",
         full_name="User B",
-        tenant_id=tenant_b.id,
     )
     # Get user object from repository
     user_repo_b = UserRepository(test_session, tenant_b.id)
@@ -460,7 +470,6 @@ async def tenant_setup(test_session):
         username=f"user_a2_{unique_suffix_a}",
         password="TenantTestPassword789!",
         full_name="User A2",
-        tenant_id=tenant_a.id,
     )
     # Get user object from repository
     user_a2 = await user_repo_a.get_by_id(uuid.UUID(user_a2_data["user"]["id"]))
@@ -514,7 +523,6 @@ def mock_password_service():
         user_service.password_service = mock_password_service
         user = await user_service.create_user(email="test@example.com", password="weak")
     """
-    from passlib.context import CryptContext
     from app.core.password_service import PasswordService
 
     # Create real password service but override validation
@@ -532,8 +540,9 @@ def mock_openai_embeddings(monkeypatch):
     Auto-mock OpenAI API calls for all tests to avoid authentication errors.
     Returns deterministic embeddings for testing purposes.
     """
-    import numpy as np
     from unittest.mock import AsyncMock, MagicMock
+
+    import numpy as np
 
     async def mock_create_embedding(*args, **kwargs):
         """Generate mock embeddings with balanced semantic similarity."""

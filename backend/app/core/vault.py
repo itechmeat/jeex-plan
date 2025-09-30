@@ -4,6 +4,7 @@ HashiCorp Vault client integration for JEEX Plan.
 
 import logging
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -12,7 +13,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
-DEV_PLACEHOLDER_TOKEN = "development-placeholder-token"
 DEV_ENV_VALUES = {"dev", "development"}
 
 
@@ -46,18 +46,16 @@ class VaultClient:
                 raise RuntimeError(
                     "VAULT_TOKEN environment variable must be set outside development environments."
                 )
-            logger.warning(
-                "VAULT_TOKEN not provided; using placeholder token because environment=%s",
-                env_value,
+            raise RuntimeError(
+                "VAULT_TOKEN environment variable must be set in development environment."
             )
-            resolved_token = DEV_PLACEHOLDER_TOKEN
 
         self.vault_token = resolved_token
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
 
     @asynccontextmanager
-    async def client(self) -> Any:
+    async def client(self) -> AsyncGenerator[httpx.AsyncClient, None]:
         """Async context manager for HTTP client."""
         if self._client is None:
             self._client = httpx.AsyncClient(
@@ -258,12 +256,10 @@ async def init_vault_secrets() -> None:
     }
     await vault_client.put_secret("auth/jwt", jwt_secrets)
 
-    # OpenAI API secrets (placeholder)
-    openai_secrets = {
-        "api_key": "sk-placeholder-openai-api-key",
-        "organization": "",
-    }
-    await vault_client.put_secret("ai/openai", openai_secrets)
+    # TODO: Initialize OpenAI API secrets
+    # Placeholder API keys are prohibited in production code
+    # Use environment variables or proper secret management
+    # raise NotImplementedError("OpenAI API key configuration required")
 
     logger.info("Vault secrets initialized successfully")
 

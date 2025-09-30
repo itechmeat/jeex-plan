@@ -13,7 +13,7 @@ This document contains detailed technical requirements, API specifications, data
 - **API Framework:** FastAPI 0.116.2+ (Python) — высокопроизводительный веб-фреймворк с автоматической генерацией OpenAPI документации, встроенной валидацией и Swagger UI для интерактивного тестирования API
 - **Agent Framework:** CrewAI 0.186.1+ для мультиагентной архитектуры — orchestration специализированных агентов с поддержкой различных LLM
 - **Структурирование I/O:** Pydantic AI 1.0.8+ для контрактов между агентами — строгая типизация и валидация данных на всех уровнях
-- **Primary Database:** PostgreSQL 18+ — надежное хранение документов, версий и метаданных с ACID-гарантиями
+- **Primary Database:** PostgreSQL 18 — надежное хранение документов, версий и метаданных с ACID-гарантиями, UUID v7 и AIO производительностью
 - **Database Migrations:** Alembic для schema versioning и безопасных миграций БД с automatic downgrade support
 - **Vector Database:** Qdrant 1.15.4+ для эмбеддингов и контекста — специализированная БД для семантического поиска с мультитенантностью
 - **Cache/Queue:** Redis 8.2+ для буферизации и квот — быстрое кэширование и управление очередями задач
@@ -79,7 +79,7 @@ This document contains detailed technical requirements, API specifications, data
 | FastAPI     | 0.116.2+         | Improved dependency injection, better async support         |
 | CrewAI      | 0.186.1+         | Enhanced multi-agent orchestration, memory management       |
 | Pydantic AI | 1.0.8+           | Stable API, advanced validation features                    |
-| PostgreSQL  | 18+              | Enhanced JSON/JSONB support, improved performance           |
+| PostgreSQL  | 18                | UUID v7 generation, AIO performance, virtual columns, SCRAM auth |
 | Qdrant      | 1.15.4+          | Multi-tenancy optimizations, payload filtering improvements |
 | Redis       | 8.2+             | Improved memory efficiency, enhanced pub/sub                |
 | Tenacity    | 9.0+             | Robust retry mechanisms, circuit breaker patterns          |

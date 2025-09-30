@@ -76,6 +76,9 @@ async function globalSetup(config: FullConfig) {
     // Global request settings
     timeout: SETUP_CONFIG.REQUEST_TIMEOUT,
     ignoreHTTPSErrors: true,
+    extraHTTPHeaders: {
+      "Content-Type": "application/json",
+    },
   });
 
   console.log("🚀 Setting up test environment...");
@@ -84,6 +87,7 @@ async function globalSetup(config: FullConfig) {
 
   try {
     // Wait for backend to be ready
+    console.log("⏳ Waiting for backend service...");
     await waitForService(
       apiContext,
       `${backendBaseURL}/api/v1/health`,
@@ -93,7 +97,21 @@ async function globalSetup(config: FullConfig) {
       5000
     );
 
+    // Verify backend health details
+    console.log("🔍 Verifying backend health details...");
+    const healthResponse = await apiContext.get(`${backendBaseURL}/api/v1/health`);
+    if (healthResponse.ok()) {
+      const health = await healthResponse.json();
+      console.log("✅ Backend health check passed:");
+      console.log(`   - Status: ${health.status}`);
+      console.log(`   - Database: ${health.components?.database?.status || 'unknown'}`);
+      console.log(`   - Redis: ${health.components?.redis?.status || 'unknown'}`);
+      console.log(`   - Qdrant: ${health.components?.qdrant?.status || 'unknown'}`);
+      console.log(`   - Vault: ${health.components?.vault?.status || 'unknown'}`);
+    }
+
     // Wait for frontend to be ready
+    console.log("⏳ Waiting for frontend service...");
     await waitForService(
       apiContext,
       frontendBaseURL,
@@ -103,24 +121,57 @@ async function globalSetup(config: FullConfig) {
       5000
     );
 
-    // Clean up test data if needed
+    // Test CORS preflight request
+    console.log("🔍 Testing CORS preflight...");
     try {
-      console.log("🧹 Cleaning up test data...");
+      const corsResponse = await apiContext.fetch(`${backendBaseURL}/api/v1/auth/login`, {
+        method: "OPTIONS",
+        headers: {
+          "Origin": `http://${SETUP_CONFIG.BACKEND_HOST}:${SETUP_CONFIG.FRONTEND_PORT}`,
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "Content-Type",
+        },
+      });
+
+      if (corsResponse.ok()) {
+        console.log("✅ CORS preflight request successful");
+      } else {
+        console.log(`⚠️ CORS preflight returned status ${corsResponse.status()}`);
+      }
+    } catch (error) {
+      console.log(`⚠️ CORS preflight test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    // Clean up test data if needed
+    console.log("🧹 Cleaning up test data...");
+    try {
       const cleanupResponse = await apiContext.post(`${backendBaseURL}/api/v1/test/cleanup`, {
         headers: { "Content-Type": "application/json" },
         timeout: SETUP_CONFIG.REQUEST_TIMEOUT,
       });
 
       if (cleanupResponse.ok()) {
-        console.log("🧹 Test data cleaned successfully");
+        const result = await cleanupResponse.json();
+        console.log(`🧹 Test data cleaned successfully: ${result.message}`);
       } else {
-        console.log(`⚠️ Cleanup returned status ${cleanupResponse.status()} (may be expected)`);
+        console.log(`⚠️ Cleanup returned status ${cleanupResponse.status()}`);
+        if (cleanupResponse.status() === 404) {
+          console.log("   (This is expected if test endpoint is not implemented)");
+        }
       }
     } catch (error) {
-      console.log("⚠️ Could not clean test data (endpoint might not exist)");
+      console.log(`⚠️ Could not clean test data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    console.log("✅ Test environment ready");
+    console.log("✅ Test environment ready for E2E testing");
+
+    // Store configuration for global teardown
+    process.env.E2E_BACKEND_URL = backendBaseURL;
+    process.env.E2E_FRONTEND_URL = frontendBaseURL;
+
+  } catch (error) {
+    console.error("❌ E2E setup failed:", error instanceof Error ? error.message : 'Unknown error');
+    throw error;
   } finally {
     // Always dispose of the API context
     await apiContext.dispose();

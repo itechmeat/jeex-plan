@@ -65,9 +65,9 @@ class SecretRotationManager:
             "rotation_interval_days": policy.rotation_interval_days,
             "auto_rotate": policy.auto_rotate,
             "notification_days_before": policy.notification_days_before,
-            "last_rotated": policy.last_rotated.isoformat()
-            if policy.last_rotated
-            else None,
+            "last_rotated": (
+                policy.last_rotated.isoformat() if policy.last_rotated else None
+            ),
             "policy_created": datetime.now(UTC).isoformat(),
         }
 
@@ -236,9 +236,9 @@ class SecretRotationManager:
                 "status": {
                     "needs_rotation": needs_rotation,
                     "reason": reason,
-                    "last_rotated": policy.last_rotated.isoformat()
-                    if policy.last_rotated
-                    else None,
+                    "last_rotated": (
+                        policy.last_rotated.isoformat() if policy.last_rotated else None
+                    ),
                 },
             }
 

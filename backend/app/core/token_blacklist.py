@@ -1,8 +1,10 @@
 """
 Token blacklist service for handling JWT token invalidation on logout.
 
-This service manages blacklisted tokens in Redis to provide secure logout
-functionality by preventing invalidated tokens from being used after logout.
+This service manages blacklisted tokens in Redis using their JWT IDs (JTI)
+to provide secure logout functionality by preventing invalidated tokens
+from being used after logout. Using JTI is more efficient than storing
+full token hashes and provides direct token tracking.
 """
 
 from datetime import UTC, datetime
@@ -26,15 +28,23 @@ class TokenBlacklistService:
         self.secret_key = settings.SECRET_KEY
         self.algorithm = settings.ALGORITHM
 
-    def _get_blacklist_key(self, token_hash: str) -> str:
-        """Generate Redis key for blacklisted token."""
-        return f"blacklist:token:{token_hash}"
+    def _get_blacklist_key(self, jti: str) -> str:
+        """Generate Redis key for blacklisted token using JTI."""
+        return f"blacklist:token:{jti}"
 
-    def _hash_token(self, token: str) -> str:
-        """Create a hash of the token for storage (for privacy)."""
-        import hashlib
+    def _extract_jti(self, token: str) -> str | None:
+        """Extract JTI from JWT token."""
+        try:
+            # Decode without verification to get JTI
+            unverified_payload = jwt.get_unverified_claims(token)
+            jti = unverified_payload.get("jti")
 
-        return hashlib.sha256(token.encode()).hexdigest()
+            if jti and isinstance(jti, str):
+                return jti  # type: ignore[no-any-return]
+            return None
+        except Exception as e:
+            logger.warning("Failed to extract JTI from token", error=str(e))
+            return None
 
     def _get_token_expiry(self, token: str) -> int | None:
         """Extract expiry timestamp from JWT token."""
@@ -74,14 +84,18 @@ class TokenBlacklistService:
             True if successfully blacklisted, False otherwise
         """
         try:
-            token_hash = self._hash_token(token)
-            blacklist_key = self._get_blacklist_key(token_hash)
+            jti = self._extract_jti(token)
+            if not jti:
+                logger.error("Failed to extract JTI from token for blacklisting")
+                return False
+
+            blacklist_key = self._get_blacklist_key(jti)
             ttl = self._calculate_ttl(token)
 
             if ttl <= 0:
                 logger.info(
                     "Token already expired, not blacklisting",
-                    token_hash=token_hash[:16],
+                    jti=jti[:16],
                 )
                 return True
 
@@ -91,11 +105,11 @@ class TokenBlacklistService:
             if success:
                 logger.info(
                     "Token blacklisted successfully",
-                    token_hash=token_hash[:16],
+                    jti=jti[:16],
                     ttl=ttl,
                 )
             else:
-                logger.error("Failed to blacklist token", token_hash=token_hash[:16])
+                logger.error("Failed to blacklist token", jti=jti[:16])
 
             return success
 
@@ -119,13 +133,18 @@ class TokenBlacklistService:
             before returning True.
         """
         try:
-            token_hash = self._hash_token(token)
-            blacklist_key = self._get_blacklist_key(token_hash)
+            jti = self._extract_jti(token)
+            if not jti:
+                # If we can't extract JTI, we can't check blacklist properly
+                # Treat as blacklisted for safety
+                logger.warning("Cannot extract JTI from token, treating as blacklisted")
+                return True
 
+            blacklist_key = self._get_blacklist_key(jti)
             exists = await self.redis.exists(blacklist_key)
 
             if exists:
-                logger.debug("Token found in blacklist", token_hash=token_hash[:16])
+                logger.debug("Token found in blacklist", jti=jti[:16])
 
             return exists
 
@@ -133,7 +152,6 @@ class TokenBlacklistService:
             logger.error(
                 "Error checking token blacklist - FAIL-CLOSED",
                 error=str(e),
-                token_hash=self._hash_token(token)[:16],
             )
             # SECURITY: FAIL-CLOSED behavior - treat as blacklisted on error
             # Check if token is expired before rejecting

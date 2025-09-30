@@ -112,15 +112,6 @@ class TestTenantRepository:
 class TestUserRepository:
     """Test UserRepository functionality."""
 
-    @pytest.fixture
-    async def sample_tenant(self, test_session):
-        """Create a sample tenant for testing."""
-        tenant_repo = TenantRepository(test_session)
-        unique_suffix = uuid.uuid4().hex[:8]
-        return await tenant_repo.create_tenant(
-            name="Test Tenant", slug=f"test-tenant-{unique_suffix}"
-        )
-
     @pytest.mark.asyncio
     async def test_create_user(self, test_session, sample_tenant) -> None:
         """Test creating a user through repository."""

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import types
 from collections.abc import Callable
-from typing import Any, Literal, Self
+from typing import Any, Literal, Protocol, Self
 
 from fastapi import FastAPI
 
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 
 class _NoOpSpan:
-    """Span placeholder used when observability is disabled."""
+    """No-op span implementation for when observability is disabled."""
 
     def __enter__(self) -> Self:
         return self
@@ -91,9 +91,27 @@ def _noop_setup_observability(_: FastAPI) -> None:
     logger.debug("Observability disabled; instrumentation skipped")
 
 
+class TracerProtocol(Protocol):
+    """Protocol for tracer implementations."""
+
+    def start_span(self, name: str, **kwargs: Any) -> Any: ...
+
+
+class MeterProtocol(Protocol):
+    """Protocol for meter implementations."""
+
+    def create_counter(self, name: str, **kwargs: Any) -> Any: ...
+    def create_histogram(self, name: str, **kwargs: Any) -> Any: ...
+    def create_up_down_counter(self, name: str, **kwargs: Any) -> Any: ...
+
+
 # Type aliases for tracer and meter (can be real or no-op implementations)
-TracerLike = _NoOpTracer | Any  # Will be opentelemetry.trace.Tracer when enabled
-MeterLike = _NoOpMeter | Any  # Will be opentelemetry.metrics.Meter when enabled
+TracerLike = (
+    TracerProtocol  # _NoOpTracer and opentelemetry.trace.Tracer both satisfy this
+)
+MeterLike = (
+    MeterProtocol  # _NoOpMeter and opentelemetry.metrics.Meter both satisfy this
+)
 
 
 def _noop_get_tracer(_: str | None = None) -> TracerLike:
@@ -210,11 +228,11 @@ if settings.ENABLE_OBSERVABILITY:
 
         def _get_tracer_impl(name: str | None = None) -> TracerLike:
             """Return a tracer from the configured provider."""
-            return trace.get_tracer(name or settings.APP_NAME)
+            return trace.get_tracer(name or settings.APP_NAME)  # type: ignore
 
         def _get_meter_impl(name: str | None = None) -> MeterLike:
             """Return a meter from the configured provider."""
-            return metrics.get_meter(name or settings.APP_NAME)
+            return metrics.get_meter(name or settings.APP_NAME)  # type: ignore
 
         setup_observability = _setup_observability_impl
         get_tracer = _get_tracer_impl

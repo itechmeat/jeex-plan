@@ -264,15 +264,19 @@ class HNSWConfigurator:
             Configuration summary with descriptions
         """
         return {
-            "global_graph": "Disabled (multi-tenant optimized)"
-            if config.get("m") == 0
-            else f"Enabled (m={config.get('m')})",
+            "global_graph": (
+                "Disabled (multi-tenant optimized)"
+                if config.get("m") == 0
+                else f"Enabled (m={config.get('m')})"
+            ),
             "payload_connections": f"m={config.get('payload_m')} connections",
             "construction_quality": f"ef_construct={config.get('ef_construct')}",
             "search_quality": f"ef={config.get('ef')}",
-            "indexing_threads": "All available"
-            if config.get("max_indexing_threads") == 0
-            else f"{config.get('max_indexing_threads')} threads",
+            "indexing_threads": (
+                "All available"
+                if config.get("max_indexing_threads") == 0
+                else f"{config.get('max_indexing_threads')} threads"
+            ),
             "full_scan_threshold": f"{config.get('full_scan_threshold')} vectors",
         }
 

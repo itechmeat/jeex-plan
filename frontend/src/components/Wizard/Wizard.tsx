@@ -24,6 +24,7 @@ export interface WizardProps {
   onCancel?: () => void;
   initialData?: Record<string, unknown>;
   className?: string;
+  emptyStateMessage?: string;
 }
 
 export const Wizard: React.FC<WizardProps> = ({
@@ -32,6 +33,7 @@ export const Wizard: React.FC<WizardProps> = ({
   onCancel,
   initialData = {},
   className,
+  emptyStateMessage = 'No steps available',
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [wizardData, setWizardData] = useState(initialData);
@@ -58,7 +60,7 @@ export const Wizard: React.FC<WizardProps> = ({
   if (!steps || steps.length === 0) {
     return (
       <div className={classNames(styles.wizard, styles.empty, className)}>
-        <div className={styles.emptyMessage}>No steps available</div>
+        <div className={styles.emptyMessage}>{emptyStateMessage}</div>
       </div>
     );
   }

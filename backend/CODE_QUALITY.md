@@ -78,7 +78,7 @@ Add to `.vscode/settings.json`:
   "python.formatting.provider": "none",
   "python.linting.enabled": true,
   "ruff.enabled": true,
-  "ruff.path": "./backend/venv/bin/ruff",
+  "ruff.path": "./.venv/bin/ruff",
   "ruff.args": ["--config", "./backend/pyproject.toml"],
   "[python]": {
     "editor.formatOnSave": true,

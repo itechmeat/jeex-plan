@@ -5,7 +5,7 @@ Separated from AuthService to follow Single Responsibility Principle.
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any
 
 from jose import JWTError, jwt  # type: ignore[import-untyped]
 
@@ -45,10 +45,7 @@ class TokenService:
         )
 
         try:
-            token: str = cast(
-                str, jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
-            )
-            return token
+            return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)  # type: ignore[no-any-return]
         except Exception as e:
             raise ValueError(f"Failed to create access token: {e}") from e
 
@@ -74,10 +71,7 @@ class TokenService:
         )
 
         try:
-            token: str = cast(
-                str, jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
-            )
-            return token
+            return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)  # type: ignore[no-any-return]
         except Exception as e:
             raise ValueError(f"Failed to create refresh token: {e}") from e
 
@@ -89,9 +83,8 @@ class TokenService:
             return None
 
         try:
-            payload: dict[str, Any] = cast(
-                dict[str, Any],
-                jwt.decode(token, self.secret_key, algorithms=[self.algorithm]),
+            payload: dict[str, Any] = jwt.decode(
+                token, self.secret_key, algorithms=[self.algorithm]
             )
 
             if payload.get("type") != token_type:

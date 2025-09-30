@@ -26,6 +26,94 @@ Build production-grade FastAPI backends in the `backend/` directory using modern
 
 ## CRITICAL PROHIBITIONS (Zero Tolerance = Immediate Rejection)
 
+### ❌ ABSOLUTE PROHIBITION - Fallbacks, Mocks, and Stubs
+
+**ZERO TOLERANCE FOR NON-PRODUCTION CODE:**
+
+```python
+# ❌ WRONG - Default tenant fallback (PROHIBITED)
+async def get_or_create_default_tenant() -> UUID:
+    tenant = await tenant_repo.get_by_slug("default")
+    if not tenant:
+        tenant = Tenant(name="Default", slug="default")
+    return tenant.id
+
+# ❌ WRONG - Optional tenant_id with fallback (PROHIBITED)
+async def authenticate_user(tenant_id: UUID | None = None) -> User:
+    if not tenant_id:
+        tenant_id = await get_or_create_default_tenant()  # WRONG!
+
+# ❌ WRONG - String conversion fallback (PROHIBITED)
+def serialize_for_cache(value: Any) -> str:
+    return str(value)  # Lossy conversion
+
+# ❌ WRONG - Mock/stub implementations (PROHIBITED)
+async def send_email(to: str, subject: str, body: str) -> bool:
+    logger.info("Email sent")  # Stub - not actually sending
+    return True
+
+# ❌ WRONG - Placeholder values (PROHIBITED)
+OPENAI_API_KEY = "sk-placeholder-key"  # TODO: Replace with real key
+
+# ✅ ALLOWED - TODO/FIXME for unimplemented features
+# TODO: Add proper error handling (better than hidden fallback)
+# FIXME: Implement real email service
+
+# ❌ WRONG - Generic error messages (PROHIBITED)
+except Exception as e:
+    return {"error": "Failed to process"}  # Lost original error
+```
+
+**✅ CORRECT - Production-Ready Code:**
+
+```python
+# ✅ CORRECT - Explicit tenant_id requirement (REQUIRED)
+async def authenticate_user(tenant_id: UUID) -> User:
+    """Tenant ID is REQUIRED - no defaults, no fallbacks."""
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required for authentication"
+        )
+
+# ✅ CORRECT - Strict type checking (REQUIRED)
+def serialize_for_cache(value: Any) -> str:
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return value
+    raise TypeError(
+        f"Cannot serialize type {type(value).__name__} for cache. "
+        f"Only primitives are supported."
+    )
+
+# ✅ CORRECT - Real implementations (REQUIRED)
+async def send_email(to: str, subject: str, body: str) -> bool:
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            settings.EMAIL_API_URL,
+            json={"to": to, "subject": subject, "body": body}
+        )
+        response.raise_for_status()
+        return True
+
+# ✅ CORRECT - Preserve original errors (REQUIRED)
+except HTTPException:
+    raise  # Re-raise as-is
+except Exception as e:
+    logger.error("Database error", error=str(e), exc_info=True)
+    raise  # Preserve original exception
+```
+
+**ENFORCEMENT:**
+- **tenant_id** is REQUIRED (UUID, never Optional, never None)
+- **NO** default tenant creation or fallback logic
+- **NO** mock/stub implementations outside test directories
+- **NO** placeholder API keys or configuration values
+- **YES** TODO/FIXME comments allowed for unimplemented functionality
+- **NO** string conversion fallbacks - raise TypeError
+- **NO** generic error messages - preserve original errors
+- **ALL** implementations must be production-ready (or explicitly marked with TODO)
+- **ALL** async operations must use httpx/aiohttp (never requests)
+
 ### ❌ NEVER USE - Synchronous Patterns
 
 ```python

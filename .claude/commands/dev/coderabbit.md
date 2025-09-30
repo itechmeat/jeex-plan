@@ -60,13 +60,53 @@ Common error scenarios:
 **Step 2: Agent Selection and Activation**
 **ONLY proceed if CodeRabbit analysis completed successfully without errors.**
 
+**CRITICAL: NO FALLBACKS, MOCKS, OR STUBS RULE**
+
+Before activating any agent, inject these ABSOLUTE requirements into the agent prompt:
+
+**PROHIBITED IN PRODUCTION CODE:**
+- ❌ **NO fallback logic** except for legitimate architectural patterns (Vault→Env, JWT→Headers for dev/test, Tenant→IP for rate limiting)
+- ❌ **NO default tenant creation or fallback** - tenant_id must be explicit and required
+- ❌ **NO mock/stub implementations** - only real, functional code
+- ❌ **NO placeholder values** - all values must be real and functional
+- ❌ **NO string conversion fallbacks** - raise TypeError for unsupported types
+- ❌ **NO generic error messages** - preserve original errors with full context
+
+**ALLOWED:**
+- ✅ **TODO/FIXME comments** - better explicit TODO than hidden fallback/mock
+- ✅ **Unimplemented functions** - throw NotImplementedError with clear message
+
+**REQUIRED IN ALL CODE:**
+- ✅ **Real implementations only** - no temporary or partial solutions with fallbacks
+- ✅ **Explicit error handling** - fail fast with clear error messages
+- ✅ **Type safety** - strict type checking, no 'any' types
+- ✅ **Multi-tenant isolation** - tenant_id required, no defaults
+
 **If the argument equals "frontend" or includes "frontend/":**
 
 ```
 Use the Task tool with parameters:
 - subagent_type: "tech-frontend"
 - description: "Fix CodeRabbit frontend issues"
-- prompt: "Perform a systematic fix for every issue CodeRabbit found in the frontend code: [insert the CodeRabbit analysis output]. Resolve each issue according to the guidance in the 'Prompt for AI Agent' sections. Follow all React 19+, TypeScript, accessibility, and performance principles."
+- prompt: "INTELLIGENT TRIAGE REQUIRED: Balance MVP pragmatism with code quality. Use the severity matrix to decide which issues to fix vs skip.
+
+🚨 CRITICAL (FIX IMMEDIATELY): Security vulnerabilities, data leaks, fallbacks/mocks/stubs, critical bugs
+⚠️ HIGH (SHOULD FIX): Performance issues, reliability problems, architecture violations (unless MVP constraint)
+📋 MEDIUM (JUDGMENT CALL): Code quality, type safety, best practices (fix if quick win, defer if complex)
+ℹ️ LOW (SKIP): Style issues, formatting, naming preferences (formatters handle these)
+🤔 CONTEXT-DEPENDENT: Use engineering judgment - skip outdated suggestions, over-engineering, false positives
+
+CRITICAL: NO FALLBACKS, MOCKS, OR STUBS IN PRODUCTION CODE. Tenant_id must be explicit and required. TODO/FIXME allowed for unimplemented functionality.
+
+Analyze CodeRabbit output: [insert the CodeRabbit analysis output]
+
+For each issue:
+1. Categorize severity (CRITICAL/HIGH/MEDIUM/LOW/CONTEXT-DEPENDENT)
+2. Make fix/skip/defer decision based on matrix
+3. Document deferred HIGH/MEDIUM issues with TODO comments
+4. Apply fixes following React 19+, TypeScript strict, accessibility standards
+
+Provide STRUCTURED TRIAGE REPORT with fix status for each issue."
 ```
 
 **If the argument equals "backend" or includes "backend/":**
@@ -75,7 +115,25 @@ Use the Task tool with parameters:
 Use the Task tool with parameters:
 - subagent_type: "tech-python"
 - description: "Fix CodeRabbit backend issues"
-- prompt: "Perform a systematic fix for every issue CodeRabbit found in the backend code: [insert the CodeRabbit analysis output]. Resolve each issue according to the guidance in the 'Prompt for AI Agent' sections. Follow architectural principles, security requirements, and multi-tenant isolation."
+- prompt: "INTELLIGENT TRIAGE REQUIRED: Balance MVP pragmatism with code quality. Use the severity matrix to decide which issues to fix vs skip.
+
+🚨 CRITICAL (FIX IMMEDIATELY): Security vulnerabilities, data leaks, fallbacks/mocks/stubs, critical bugs
+⚠️ HIGH (SHOULD FIX): Performance issues, reliability problems, architecture violations (unless MVP constraint)
+📋 MEDIUM (JUDGMENT CALL): Code quality, type safety, best practices (fix if quick win, defer if complex)
+ℹ️ LOW (SKIP): Style issues, formatting, naming preferences (formatters handle these)
+🤔 CONTEXT-DEPENDENT: Use engineering judgment - skip outdated suggestions, over-engineering, false positives
+
+CRITICAL: NO FALLBACKS, MOCKS, OR STUBS IN PRODUCTION CODE. NO default tenant fallbacks. Tenant_id must be explicit and required (never Optional). TODO/FIXME allowed for unimplemented functionality.
+
+Analyze CodeRabbit output: [insert the CodeRabbit analysis output]
+
+For each issue:
+1. Categorize severity (CRITICAL/HIGH/MEDIUM/LOW/CONTEXT-DEPENDENT)
+2. Make fix/skip/defer decision based on matrix
+3. Document deferred HIGH/MEDIUM issues with TODO comments
+4. Apply fixes following architectural principles, security requirements, multi-tenant isolation
+
+Provide STRUCTURED TRIAGE REPORT with fix status for each issue."
 ```
 
 **If the argument equals "all" or is omitted:**
@@ -87,16 +145,197 @@ Use the Task tool with parameters:
 4. When required, run both agents in parallel
 ```
 
-**Step 3: Specialized Agent Execution**
+**Step 3: Issue Triage and Decision Making**
 
-The activated agent must:
+Before applying any fixes, the agent must **INTELLIGENTLY TRIAGE** all CodeRabbit issues using the decision matrix below.
 
-1. **Read each issue carefully** - understand the problem, location, and proposed fix
-2. **Implement exact fixes** - apply the precise corrections from the "Prompt for AI Agent" sections
-3. **Maintain consistency** - follow existing patterns and conventions
-4. **Preserve functionality** - ensure the fixes do not break functionality
-5. **Follow project standards** - comply with the principles in CLAUDE.md
-6. **Test critical changes** - validate the complex fixes
+**PHILOSOPHY: Flexible triage with project benefit focus. LLM decides what helps the project most.**
+
+### 🚨 CRITICAL SEVERITY - MUST FIX IMMEDIATELY (Security/Data Loss)
+
+Apply these fixes **WITHOUT QUESTION**:
+
+1. **Security Vulnerabilities:**
+   - SQL injection, XSS, CSRF vulnerabilities
+   - Hardcoded secrets (API keys, passwords, tokens)
+   - Authentication/authorization bypass
+   - Timing attacks in security-critical code
+   - Missing input validation on user data
+
+2. **Data Leaks:**
+   - Missing `tenant_id` in multi-tenant queries
+   - Cross-tenant data access
+   - Sensitive data in logs (passwords, PII, tokens)
+   - Unvalidated tenant context
+
+3. **Zero-Tolerance Violations:**
+   - Fallback to default tenant (ALWAYS FIX)
+   - Mock/stub implementations in production code
+   - String conversion fallbacks that hide errors
+   - Placeholder API keys or secrets
+
+4. **Critical Bugs:**
+   - Race conditions causing data corruption
+   - Unhandled exceptions in critical paths
+   - Resource leaks (unclosed DB connections, file handles)
+   - Infinite loops without proper exit conditions
+
+**ACTION: FIX IMMEDIATELY - These issues block production deployment.**
+
+---
+
+### ⚠️ HIGH SEVERITY - SHOULD FIX (Reliability/Performance)
+
+**LLM DECISION REQUIRED** - Fix if it clearly benefits the project:
+
+1. **Performance Issues:**
+   - N+1 query problems
+   - Missing database indexes on tenant_id
+   - Memory leaks in long-running processes
+   - Inefficient algorithms causing noticeable slowdown
+
+2. **Reliability Issues:**
+   - Missing error handling in critical flows
+   - Improper transaction management
+   - Missing rollback on errors
+   - Edge cases not handled
+
+3. **Architecture Violations:**
+   - Breaking multi-tenant isolation patterns
+   - Bypassing repository pattern (direct DB access)
+   - Violating DRY principles in critical code
+   - Missing abstraction layers
+
+**DECISION CRITERIA:**
+- **FIX IF**: Clear benefit to code quality, maintainability, or performance
+- **DEFER IF**: Minor issue, current approach works fine, or refactoring would be extensive
+- **SKIP IF**: Suggestion is outdated or doesn't fit project context
+
+---
+
+### 📋 MEDIUM SEVERITY - JUDGMENT CALL (Code Quality)
+
+**LLM USES ENGINEERING JUDGMENT** based on project context:
+
+1. **Code Quality:**
+   - Minor refactoring suggestions (extract method, rename)
+   - Complex logic that could be simplified
+   - Missing unit tests (if not blocking deployment)
+   - Code duplication concerns
+
+2. **Type Safety:**
+   - Missing type hints (Python) or type annotations (TypeScript)
+   - Using `Any` type when specific type is known
+   - Type assertions that could be type guards
+
+3. **Best Practices:**
+   - Not using async/await where beneficial
+   - Inconsistent error handling patterns
+   - Magic numbers that should be constants
+   - Missing validation
+
+**DECISION CRITERIA:**
+- **FIX IF**: Quick win (<5 min) OR significantly improves code clarity
+- **DEFER IF**: Current code works fine and change adds complexity
+- **SKIP IF**: Suggestion is outdated or doesn't fit current architecture
+
+---
+
+### ℹ️ LOW SEVERITY - PREFERENCE-BASED (Style/Personal)
+
+**LLM DECIDES based on project needs and current state:**
+
+1. **Style Issues:**
+   - **SKIP**: Formatting inconsistencies (formatters handle this)
+   - **SKIP**: Import ordering (tools handle this)
+   - **CONSIDER**: Comment formatting (if improves documentation)
+   - **SKIP**: Line length (unless truly unreadable)
+
+2. **Naming Conventions:**
+   - **CONSIDER**: Variable naming (if truly confusing)
+   - **SKIP**: Function naming preferences (follow existing patterns)
+   - **SKIP**: Style preferences (camelCase vs snakeCase)
+
+3. **Subjective Improvements:**
+   - **SKIP**: "Could use more descriptive name" (if current name is clear)
+   - **SKIP**: "Consider using ternary operator" (preference)
+   - **SKIP**: "This could be a one-liner" (preference unless more readable)
+
+**DECISION LOGIC:**
+- **SKIP**: Most style/preference issues
+- **CONSIDER**: Only if it significantly improves readability
+- **FIX**: Rarely, only if current code is genuinely problematic
+
+---
+
+### 🤔 CONTEXT-DEPENDENT - PROJECT BENEFIT ANALYSIS
+
+**LLM EVALUATES each suggestion individually:**
+
+**1. Outdated Suggestions:**
+- **SKIP**: CodeRabbit suggests older pattern but code uses modern approach
+- **EXAMPLE**: Suggests class components when using React 19+ hooks
+- **REASONING**: Tool may not know latest best practices
+
+**2. MVP vs Ideal Code:**
+- **DECIDE CASE-BY-CASE**: Balance code quality with development velocity
+- **FIX IF**: Quick win with clear benefit
+- **DEFER IF**: Extensive refactoring for minor improvement
+- **SKIP IF**: Current approach works fine
+
+**3. False Positives:**
+- **SKIP**: CodeRabbit misunderstands context
+- **SKIP**: Flags legitimate architectural pattern as anti-pattern
+- **SKIP**: Suggests removing code that's actually needed
+- **REASONING**: LLM understands codebase better than generic suggestions
+
+**4. Over-Engineering:**
+- **SKIP**: Suggestion adds complexity without clear benefit
+- **SKIP**: "Extract this 3-line function" when only used once
+- **SKIP**: "Add factory pattern" for simple object creation
+- **REASONING**: Simpler is often better
+
+**5. Formatters and Linters:**
+- **SKIP**: Anything that formatters (Biome/Black/ESLint) handle automatically
+- **SKIP**: Import sorting, basic formatting, style issues
+- **FOCUS**: Substantive code improvements only
+
+---
+
+### 📝 DOCUMENTATION REQUIREMENTS
+
+When **SKIPPING** or **DEFERRING** an issue, document the decision:
+
+```python
+# CodeRabbit Triage Decision: DEFERRED
+# Issue: Extract method for complex logic (Medium Severity)
+# Reasoning: MVP timeline priority - works correctly, can refactor post-launch
+# TODO: Refactor processUserData() after MVP (split into smaller functions)
+async def processUserData(data: dict) -> ProcessedData:
+    # Current implementation...
+```
+
+**ALWAYS document when skipping:**
+- ⚠️ HIGH SEVERITY issues (must have strong justification)
+- 📋 MEDIUM SEVERITY issues (explain MVP trade-off)
+
+**No documentation needed when skipping:**
+- ℹ️ LOW SEVERITY (style/preference issues)
+
+---
+
+**Step 4: Specialized Agent Execution**
+
+After triage, the activated agent must:
+
+1. **Apply CRITICAL fixes immediately** - no discussion needed
+2. **Evaluate HIGH/MEDIUM issues** - use decision matrix above
+3. **Skip LOW severity issues** - focus on substance
+4. **Document deferred issues** - with clear reasoning
+5. **Maintain consistency** - follow existing patterns and conventions
+6. **Preserve functionality** - ensure fixes don't break anything
+7. **Follow project standards** - comply with CLAUDE.md principles
+8. **Test critical changes** - validate security/data fixes
 
 ## Key Principles for Agents
 
@@ -116,12 +355,74 @@ The activated agent must:
 
 ## Expected Output from Specialized Agents
 
-- **Analysis Summary**: List of all issues found and their categorization
-- **Fix Status**: Status of each issue (fixed/skipped/needs-review)
-- **Changes Summary**: Detailed summary of changes made by the agent
-- **Manual Review Items**: Any issues requiring manual review or additional context
-- **Quality Verification**: Confirmation that critical functionality remains intact
-- **Test Results**: Results of type-check, lint, or other verification commands
+The agent must provide a **STRUCTURED TRIAGE REPORT**:
+
+### 1. **Issue Triage Summary**
+
+Categorize all CodeRabbit issues by severity:
+
+```
+🚨 CRITICAL (MUST FIX): X issues
+⚠️ HIGH (SHOULD FIX): X issues
+📋 MEDIUM (CONSIDER): X issues
+ℹ️ LOW (SKIP): X issues
+🤔 CONTEXT-DEPENDENT: X issues
+```
+
+### 2. **Fix Status Report**
+
+For each issue, document the decision:
+
+```
+Issue #1: [Description]
+Severity: CRITICAL
+Decision: ✅ FIXED
+Location: file.py:123
+Reasoning: SQL injection vulnerability - immediate fix required
+
+Issue #2: [Description]
+Severity: MEDIUM
+Decision: ⏸️ DEFERRED
+Location: file.py:456
+Reasoning: Minor refactoring - MVP timeline priority, added TODO
+Documentation: Added comment with post-MVP action item
+
+Issue #3: [Description]
+Severity: LOW
+Decision: ⏭️ SKIPPED
+Location: file.py:789
+Reasoning: Code style - handled by formatters
+```
+
+### 3. **Changes Summary**
+
+Detailed list of implemented fixes:
+- Files modified
+- Critical security fixes applied
+- Performance improvements made
+- Documentation added for deferred items
+
+### 4. **Deferred Items Log**
+
+List all deferred HIGH/MEDIUM severity issues with:
+- Issue description
+- Location
+- Reasoning for deferral
+- TODO comment added in code
+
+### 5. **Quality Verification**
+
+- ✅ All CRITICAL issues resolved
+- ✅ Security vulnerabilities fixed
+- ✅ Multi-tenant isolation maintained
+- ✅ Type checks passing
+- ✅ Tests passing (if applicable)
+
+### 6. **Recommendations**
+
+- Priority issues for post-MVP
+- Technical debt introduced (if any)
+- Suggested follow-up tasks
 
 ## Command Execution Flow
 

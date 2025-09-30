@@ -10,7 +10,6 @@ import pytest
 import scripts.init_vault as init_vault_script
 from app.core.config import Settings, VaultSettings
 from app.core.vault import (
-    DEV_PLACEHOLDER_TOKEN,
     VaultClient,
     get_jwt_secret,
     get_oauth_secrets,
@@ -37,16 +36,17 @@ class TestVaultClient:
         assert vault_client.timeout == 10
 
     @pytest.mark.asyncio
-    async def test_vault_client_placeholder_token_in_development(
+    async def test_vault_client_requires_token_in_development(
         self, monkeypatch
     ) -> None:
-        """VaultClient uses placeholder token when missing in development."""
+        """VaultClient raises when VAULT_TOKEN is absent in development environment."""
         monkeypatch.setenv("ENVIRONMENT", "development")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
 
-        client = VaultClient(vault_url="http://vault:8200")
-
-        assert client.vault_token == DEV_PLACEHOLDER_TOKEN
+        with pytest.raises(
+            RuntimeError, match="VAULT_TOKEN environment variable must be set"
+        ):
+            VaultClient(vault_url="http://vault:8200")
 
     @pytest.mark.asyncio
     async def test_vault_client_requires_token_outside_development(
@@ -56,7 +56,9 @@ class TestVaultClient:
         monkeypatch.setenv("ENVIRONMENT", "production")
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(
+            RuntimeError, match="VAULT_TOKEN environment variable must be set"
+        ):
             VaultClient(vault_url="http://vault:8200")
 
     @pytest.mark.asyncio
@@ -340,8 +342,7 @@ class TestVaultInitialization:
         await init_vault_secrets()
 
         # Verify all expected secrets were stored
-
-        assert mock_put_secret.call_count == 4
+        assert mock_put_secret.call_count == 3
 
         # Check that database secrets were stored
         database_call = next(
@@ -535,11 +536,9 @@ class TestVaultClientLifecycle:
     """Test Vault client lifecycle management."""
 
     @pytest.mark.asyncio
-    async def test_client_close(self, monkeypatch) -> None:
+    async def test_client_close(self) -> None:
         """Test closing Vault client."""
-        monkeypatch.setenv("ENVIRONMENT", "development")
-        monkeypatch.delenv("VAULT_TOKEN", raising=False)
-        client = VaultClient()
+        client = VaultClient(vault_token="test-token")
 
         # Simulate client being used
         with patch("httpx.AsyncClient") as mock_client_class:
@@ -557,11 +556,9 @@ class TestVaultClientLifecycle:
             mock_client_instance.aclose.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_client_reuse(self, monkeypatch) -> None:
+    async def test_client_reuse(self) -> None:
         """Test that client instances are reused."""
-        monkeypatch.setenv("ENVIRONMENT", "development")
-        monkeypatch.delenv("VAULT_TOKEN", raising=False)
-        client = VaultClient()
+        client = VaultClient(vault_token="test-token")
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client_instance = AsyncMock()

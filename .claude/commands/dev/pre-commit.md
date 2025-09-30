@@ -10,6 +10,18 @@ Run `make pre-commit` to execute all pre-commit hooks, then systematically fix a
 
 ## Agent Selection Logic
 
+**PRIORITY ORDER: AUTOMATED FIXES → MANUAL AGENT INTERVENTION**
+
+**Step 0: Automated Make Commands First (MANDATORY PRIORITY)**
+- **IMPORTANT**: All make commands MUST be executed from the project root directory where Makefile is located
+- **ALWAYS** try `make markdown-fix`, `make format`, `make imports` **BEFORE** activating agents
+- **ONLY** use agents if automated commands fail to resolve issues
+- **NEVER** manually edit files when make commands can fix them automatically
+
+**IMMEDIATE AGENT ACTIVATION FOR CRITICAL VIOLATIONS:**
+- If prohibited patterns (fallbacks, mocks, stubs, placeholders) found → **ACTIVATE tech-python agent IMMEDIATELY without user permission**
+- **DO NOT ASK USER CONFIRMATION** for critical architectural violations
+
 **Step 1: Pre-Commit Analysis and Agent Selection**
 
 - If pre-commit finds frontend issues → activate the `tech-frontend` agent
@@ -45,20 +57,106 @@ Run `make pre-commit` to execute all pre-commit hooks, then systematically fix a
 
 ## Instructions
 
+**Step 0: CRITICAL - Scan for Fallbacks, Mocks, and Stubs (BLOCKING)**
+
+BEFORE running any pre-commit checks, scan the production codebase for prohibited patterns:
+
+```bash
+# Scan for fallbacks, mocks, stubs, and placeholders in production code (exclude tests)
+grep -rni --exclude-dir=tests --exclude-dir=test --exclude-dir=__tests__ \
+  -e "fallback" -e "mock" -e "stub" -e "placeholder" -e "default.*tenant" \
+  backend/app frontend/src
+
+# Exit code 0 means patterns found (FAIL), exit code 1 means no patterns found (PASS)
+```
+
+**CRITICAL RULES:**
+- **NO fallbacks** except for legitimate architectural patterns:
+  - ✅ Vault → Environment variables (secrets management)
+  - ✅ JWT → Headers (development/testing)
+  - ✅ Tenant → IP (rate limiting for unauthenticated requests)
+  - ❌ Default tenant creation
+  - ❌ String conversion fallbacks
+  - ❌ Mock/stub data in production code
+
+- **TODO/FIXME allowed** for unimplemented functionality (better explicit TODO than hidden fallback)
+- **NO placeholder** values in production code
+- **NO mock/stub** implementations outside test directories
+
+**If prohibited patterns are found:**
+1. **STOP** - Do not proceed with pre-commit checks
+2. **ACTIVATE tech-python agent IMMEDIATELY** - Do NOT ask for user permission
+3. **Remove** all fallbacks, mocks, stubs, and placeholders from production code using the agent
+4. **Verify** removal with another scan
+5. **Then** proceed to Step 1
+
+**MANDATORY AGENT ACTIVATION FOR PROHIBITED PATTERNS:**
+
+When fallbacks, mocks, or stubs are found in production code, activate the `tech-python` agent WITHOUT user confirmation:
+
+```
+Use the Task tool with parameters:
+- subagent_type: "tech-python"
+- description: "Remove prohibited fallbacks/mocks/stubs"
+- prompt: "CRITICAL: Remove all prohibited fallbacks, mocks, stubs, and placeholder values from production code. Found patterns: [insert found patterns]. Replace with proper implementations or explicit TODO exceptions. Follow project rules: NO default tenant creation, NO mock data, NO placeholder values. Use architectural patterns like Vault → environment variables where appropriate. Verify removal with follow-up scan. Do not ask for permission - fix immediately."
+```
+
+**AUTOMATIC FIXING REQUIRED:**
+- Default tenant creation → Remove or replace with explicit tenant requirement
+- Mock responses → Replace with real implementations or explicit TODO
+- Placeholder values → Use config/environment variables or TODO
+- Fallback logic → Keep only legitimate architectural patterns (Vault→env, JWT→headers, Tenant→IP)
+
 **Step 1: Run Pre-Commit Checks**
-Execute all pre-commit hooks:
+Execute all pre-commit hooks (ensure you're in project root directory):
 
 !timeout 600 bash -c 'make pre-commit; echo "__PRECOMMIT_STATUS:$?"'
 
-**Step 2: Analyze Pre-Commit Output**
-Carefully review the pre-commit output to identify:
+**Step 2: Automated Fix Attempts with Make Commands (PRIORITY)**
+
+**ALWAYS TRY AUTOMATED FIXES FIRST before manual file-by-file editing:**
+
+**CRITICAL: All make commands MUST be executed from the project root directory where Makefile is located**
+
+1. **Markdown Issues → Run `make markdown-fix` command:**
+   ```bash
+   make markdown-fix
+   ```
+
+2. **Frontend Formatting Issues → Run `make format` command:**
+   ```bash
+   make format
+   ```
+
+3. **Backend Formatting Issues → Run automated tools:**
+   ```bash
+   make format
+   ```
+
+4. **Import Sorting Issues → Run automated sorting:**
+   ```bash
+   make imports
+   ```
+
+**Step 3: Verify Automated Fixes**
+Re-run pre-commit checks to see if automated commands resolved the issues (ensure you're in project root):
+
+```bash
+make pre-commit
+```
+
+**Step 4: Manual Agent Intervention (If Automated Fixes Failed)**
+
+Only if automated make commands did NOT resolve all issues, then proceed to manual file-by-file agent intervention:
+
+**Analyze remaining pre-commit output to identify:**
 
 1. **Issue types and locations**
 2. **Severity levels (errors vs warnings)**
 3. **Files affected and their locations** (frontend/, backend/, tests/)
 
-**Step 3: Agent Selection and Activation**
-Based on the pre-commit results, activate appropriate agents:
+**Step 5: Agent Selection and Activation**
+Based on the remaining pre-commit results (after automated fix attempts), activate appropriate agents:
 
 **If frontend issues found:**
 
@@ -154,7 +252,7 @@ pytest --junit-xml=reports/unit-tests.xml --html=reports/unit-tests.html --cov-r
 npx playwright test --reporter=html,junit --output-dir=reports/e2e/
 ```
 
-**Step 4: Specialized Agent Execution**
+**Step 6: Specialized Agent Execution**
 
 The activated agent must:
 
@@ -201,12 +299,20 @@ The activated agent must:
 
 ## Command Execution Flow
 
-1. **Run pre-commit checks** using `make pre-commit`
+1. **Run pre-commit checks** using `make pre-commit` (ensure you're in project root directory)
 2. **Analyze output** to identify issue types and affected areas
 3. **Activate matching agents** based on issue categorization
 4. **Pass specific error details** to each agent
 5. **Collect agent reports** detailing applied changes
 6. **Verify fixes** - ensure no new issues introduced
+
+## IMPORTANT LOCATION REQUIREMENT
+
+**All make commands MUST be executed from the project root directory where Makefile is located**
+
+- Use `cd ..` if you're in a subdirectory like `frontend/` or `backend/`
+- Verify you're in the correct directory by running `ls Makefile`
+- Make commands will fail with "No rule to make target" if not executed from the project root
 
 ## Usage Examples
 

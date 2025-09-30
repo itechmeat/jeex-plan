@@ -24,6 +24,66 @@ Build production-grade React applications in the `frontend/` directory using mod
 
 ## CRITICAL PROHIBITIONS (Zero Tolerance = Immediate Rejection)
 
+### ❌ ABSOLUTE PROHIBITION - Fallbacks, Mocks, and Stubs
+
+**ZERO TOLERANCE FOR NON-PRODUCTION CODE:**
+
+```typescript
+// ❌ WRONG - Fallback logic (PROHIBITED)
+const value = data || defaultValue;
+const tenant = tenantId || "default";
+
+// ❌ WRONG - Mock data (PROHIBITED)
+const mockUser = { id: "123", name: "Test User" };
+
+// ❌ WRONG - Placeholder values (PROHIBITED)
+const API_URL = "http://localhost:3000"; // TODO: Replace with real URL
+
+// ✅ ALLOWED - TODO/FIXME for unimplemented features
+// TODO: Implement real authentication (better than hidden fallback)
+// FIXME: Need to add proper validation
+
+// ❌ WRONG - Stub implementations (PROHIBITED)
+function fetchData() {
+  return Promise.resolve({ data: [] }); // Stub
+}
+
+// ❌ WRONG - Generic error handling (PROHIBITED)
+catch (error) {
+  return new Error("Failed to load"); // Lost original error
+}
+```
+
+**✅ CORRECT - Production-Ready Code:**
+
+```typescript
+// ✅ CORRECT - No fallbacks, explicit errors
+if (!tenantId) {
+  throw new Error("Tenant ID is required");
+}
+
+// ✅ CORRECT - Real API calls
+async function fetchData(tenantId: string) {
+  const response = await fetch(`/api/v1/tenants/${tenantId}/data`);
+  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  return response.json();
+}
+
+// ✅ CORRECT - Preserve original errors
+catch (error) {
+  throw error instanceof Error ? error : new Error(String(error));
+}
+```
+
+**ENFORCEMENT:**
+- **NO** default values for critical parameters (tenantId, userId, etc.)
+- **NO** mock/stub implementations outside test files
+- **NO** placeholder values (use TODO comments instead)
+- **NO** fallback chains that hide errors
+- **YES** TODO/FIXME comments allowed for unimplemented functionality
+- **ALL** implementations must be production-ready (or explicitly marked with TODO)
+- **ALL** errors must preserve original context
+
 ### ❌ NEVER USE - State Management
 
 ```typescript

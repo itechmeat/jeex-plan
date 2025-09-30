@@ -105,7 +105,15 @@
       "Bash(npx eslint:*)",
       "Bash(npx vite build:*)",
       "Bash(npx stylelint:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(STATUS=$?)",
+      "Bash(exit:*)",
+      "Bash(black:*)",
+      "Bash(poetry run black:*)",
+      "Bash(poetry run ruff:*)",
+      "Bash(poetry run python:*)",
+      "Bash(npx markdownlint:*)",
+      "Bash(markdownlint:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",

@@ -15,9 +15,7 @@ from ..contracts.base import (
     ProjectContext,
     ValidationResult,
 )
-from ..contracts.base import (
-    ValidationError as AgentValidationError,
-)
+from ..contracts.base import ValidationError as AgentValidationError
 from ..contracts.project_planner import Epic, ProjectPlannerInput, ProjectPlannerOutput
 
 
@@ -153,9 +151,7 @@ Include realistic timelines, dependencies, and risk assessment."""
     def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
         # Fix regex quantifier: remove space in {1,2}
-        pattern = (
-            rf"#{{{1, 2}}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{{1, 2}}}|\Z)"
-        )
+        pattern = rf"#{{1,2}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{1,2}}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -170,7 +166,7 @@ Include realistic timelines, dependencies, and risk assessment."""
 
     def _extract_text_section(self, content: str, section_name: str) -> str:
         """Extract text content from a markdown section (non-bullet format)."""
-        pattern = rf"#{1, 2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1, 2}|\Z)"
+        pattern = rf"#{{1,2}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{1,2}}|\Z)"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -223,9 +219,11 @@ Include realistic timelines, dependencies, and risk assessment."""
             epic = Epic(
                 id=f"{epic_id.zfill(2)}-{title.lower().replace(' ', '-')}",
                 title=title,
-                description=epic_content[:200] + "..."
-                if len(epic_content) > 200
-                else epic_content,
+                description=(
+                    epic_content[:200] + "..."
+                    if len(epic_content) > 200
+                    else epic_content
+                ),
                 tasks=tasks[:10],  # Limit to first 10 tasks
                 acceptance_criteria=acceptance_criteria,
                 dependencies=[],

@@ -114,8 +114,14 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         """Check CSRF protection for state-changing requests."""
 
-        # Skip CSRF protection in testing environment
-        if os.environ.get("ENVIRONMENT") == "testing":
+        # Skip CSRF protection in testing environment, unless explicitly testing CSRF
+        # This allows CSRF tests to function while bypassing CSRF for other tests
+        is_testing = os.environ.get("TESTING_MODE") == "true" or os.environ.get(
+            "PYTEST_CURRENT_TEST"
+        )
+        csrf_test_override = request.headers.get("X-CSRF-Test") == "enabled"
+
+        if is_testing and not csrf_test_override:
             return await call_next(request)
 
         # Skip CSRF protection for exempt paths

@@ -135,9 +135,9 @@ class EmbeddingService(LoggerMixin):
             correlation_id=_log_meta.get("correlation_id"),
             tenant_id=_log_meta.get("tenant_id"),
             project_id=_log_meta.get("project_id"),
-            doc_type=str(doc_type.value)
-            if hasattr(doc_type, "value")
-            else str(doc_type),
+            doc_type=(
+                str(doc_type.value) if hasattr(doc_type, "value") else str(doc_type)
+            ),
         )
 
         try:

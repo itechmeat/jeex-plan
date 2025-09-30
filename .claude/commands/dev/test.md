@@ -10,6 +10,11 @@ Run complete testing suite including E2E tests (Playwright) and backend tests (p
 
 ## Agent Selection Logic
 
+**IMMEDIATE TEST SKIPPING FOR UNIMPLEMENTED FEATURES:**
+- If tests fail for features with TODO/FIXME/NotImplementedError in source code → **SKIP TESTS IMMEDIATELY with TODO references**
+- **DO NOT implement missing features** during test fixing - only skip tests with clear documentation
+- **CHECK source code first** before attempting any fixes
+
 **Step 1: Test Analysis and Agent Selection**
 
 - If E2E tests fail → activate appropriate agents based on failure type
@@ -57,6 +62,38 @@ Execute Playwright test suite:
 Execute backend test suite:
 
 !bash -c 'echo "=== BACKEND TESTS STARTING ===" && cd backend && timeout 900 docker compose run --rm -T api pytest -q --tb=short; STATUS=$?; echo ""; echo "=== BACKEND TESTS COMPLETED ==="; echo "__PY_STATUS:$STATUS"; echo "=== END BACKEND TESTS ==="; exit $STATUS' || echo "\_\_PY_FAILED"
+
+**Step 2.5: Handle Unimplemented Feature Tests (CRITICAL)**
+
+**IMMEDIATE SKIPPING FOR UNIMPLEMENTED FEATURES:**
+
+If tests fail for features that are **explicitly marked as not implemented** with TODO comments in the code:
+
+1. **IDENTIFY TODO-RELATED FAILURES:** Check if failed tests correspond to features with `TODO`, `FIXME`, or `NotImplementedError` in the source code
+2. **SKIP TESTS IMMEDIATELY:** Add `@pytest.mark.skip(reason="Feature not implemented - TODO in source code")` to the test
+3. **DOCUMENT SKIPPING:** Add clear TODO comment in the test file explaining why it's skipped
+4. **NO CODE FIXES REQUIRED:** Do NOT attempt to implement the feature - only skip the test
+
+**Automatic TODO Detection Pattern:**
+```bash
+# For each failed test, check source code:
+grep -r "TODO\|FIXME\|NotImplementedError" backend/app --include="*.py" | grep -i "$(test_feature_name)"
+
+# If TODO found, skip the test immediately:
+pytest.mark.skip(reason="Feature not implemented - TODO exists in source code")
+```
+
+**Examples of TODO-Related Test Skipping:**
+- Test fails for `/projects/{id}/step1` → Check if `projects.py` has `TODO: Implement actual agent orchestration` → Skip test
+- Test fails for agent integration → Check if agent files have `NotImplementedError` → Skip test
+- Test fails for export functionality → Check if `export_project_documents` has `TODO` → Skip test
+
+**MANDATORY SKIPPING RULES:**
+- **DO NOT** implement missing features during test fixing
+- **DO NOT** modify production code to make tests pass
+- **ALWAYS** skip tests with clear TODO references
+- **MUST** document why each test is skipped
+- **VERIFY** skipping doesn't hide actually implemented bugs
 
 **Step 3: Analyze Test Results**
 Carefully review the test output to identify:

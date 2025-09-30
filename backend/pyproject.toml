@@ -92,14 +92,15 @@ module = [
 ignore_missing_imports = true
 
 # Override for modules that need more relaxed rules
+# TODO: These modules need type annotations and stricter typing in future iterations
 [[tool.mypy.overrides]]
 module = [
-    "app.middleware.tenant_filter",
-    "app.api.routes.vectors",
-    "app.services.cache",
-    "app.services.user",
-    "app.agents.base.llm_client",
-    "app.agents.base.vector_context",
+    "app.middleware.tenant_filter",    # Complex middleware with dynamic tenant context
+    "app.api.routes.vectors",          # Vector search with complex generic types
+    "app.services.cache",              # Redis caching with Any return types
+    "app.services.user",               # User service with legacy auth patterns
+    "app.agents.base.llm_client",      # LLM client with dynamic response types
+    "app.agents.base.vector_context",  # Vector context with complex embedding types
 ]
 # Allow these modules to be less strict temporarily
 disallow_untyped_defs = false
@@ -118,30 +119,33 @@ warn_return_any = false
 disable_error_code = ["override", "var-annotated", "call-arg", "no-untyped-def"]
 
 # Override for remaining problematic modules
+# TODO: High priority modules requiring comprehensive type refactoring
 [[tool.mypy.overrides]]
 module = [
-    "app.core.oauth",
-    "app.middleware.tenant",
-    "app.middleware.rate_limit",
-    "app.api.routes.projects",
-    "app.api.routes.auth",
-    "app.api.routes.agents",
-    "app.api.routes.document_generation",
-    "app.agents.orchestration.orchestrator",
-    "app.agents.orchestration.workflow",
-    "app.services.document_generation",
+    "app.core.oauth",                     # OAuth integration with third-party libraries
+    "app.middleware.tenant",              # Tenant extraction middleware
+    "app.middleware.rate_limit",          # Rate limiting with Redis integration
+    "app.api.routes.projects",            # Project CRUD with complex authorization
+    "app.api.routes.auth",                # Authentication endpoints with JWT handling
+    "app.api.routes.agents",              # Agent orchestration endpoints
+    "app.api.routes.document_generation", # Document generation with streaming
+    "app.agents.orchestration.orchestrator",  # Agent orchestration engine
+    "app.agents.orchestration.workflow",       # Workflow management system
+    "app.services.document_generation",   # Document generation service
 ]
+# Extensive error suppression needed due to legacy code patterns
 disable_error_code = ["no-untyped-def", "union-attr", "unused-ignore", "attr-defined", "return-value", "assignment", "arg-type", "call-arg", "no-any-return"]
 
 # Override for agent modules with complex inheritance
+# TODO: Agent implementations need inheritance refactoring for proper typing
 [[tool.mypy.overrides]]
 module = [
-    "app.agents.implementations.solution_architect",
-    "app.agents.implementations.project_planner",
-    "app.agents.implementations.engineering_standards",
-    "app.agents.implementations.business_analyst",
+    "app.agents.implementations.solution_architect",    # Solution architect agent
+    "app.agents.implementations.project_planner",       # Project planner agent
+    "app.agents.implementations.engineering_standards", # Engineering standards agent
+    "app.agents.implementations.business_analyst",      # Business analyst agent
 ]
-# Allow override violations temporarily
+# Allow method override violations temporarily due to base class design issues
 disable_error_code = ["override", "var-annotated"]
 
 [tool.pytest.ini_options]

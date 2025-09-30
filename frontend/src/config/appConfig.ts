@@ -5,20 +5,23 @@ export type AppConfig = {
   environment: string;
 };
 
-const fallbackBrandTitle = 'JEEX Plan';
-const fallbackBrandSubtitle = 'Documentation Generator';
-
-const toNonEmptyString = (value: string | undefined, fallback: string): string => {
+const validateRequiredEnv = (value: string | undefined, name: string): string => {
   const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : fallback;
+  if (!trimmed || trimmed.length === 0) {
+    throw new Error(`Required environment variable ${name} is not set or empty`);
+  }
+  return trimmed;
 };
 
 export const appConfig: AppConfig = {
-  brandTitle: toNonEmptyString(import.meta.env.VITE_BRAND_TITLE, fallbackBrandTitle),
-  brandSubtitle: toNonEmptyString(
+  brandTitle: validateRequiredEnv(import.meta.env.VITE_BRAND_TITLE, 'VITE_BRAND_TITLE'),
+  brandSubtitle: validateRequiredEnv(
     import.meta.env.VITE_BRAND_SUBTITLE,
-    fallbackBrandSubtitle
+    'VITE_BRAND_SUBTITLE'
   ),
-  appTitle: toNonEmptyString(import.meta.env.VITE_APP_TITLE, fallbackBrandTitle),
-  environment: toNonEmptyString(import.meta.env.VITE_ENVIRONMENT, 'development'),
+  appTitle: validateRequiredEnv(import.meta.env.VITE_APP_TITLE, 'VITE_APP_TITLE'),
+  environment: validateRequiredEnv(
+    import.meta.env.VITE_ENVIRONMENT,
+    'VITE_ENVIRONMENT'
+  ),
 };

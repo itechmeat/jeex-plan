@@ -1,5 +1,9 @@
 /**
  * Application-wide constants and configuration values
+ *
+ * NOTE: These strings are currently hardcoded in English.
+ * Future enhancement: Replace with i18n keys when internationalization is implemented.
+ * Example: CHECKING_AUTHENTICATION: t('auth.checking') instead of the literal string.
  */
 
 export const AUTH_MESSAGES = {

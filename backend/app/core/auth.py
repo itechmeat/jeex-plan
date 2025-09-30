@@ -298,16 +298,17 @@ async def get_current_user(
 class AuthDependency:
     """Enhanced auth dependency that provides both user and token access."""
 
-    def __init__(self) -> None:
-        self.user: User | None = None
-        self.token: str | None = None
+    def __init__(self, user: User | None = None, token: str | None = None) -> None:
+        # Use instance variables instead of shared mutable state
+        self.user = user
+        self.token = token
 
     async def __call__(
         self,
         credentials: HTTPAuthorizationCredentials = Depends(security),
         db: AsyncSession = Depends(get_db),
     ) -> "AuthDependency":
-        """Get current user and store token for logout purposes."""
+        """Get current user and return new instance with token for logout purposes."""
         auth_service = AuthService(db)
 
         credentials_exception = HTTPException(
@@ -317,25 +318,28 @@ class AuthDependency:
         )
 
         try:
-            self.token = credentials.credentials
-            self.user = await auth_service.get_user_by_token(self.token)
+            token = credentials.credentials
+            user = await auth_service.get_user_by_token(token)
 
-            if self.user is None:
+            if user is None:
                 raise credentials_exception
 
-            if not self.user.is_active:
+            if not user.is_active:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
                 )
 
-            return self
+            # Return new instance to avoid shared mutable state
+            return AuthDependency(user=user, token=token)
 
         except Exception as exc:
             raise credentials_exception from exc
 
 
-# Create reusable instance
-auth_dependency = AuthDependency()
+# Create factory function instead of shared instance
+def create_auth_dependency() -> AuthDependency:
+    """Factory function to create new auth dependency instances."""
+    return AuthDependency()
 
 
 async def get_current_active_user(

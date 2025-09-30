@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { AUTH_MESSAGES } from '../config/constants';
 import { ROUTES } from '../config/routes';
 import { useAuth } from '../contexts/useAuth';
+import { hasValidFromProperty, isValidRedirectPath } from '../utils/validation';
 import styles from './AuthLoader.module.css';
 
 interface PublicRouteProps {
@@ -10,19 +11,12 @@ interface PublicRouteProps {
   redirectTo?: string;
 }
 
-type LoginLocationState = {
-  from?: {
-    pathname?: string;
-  };
-};
-
 export const PublicRoute: React.FC<PublicRouteProps> = ({
   children,
   redirectTo = ROUTES.DASHBOARD,
 }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
-  const locationState = location.state as LoginLocationState | undefined;
 
   if (isLoading) {
     return (
@@ -37,10 +31,20 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
 
   if (isAuthenticated) {
     // For login page, respect the 'from' location if available
-    const finalRedirectTo =
-      typeof locationState?.from?.pathname === 'string'
-        ? locationState.from.pathname
-        : redirectTo;
+    // Validate and sanitize the redirect target to prevent open redirect vulnerability
+    let finalRedirectTo = redirectTo;
+
+    if (hasValidFromProperty(location.state)) {
+      const fromPath = location.state.from.pathname;
+      // Only allow safe relative paths
+      if (isValidRedirectPath(fromPath)) {
+        finalRedirectTo = fromPath;
+      } else {
+        console.warn(
+          `Invalid redirect path detected: "${fromPath}". Redirecting to default.`
+        );
+      }
+    }
 
     return <Navigate to={finalRedirectTo} replace />;
   }

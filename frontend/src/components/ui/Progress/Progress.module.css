@@ -43,7 +43,7 @@
 .indicator {
   width: 100%;
   height: 100%;
-  transition: transform 0.3s ease;
+  transition: transform 0.35s ease;
   transform: scaleX(var(--progress, 0));
   transform-origin: left;
   border-radius: var(--border-radius-xl, 0.75rem);

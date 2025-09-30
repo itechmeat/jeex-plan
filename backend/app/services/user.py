@@ -22,14 +22,24 @@ logger = logging.getLogger(__name__)
 class UserService:
     """Service for user management operations."""
 
-    def __init__(self, db: AsyncSession, tenant_id: uuid.UUID | None = None) -> None:
+    def __init__(self, db: AsyncSession, tenant_id: uuid.UUID) -> None:
+        """
+        Initialize UserService with required tenant context.
+
+        Args:
+            db: Async database session
+            tenant_id: REQUIRED tenant ID for multi-tenant isolation
+
+        Raises:
+            ValueError: If tenant_id is None or empty
+        """
+        if not tenant_id:
+            raise ValueError("Tenant ID is required for UserService initialization")
+
         self.db = db
         self.tenant_id = tenant_id
         # Repositories that require tenant_id
-        if tenant_id:
-            self.user_repo = UserRepository(db, tenant_id)
-        else:
-            self.user_repo = None
+        self.user_repo = UserRepository(db, tenant_id)
         # Global repositories (no tenant scope)
         self.tenant_repo = TenantRepository(db)
         self.auth_service = AuthService(db, tenant_id)
@@ -41,7 +51,6 @@ class UserService:
         username: str,
         password: str,
         full_name: str | None = None,
-        tenant_id: uuid.UUID | None = None,
     ) -> User:
         """
         Create a new user without generating tokens (for internal use).
@@ -51,7 +60,6 @@ class UserService:
             username: User's username
             password: User's password (will be validated for strength)
             full_name: User's full name (optional)
-            tenant_id: Tenant ID (optional, will use service's tenant_id if not provided)
 
         Returns:
             User: The created user object
@@ -62,19 +70,10 @@ class UserService:
 
         Note:
             This method always enforces password validation for security.
-            For testing, use dependency injection to provide a mock password service.
+            For testing, use dependency injection to provide a test password service.
         """
-        # Compute effective tenant_id first
-        if tenant_id:
-            effective_tenant_id = tenant_id
-        else:
-            effective_tenant_id = (
-                self.tenant_id or await self._get_or_create_default_tenant()
-            )
-
-        # Use local repository scoped to effective tenant for this operation
-        # This avoids mutating service state and is safe for concurrent requests
-        user_repo = UserRepository(self.db, effective_tenant_id)
+        # Use service's tenant_id (required by constructor)
+        user_repo = self.user_repo
 
         # Validate email availability (against correct tenant)
         if not await user_repo.check_email_availability(email):
@@ -110,7 +109,7 @@ class UserService:
             await self.db.rollback()
             logger.warning(
                 "User creation conflict for tenant %s (email=%s, username=%s)",
-                effective_tenant_id,
+                self.tenant_id,
                 email,
                 username,
                 exc_info=exc,
@@ -126,24 +125,11 @@ class UserService:
         username: str,
         password: str,
         full_name: str | None = None,
-        tenant_id: uuid.UUID | None = None,
     ) -> dict[str, Any]:
         """Register a new user with password authentication."""
 
-        # Compute effective tenant_id first
-        if tenant_id:
-            effective_tenant_id = tenant_id
-        elif self.tenant_id:
-            # Use tenant_id from service initialization
-            effective_tenant_id = self.tenant_id
-        else:
-            # Create default tenant for new registrations
-            effective_tenant_id = await self._get_or_create_default_tenant()
-
-        # Initialize repositories and auth service with effective tenant
-        self.tenant_id = effective_tenant_id
-        self.user_repo = UserRepository(self.db, self.tenant_id)
-        self.auth_service = AuthService(self.db, self.tenant_id)
+        # Use service's tenant_id (required by constructor)
+        # Repositories already initialized in constructor
 
         # Validate email availability (against correct tenant)
         if not await self.user_repo.check_email_availability(email):
@@ -178,7 +164,7 @@ class UserService:
             await self.db.rollback()
             logger.warning(
                 "User registration conflict for tenant %s (email=%s, username=%s)",
-                effective_tenant_id,
+                self.tenant_id,
                 email,
                 username,
                 exc_info=exc,
@@ -191,17 +177,15 @@ class UserService:
         # Initialize RBAC system for the tenant (if this is the first user)
         from ..services.rbac import RBACService
 
-        rbac_service = RBACService(self.db, effective_tenant_id)
+        rbac_service = RBACService(self.db, self.tenant_id)
         try:
-            await rbac_service.initialize_default_roles_and_permissions(
-                effective_tenant_id
-            )
+            await rbac_service.initialize_default_roles_and_permissions(self.tenant_id)
             await self.db.commit()  # Commit RBAC initialization
         except Exception as exc:
             await self.db.rollback()
             logger.exception(
                 "RBAC initialization failed during register_user for tenant %s",
-                effective_tenant_id,
+                self.tenant_id,
                 exc_info=exc,
             )
 
@@ -490,18 +474,15 @@ class UserService:
             "full_name": user.full_name,
             "is_active": user.is_active,
             "is_superuser": user.is_superuser,
-            "last_login_at": user.last_login_at.isoformat()
-            if user.last_login_at
-            else None,
+            "last_login_at": (
+                user.last_login_at.isoformat() if user.last_login_at else None
+            ),
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None,
         }
 
-    async def _get_or_create_default_tenant(self) -> uuid.UUID:
-        """Get or create default tenant."""
-        default_tenant = await self.tenant_repo.get_by_slug("default")
+    # REMOVED: _get_or_create_default_tenant() method
 
-        if not default_tenant:
-            default_tenant = await self.tenant_repo.create_default()
 
-        return default_tenant.id
+# This violates the strict no-fallback architecture rule.
+# Tenant context must be explicitly provided at all times.

@@ -1,5 +1,18 @@
 """
 Role-Based Access Control (RBAC) service for managing permissions and roles.
+
+Security Model:
+- All operations are tenant-scoped by default
+- When project_id is None, the service checks tenant-level permissions
+- When project_id is provided, the service checks project-specific permissions
+- Project membership is required for all access control decisions
+- Multi-tenant isolation is enforced through repository patterns
+
+Behavior for project_id=None:
+- Used for tenant-scoped operations (listing resources, creating new projects)
+- Checks user's active project memberships within the tenant
+- Requires at least one active project membership with the required permission
+- Prevents cross-tenant access escalation while allowing legitimate operations
 """
 
 import uuid

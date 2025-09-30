@@ -15,9 +15,7 @@ from ..contracts.base import (
     ProjectContext,
     ValidationResult,
 )
-from ..contracts.base import (
-    ValidationError as AgentValidationError,
-)
+from ..contracts.base import ValidationError as AgentValidationError
 from ..contracts.engineering_standards import (
     CodeStandard,
     EngineeringStandardsInput,
@@ -36,10 +34,13 @@ class EngineeringStandardsAgent(AgentBase):
                 "Establish comprehensive engineering standards, code quality "
                 "guidelines, and development best practices"
             ),
-            backstory="""You are a senior software engineer with deep expertise in code quality,
-            testing strategies, and development best practices across multiple technology stacks.
-            You focus on creating practical, enforceable standards that improve code quality
-            without hindering productivity.""",
+            backstory=(
+                "You are a senior software engineer with deep expertise in "
+                "code quality, testing strategies, and development best practices "
+                "across multiple technology stacks. You focus on creating "
+                "practical, enforceable standards that improve code quality "
+                "without hindering productivity."
+            ),
         )
 
     def get_input_model(self) -> type[AgentInput]:
@@ -119,7 +120,8 @@ for a technical project.
 [QA workflow and checkpoints]
 ```
 
-Create practical, enforceable standards that improve quality without hindering productivity."""
+Create practical, enforceable standards that improve quality without
+hindering productivity."""
 
     async def get_context_data(self, context: ProjectContext) -> dict[str, Any]:
         return await vector_context.get_previous_steps_context(
@@ -150,7 +152,9 @@ Focus on standards that can be automated and enforced through tooling."""
 
     def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
-        pattern = rf"#{1, 2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1, 2}|\Z)"
+        pattern = (
+            rf"#{{{1, 2}}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{{1, 2}}}|\Z)"
+        )
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -181,7 +185,9 @@ Focus on standards that can be automated and enforced through tooling."""
 
     def _extract_text_section(self, content: str, section_name: str) -> str:
         """Extract text content from a markdown section (non-bullet format)."""
-        pattern = rf"#{1, 2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1, 2}|\Z)"
+        pattern = (
+            rf"#{{{1, 2}}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{{1, 2}}}|\Z)"
+        )
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:

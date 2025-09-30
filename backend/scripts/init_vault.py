@@ -178,17 +178,20 @@ async def setup_enhanced_secrets():
         "max_connections": "20",
     }
 
-    # AI/LLM secrets (placeholders)
-    openai_secrets = {
-        "api_key": "sk-placeholder-openai-api-key-replace-in-production",
-        "default_model": "gpt-4",
-        "max_tokens": "4000",
-        "temperature": "0.7",
-    }
-
-    anthropic_secrets = {
-        "api_key": "sk-ant-placeholder-anthropic-key-replace-in-production"
-    }
+    # TODO: Configure AI/LLM secrets
+    # Placeholder API keys are prohibited in production code
+    # These must be configured with real API keys before use
+    # openai_secrets = {
+    #     "api_key": "REAL_OPENAI_API_KEY_REQUIRED",
+    #     "default_model": "gpt-4",
+    #     "max_tokens": "4000",
+    #     "temperature": "0.7",
+    # }
+    # anthropic_secrets = {
+    #     "api_key": "REAL_ANTHROPIC_API_KEY_REQUIRED"
+    # }
+    openai_secrets = {}
+    anthropic_secrets = {}
 
     # Application secrets
     app_secrets = {

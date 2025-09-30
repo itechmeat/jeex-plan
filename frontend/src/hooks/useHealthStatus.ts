@@ -256,6 +256,10 @@ export const healthUtils = {
    * Get status message for display
    */
   getStatusMessage(status: string): string {
+    // TODO: Consider implementing a proper localization system
+    // Previously used react-i18next but was removed to reduce dependencies
+    // For now, messages are hardcoded in English as per project requirements
+
     switch (status) {
       case 'pass':
         return 'All systems operational';

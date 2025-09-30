@@ -54,20 +54,20 @@ class PerformanceMetrics:
             "total_requests": total_requests,
             "total_time": total_time,
             "requests_per_second": total_requests / total_time if total_time > 0 else 0,
-            "avg_response_time": mean(self.response_times)
-            if self.response_times
-            else 0,
-            "median_response_time": median(self.response_times)
-            if self.response_times
-            else 0,
+            "avg_response_time": (
+                mean(self.response_times) if self.response_times else 0
+            ),
+            "median_response_time": (
+                median(self.response_times) if self.response_times else 0
+            ),
             "min_response_time": min(self.response_times) if self.response_times else 0,
             "max_response_time": max(self.response_times) if self.response_times else 0,
-            "p95_response_time": self._percentile(self.response_times, 95)
-            if self.response_times
-            else 0,
-            "p99_response_time": self._percentile(self.response_times, 99)
-            if self.response_times
-            else 0,
+            "p95_response_time": (
+                self._percentile(self.response_times, 95) if self.response_times else 0
+            ),
+            "p99_response_time": (
+                self._percentile(self.response_times, 99) if self.response_times else 0
+            ),
             "success_rate": self._calculate_success_rate(),
             "error_count": len(self.errors),
             "status_code_distribution": self._get_status_distribution(),

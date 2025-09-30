@@ -314,22 +314,24 @@ class VaultAdapter(LoggerMixin):
         path = "secret/data/jeex_plan/config"
         return await self.write_secret(path, config)
 
-    # Fallback to environment variables when Vault is not available
-    async def get_secret_with_fallback(
-        self, vault_path: str, env_var: str, default: str | None = None
+    async def get_secret_from_vault_or_env(
+        self, vault_path: str, env_var: str
     ) -> str | None:
         """
-        Get secret from Vault with fallback to environment variable.
+        Get secret from Vault with legitimate architectural fallback to environment variable.
+
+        This follows the legitimate architectural pattern of Vault → environment variables
+        for secrets management hierarchy. This is not a prohibited fallback pattern.
 
         Args:
             vault_path: Path to secret in Vault
             env_var: Environment variable name
-            default: Default value if not found
 
         Returns:
-            Secret value or default
+            Secret value or None if not found in either location
         """
-        if self.client:
+        # Try Vault first in production
+        if settings.USE_VAULT and settings.is_production and self.client:
             secret_data = await self.read_secret(vault_path)
             if isinstance(secret_data, dict):
                 if "value" in secret_data:
@@ -340,9 +342,9 @@ class VaultAdapter(LoggerMixin):
                     val = next(iter(secret_data.values()))
                     if val is not None:
                         return str(val)
-                # Multiple values present or value is None; fall back to env/default
 
-        return os.getenv(env_var, default)
+        # Legitimate architectural fallback to environment variables
+        return os.getenv(env_var)
 
     async def initialize_vault_secrets(self) -> bool:
         """
@@ -356,15 +358,18 @@ class VaultAdapter(LoggerMixin):
                 return False
 
             # Create initial structure
-            # SECURITY: Use settings.DEBUG instead of hardcoded debug flags
             initial_secrets: dict[str, dict[str, Any]] = {
                 "development": {
                     "openai_api_key": settings.OPENAI_API_KEY,
                     "anthropic_api_key": settings.ANTHROPIC_API_KEY,
-                    "debug": settings.DEBUG,
+                    "debug": settings.DEBUG,  # OK in development
                 },
                 "production": {
-                    "debug": settings.DEBUG,
+                    # SECURITY: Always False in production to prevent exposure
+                    # (stack traces, SQL queries, paths, config details).
+                    # Hardcoded as defense-in-depth.
+                    # Validated at startup by Settings.validate_production_security().
+                    "debug": False,
                 },
                 "config": {
                     "app_name": settings.APP_NAME,

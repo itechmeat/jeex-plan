@@ -141,12 +141,14 @@ class QdrantAdapter(LoggerMixin):
                 "version",
             ]
 
+            # Fetch collection info once to avoid redundant API calls in loop
+            # This reduces API calls from 6 (one per field) to 1
+            collection_info = self.client.get_collection(self.collection_name)
+            existing_indexes = collection_info.payload_schema or {}
+
             for field_name in payload_fields:
                 try:
-                    # Check if index already exists before creating
-                    collection_info = self.client.get_collection(self.collection_name)
-                    existing_indexes = collection_info.payload_schema or {}
-
+                    # Check if index already exists using cached collection info
                     if field_name in existing_indexes:
                         logger.debug("Payload index already exists", field=field_name)
                         continue

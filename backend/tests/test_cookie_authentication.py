@@ -8,7 +8,6 @@ across all authentication endpoints to prevent XSS attacks.
 import pytest
 from fastapi import status
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 
