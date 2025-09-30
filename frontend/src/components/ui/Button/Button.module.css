@@ -101,10 +101,6 @@
   position: relative;
 }
 
-.loading:hover {
-  background-color: var(--color-primary) !important;
-}
-
 @keyframes spin {
   from {
     transform: translate(-50%, -50%) rotate(0deg);
@@ -127,6 +123,14 @@
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 1;
+}
+
+/* Secondary, outline, and ghost variants use primary color for spinner */
+.secondary .spinner,
+.outline .spinner,
+.ghost .spinner {
+  border: 2px solid var(--color-primary-light);
+  border-top: 2px solid var(--color-primary);
 }
 
 .leftIcon,

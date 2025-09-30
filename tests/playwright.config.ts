@@ -1,62 +1,130 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from "@playwright/test";
 
-// Configuration constants with environment variable fallbacks
+// Helper function to safely parse integer environment variables
+function parseEnvInt(name: string, defaultValue: number): number {
+  const value = process.env[name];
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(
+      `Invalid environment variable ${name}: "${value}" is not a valid integer. Expected a number, got "${value}".`
+    );
+  }
+  return parsed;
+}
+
+// Helper function to validate Playwright option values against allowed values
+function validatePlaywrightOption<T extends string>(
+  name: string,
+  value: string | undefined,
+  allowedValues: readonly T[],
+  defaultValue: T
+): T {
+  if (!value) return defaultValue;
+  if (allowedValues.includes(value as T)) return value as T;
+  throw new Error(
+    `Invalid environment variable ${name}: "${value}" is not allowed. Must be one of: ${allowedValues.join(", ")}`
+  );
+}
+
+// Allowed values for Playwright options
+const TRACE_OPTIONS = ["on", "off", "on-first-retry", "on-all-retries", "retain-on-failure"] as const;
+const SCREENSHOT_OPTIONS = ["off", "on", "only-on-failure"] as const;
+const VIDEO_OPTIONS = ["off", "on", "retain-on-failure", "on-first-retry"] as const;
+
+// Allowed backend commands to prevent command injection
+// Note: This is a test configuration. Only these commands are allowed for security.
+const ALLOWED_BACKEND_COMMANDS = [
+  "cd .. && make up",
+  "cd .. && make dev",
+  "cd .. && make test-backend",
+  "docker-compose up -d",
+] as const;
+
+function validateBackendCommand(command: string | undefined): string {
+  const defaultCommand = "cd .. && make up";
+  if (!command) return defaultCommand;
+
+  if (ALLOWED_BACKEND_COMMANDS.includes(command as (typeof ALLOWED_BACKEND_COMMANDS)[number])) {
+    return command;
+  }
+
+  throw new Error(
+    `Invalid BACKEND_COMMAND: "${command}" is not in the allowlist. This prevents command injection attacks. ` +
+      `Allowed commands: ${ALLOWED_BACKEND_COMMANDS.join(", ")}`
+  );
+}
+
+// Configuration constants with environment variable fallbacks and validation
 const TEST_CONFIG = {
-  RETRIES_CI: parseInt(process.env.PLAYWRIGHT_RETRIES_CI || '2', 10),
-  RETRIES_LOCAL: parseInt(process.env.PLAYWRIGHT_RETRIES_LOCAL || '0', 10),
-  WORKERS_CI: parseInt(process.env.PLAYWRIGHT_WORKERS_CI || '1', 10),
-  FRONTEND_PORT: parseInt(process.env.FRONTEND_PORT || '5200', 10),
-  BACKEND_PORT: parseInt(process.env.BACKEND_PORT || '5210', 10),
-  HOST: process.env.TEST_HOST || '127.0.0.1',
-  FRONTEND_TIMEOUT: parseInt(process.env.FRONTEND_TIMEOUT || '120000', 10),
-  BACKEND_TIMEOUT: parseInt(process.env.BACKEND_TIMEOUT || '180000', 10),
-  BASE_URL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.TEST_HOST || '127.0.0.1'}:${process.env.FRONTEND_PORT || '5200'}`,
+  RETRIES_CI: parseEnvInt("PLAYWRIGHT_RETRIES_CI", 2),
+  RETRIES_LOCAL: parseEnvInt("PLAYWRIGHT_RETRIES_LOCAL", 0),
+  WORKERS_CI: parseEnvInt("PLAYWRIGHT_WORKERS_CI", 1),
+  FRONTEND_PORT: parseEnvInt("FRONTEND_PORT", 5200),
+  BACKEND_PORT: parseEnvInt("BACKEND_PORT", 5210),
+  HOST: process.env.TEST_HOST || "127.0.0.1",
+  FRONTEND_TIMEOUT: parseEnvInt("FRONTEND_TIMEOUT", 120000),
+  BACKEND_TIMEOUT: parseEnvInt("BACKEND_TIMEOUT", 180000),
+  BASE_URL:
+    process.env.PLAYWRIGHT_BASE_URL ||
+    `http://${process.env.TEST_HOST || "127.0.0.1"}:${parseEnvInt("FRONTEND_PORT", 5200)}`,
+  BACKEND_COMMAND: validateBackendCommand(process.env.BACKEND_COMMAND),
+  TRACE: validatePlaywrightOption("PLAYWRIGHT_TRACE", process.env.PLAYWRIGHT_TRACE, TRACE_OPTIONS, "on-first-retry"),
+  SCREENSHOT: validatePlaywrightOption(
+    "PLAYWRIGHT_SCREENSHOT",
+    process.env.PLAYWRIGHT_SCREENSHOT,
+    SCREENSHOT_OPTIONS,
+    "only-on-failure"
+  ),
+  VIDEO: validatePlaywrightOption("PLAYWRIGHT_VIDEO", process.env.PLAYWRIGHT_VIDEO, VIDEO_OPTIONS, "retain-on-failure"),
 };
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: Number(process.env.PW_RETRIES ?? (process.env.CI ? TEST_CONFIG.RETRIES_CI : TEST_CONFIG.RETRIES_LOCAL)),
   workers: process.env.CI
     ? TEST_CONFIG.WORKERS_CI
-    : (process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : undefined),
+    : process.env.PW_WORKERS
+    ? Number(process.env.PW_WORKERS)
+    : undefined,
 
   reporter: [
-    ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_REPORT || 'playwright-report' }],
-    ['json', { outputFile: process.env.PLAYWRIGHT_JSON_REPORT || 'test-results/results.json' }],
-    ['junit', { outputFile: process.env.PLAYWRIGHT_JUNIT_REPORT || 'test-results/results.xml' }]
+    ["html", { outputFolder: process.env.PLAYWRIGHT_HTML_REPORT || "playwright-report" }],
+    ["json", { outputFile: process.env.PLAYWRIGHT_JSON_REPORT || "test-results/results.json" }],
+    ["junit", { outputFile: process.env.PLAYWRIGHT_JUNIT_REPORT || "test-results/results.xml" }],
   ],
 
   use: {
     baseURL: TEST_CONFIG.BASE_URL,
-    trace: (process.env.PLAYWRIGHT_TRACE as 'on' | 'off' | 'on-first-retry' | 'on-all-retries' | 'retain-on-failure') || 'on-first-retry',
-    screenshot: (process.env.PLAYWRIGHT_SCREENSHOT as 'off' | 'on' | 'only-on-failure') || 'only-on-failure',
-    video: (process.env.PLAYWRIGHT_VIDEO as 'off' | 'on' | 'retain-on-failure' | 'on-first-retry') || 'retain-on-failure',
+    trace: TEST_CONFIG.TRACE,
+    screenshot: TEST_CONFIG.SCREENSHOT,
+    video: TEST_CONFIG.VIDEO,
   },
 
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
     {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
     },
     {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
     },
     {
-      name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'] },
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 5"] },
     },
   ],
 
   // Global setup and teardown
-  globalSetup: './setup/global-setup.ts',
-  globalTeardown: './setup/global-teardown.ts',
+  globalSetup: "./setup/global-setup.ts",
+  globalTeardown: "./setup/global-teardown.ts",
 
   webServer: [
     {
@@ -68,7 +136,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: process.env.BACKEND_COMMAND || 'cd .. && make up',
+      command: TEST_CONFIG.BACKEND_COMMAND,
       url: `http://${TEST_CONFIG.HOST}:${TEST_CONFIG.BACKEND_PORT}`,
       timeout: TEST_CONFIG.BACKEND_TIMEOUT,
       reuseExistingServer: !process.env.CI,

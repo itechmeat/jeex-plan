@@ -41,10 +41,6 @@ class _NoOpSpan:
         return None
 
 
-TracerLike = Any
-MeterLike = Any
-
-
 class _NoOpTracer:
     """Tracer facade that returns no-op spans."""
 
@@ -93,6 +89,11 @@ NOOP_METER = _NoOpMeter()
 def _noop_setup_observability(_: FastAPI) -> None:
     """Skip instrumentation when observability is disabled."""
     logger.debug("Observability disabled; instrumentation skipped")
+
+
+# Type aliases for tracer and meter (can be real or no-op implementations)
+TracerLike = _NoOpTracer | Any  # Will be opentelemetry.trace.Tracer when enabled
+MeterLike = _NoOpMeter | Any  # Will be opentelemetry.metrics.Meter when enabled
 
 
 def _noop_get_tracer(_: str | None = None) -> TracerLike:

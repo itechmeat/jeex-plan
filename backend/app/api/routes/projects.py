@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.project import (
@@ -57,6 +58,51 @@ def _project_steps_completed(project: object) -> list[int]:
         return list(steps)
     except TypeError:
         return []
+
+
+def _handle_integrity_error(
+    ie: IntegrityError,
+    name_field: str | None = None,
+    operation: str = "operation",
+) -> HTTPException:
+    """Convert IntegrityError to appropriate HTTPException with sanitized messages.
+
+    Args:
+        ie: The IntegrityError caught from database operation
+        name_field: The project name that was attempted (for 409 responses)
+        operation: Description of the operation for logging (e.g., "create", "update")
+
+    Returns:
+        HTTPException with appropriate status code and sanitized message
+
+    Note:
+        Full error details are logged server-side for diagnostics,
+        but clients receive sanitized messages to avoid leaking DB internals.
+    """
+    # Log full error details server-side for diagnostics
+    logger.warning(
+        "IntegrityError during project %s",
+        operation,
+        error_type=type(ie).__name__,
+        error_message=str(ie),
+        original_error=str(ie.orig) if hasattr(ie, "orig") else None,
+        attempted_name=name_field,
+    )
+
+    # Check if this is specifically a name uniqueness violation
+    if "uq_project_tenant_name" in str(ie.orig):
+        attempted_name = name_field or "unknown"
+        return HTTPException(
+            status_code=409,
+            detail=f"Project name '{attempted_name}' already exists in this tenant",
+        )
+
+    # Other integrity errors (foreign key violations, etc.)
+    # Return sanitized message without exposing DB internals
+    return HTTPException(
+        status_code=400,
+        detail="Database constraint violation. Please check your input.",
+    )
 
 
 def _document_versions_loaded(project: object) -> list:
@@ -275,8 +321,6 @@ async def create_project(
     try:
         # Remove TOCTOU race condition - rely on database unique constraint
         # instead of checking name availability beforehand
-        from sqlalchemy.exc import IntegrityError
-
         try:
             project = await project_repo.create(
                 name=project_data.name,
@@ -286,18 +330,9 @@ async def create_project(
             )
         except IntegrityError as ie:
             await db.rollback()
-            # Check if this is specifically a name uniqueness violation
-            if "uq_project_tenant_name" in str(ie.orig):
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Project name '{project_data.name}' already exists in this tenant",
-                )
-            else:
-                # Other integrity errors (foreign key violations, etc.)
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Database constraint violation: {ie.orig!s}",
-                )
+            raise _handle_integrity_error(
+                ie, name_field=project_data.name, operation="create"
+            )
 
         # Initialize project permissions for the owner
         await rbac_service.add_project_member(
@@ -510,27 +545,15 @@ async def update_project(
                 language_fallback=project_update.language or _project_language(project),
             )
 
-        from sqlalchemy.exc import IntegrityError
-
         try:
             updated_project = await project_repo.update(project_id, **update_fields)
             await db.commit()
         except IntegrityError as ie:
             await db.rollback()
-            # Check if this is specifically a name uniqueness violation
-            if "uq_project_tenant_name" in str(ie.orig):
-                # Extract the name from update_fields if it was being updated
-                attempted_name = update_fields.get("name", "unknown")
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Project name '{attempted_name}' already exists in this tenant",
-                )
-            else:
-                # Other integrity errors (foreign key violations, etc.)
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Database constraint violation: {ie.orig!s}",
-                )
+            attempted_name = update_fields.get("name")
+            raise _handle_integrity_error(
+                ie, name_field=attempted_name, operation="update"
+            )
 
         target_project = updated_project or project
 

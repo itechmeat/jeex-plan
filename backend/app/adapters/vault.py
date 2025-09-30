@@ -356,13 +356,16 @@ class VaultAdapter(LoggerMixin):
                 return False
 
             # Create initial structure
+            # SECURITY: Use settings.DEBUG instead of hardcoded debug flags
             initial_secrets: dict[str, dict[str, Any]] = {
                 "development": {
                     "openai_api_key": settings.OPENAI_API_KEY,
                     "anthropic_api_key": settings.ANTHROPIC_API_KEY,
-                    "debug": True,
+                    "debug": settings.DEBUG,
                 },
-                "production": {"debug": False},
+                "production": {
+                    "debug": settings.DEBUG,
+                },
                 "config": {
                     "app_name": settings.APP_NAME,
                     "version": "1.0.0",

@@ -49,7 +49,6 @@
   border-radius: var(--border-radius-xl, 0.75rem);
 }
 
-.indicator:active,
 .indicator.animating {
   will-change: transform;
 }

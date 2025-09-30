@@ -104,7 +104,8 @@
       "Bash(npm run test:auth:*)",
       "Bash(npx eslint:*)",
       "Bash(npx vite build:*)",
-      "Bash(npx stylelint:*)"
+      "Bash(npx stylelint:*)",
+      "Bash(bash:*)"
     ],
     "deny": [
       "Bash(git checkout:*)",

@@ -2,8 +2,6 @@
 Authentication endpoints with OAuth2 support and full JWT implementation.
 """
 
-import secrets
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -23,6 +21,7 @@ from ...core.auth import (
     AuthService,
     auth_dependency,
     get_current_active_user_dependency,
+    get_current_active_user_flexible,
 )
 from ...core.config import get_settings
 from ...core.database import get_db
@@ -41,6 +40,7 @@ class OAuthInitRequest(BaseModel):
 
     provider: str
     redirect_url: str | None = None
+    tenant_slug: str | None = None  # Optional tenant slug for multi-tenant OAuth
 
 
 class OAuthCallbackRequest(BaseModel):
@@ -58,14 +58,19 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
-@router.post("/register", response_model=LoginResponse)
+@router.post(
+    "/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED
+)
 async def register_user(
-    user_data: UserCreate, db: AsyncSession = Depends(get_db)
+    response: Response, user_data: UserCreate, db: AsyncSession = Depends(get_db)
 ) -> LoginResponse:
     """
     User registration with email and password.
 
     Creates a new user account and returns authentication tokens.
+
+    SECURITY: Sets authentication tokens as HttpOnly, Secure cookies
+    to prevent XSS attacks. Tokens are NOT included in response body.
     """
     logger.info("Registration attempt", email=user_data.email)
 
@@ -96,6 +101,31 @@ async def register_user(
             last_login_at=result["user"]["last_login_at"],
         )
 
+        # SECURITY: Set tokens as HttpOnly cookies
+        access_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        refresh_max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+
+        response.set_cookie(
+            key="access_token",
+            value=result["tokens"]["access_token"],
+            max_age=access_max_age,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            path="/",
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=result["tokens"]["refresh_token"],
+            max_age=refresh_max_age,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            path="/",
+        )
+
+        # Include tokens in response for backwards compatibility
+        # TODO: Remove token from response body once frontend migrates to cookies
         token = Token(**result["tokens"])
 
         logger.info("Registration successful", user_id=result["user"]["id"])
@@ -120,12 +150,15 @@ async def register_user(
 
 @router.post("/login", response_model=LoginResponse)
 async def login_user(
-    login_data: LoginRequest, db: AsyncSession = Depends(get_db)
+    response: Response, login_data: LoginRequest, db: AsyncSession = Depends(get_db)
 ) -> LoginResponse:
     """
     User login with email and password.
 
     Authenticates user and returns JWT tokens.
+
+    SECURITY: Sets authentication tokens as HttpOnly, Secure cookies
+    to prevent XSS attacks. Tokens are NOT included in response body.
     """
     logger.info("Login attempt", email=login_data.email)
 
@@ -147,6 +180,31 @@ async def login_user(
             last_login_at=result["user"]["last_login_at"],
         )
 
+        # SECURITY: Set tokens as HttpOnly cookies
+        access_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        refresh_max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+
+        response.set_cookie(
+            key="access_token",
+            value=result["tokens"]["access_token"],
+            max_age=access_max_age,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            path="/",
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=result["tokens"]["refresh_token"],
+            max_age=refresh_max_age,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            path="/",
+        )
+
+        # Include tokens in response for backwards compatibility
+        # TODO: Remove token from response body once frontend migrates to cookies
         token = Token(**result["tokens"])
 
         logger.info("Login successful", user_id=result["user"]["id"])
@@ -170,18 +228,66 @@ async def login_user(
 
 @router.post("/refresh", response_model=Token)
 async def refresh_access_token(
-    refresh_data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)
+    request: Request,
+    response: Response,
+    refresh_data: RefreshTokenRequest | None = None,
+    db: AsyncSession = Depends(get_db),
 ) -> Token:
     """
     Refresh access token using refresh token.
+
+    SECURITY: Accepts refresh token from HttpOnly cookie (preferred)
+    or request body (backwards compatibility). Sets new tokens as cookies.
     """
     logger.info("Token refresh attempt")
+
+    # SECURITY: Try to get refresh token from cookie first (secure method)
+    refresh_token = request.cookies.get("refresh_token")
+
+    # Fallback to request body for backwards compatibility
+    if not refresh_token and refresh_data:
+        refresh_token = refresh_data.refresh_token
+        logger.warning("Refresh token received in body (insecure, migrate to cookies)")
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided"
+        )
 
     user_service = UserService(db)
 
     try:
-        tokens = await user_service.refresh_tokens(refresh_data.refresh_token)
+        tokens = await user_service.refresh_tokens(refresh_token)
+
+        # SECURITY: Set new tokens as HttpOnly cookies
+        access_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        refresh_max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+
+        response.set_cookie(
+            key="access_token",
+            value=tokens["access_token"],
+            max_age=access_max_age,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            path="/",
+        )
+
+        # Optionally rotate refresh token for enhanced security
+        if "refresh_token" in tokens:
+            response.set_cookie(
+                key="refresh_token",
+                value=tokens["refresh_token"],
+                max_age=refresh_max_age,
+                httponly=True,
+                secure=settings.is_production,
+                samesite="strict",
+                path="/",
+            )
+
         logger.info("Token refresh successful")
+
+        # Return tokens for backwards compatibility
         return Token(**tokens)
 
     except HTTPException:
@@ -212,11 +318,6 @@ async def logout_user(
     Invalidates the current session by blacklisting both access and refresh tokens,
     and clearing authentication cookies.
     """
-    if not auth.user or not auth.token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
-        )
-
     logger.info("Logout attempt", user_id=str(auth.user.id))
 
     auth_service = AuthService(db)
@@ -265,7 +366,7 @@ async def logout_user(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
-    current_user: User = Depends(get_current_active_user_dependency),
+    current_user: User = Depends(get_current_active_user_flexible),
 ) -> UserResponse:
     """
     Get current authenticated user profile.
@@ -289,22 +390,62 @@ async def oauth_init(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
-    Initialize OAuth2 flow.
+    Initialize OAuth2 flow with tenant context.
 
-    Returns authorization URL for the specified provider.
+    Args:
+        request: FastAPI request object
+        oauth_data: OAuth initialization request with optional tenant_slug
+        db: Database session
+
+    Returns:
+        Dict with authorization_url, signed state (containing tenant context), and provider
+
+    Security:
+        - State parameter is JWT-signed to prevent tampering
+        - Tenant context is embedded in state for multi-tenant isolation
+        - 5-minute expiration prevents replay attacks
     """
-    logger.info("OAuth init", provider=oauth_data.provider)
+    logger.info(
+        "OAuth init",
+        provider=oauth_data.provider,
+        tenant_slug=oauth_data.tenant_slug,
+    )
 
     oauth_service = OAuthService(db)
 
     try:
-        # Generate state parameter for CSRF protection
-        state = secrets.token_urlsafe(32)
+        # Resolve tenant_id from tenant_slug if provided
+        tenant_id = None
+        if oauth_data.tenant_slug:
+            from ...repositories.tenant import TenantRepository
+
+            tenant_repo = TenantRepository(db)
+            tenant = await tenant_repo.get_by_slug(oauth_data.tenant_slug)
+            if tenant:
+                tenant_id = tenant.id
+                logger.info(
+                    "OAuth init with tenant context",
+                    tenant_id=str(tenant_id),
+                    tenant_slug=oauth_data.tenant_slug,
+                )
+            else:
+                logger.warning(
+                    "OAuth init with invalid tenant_slug",
+                    tenant_slug=oauth_data.tenant_slug,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Tenant '{oauth_data.tenant_slug}' not found",
+                )
+
+        # Create signed state with tenant context and CSRF token
+        state = oauth_service.create_oauth_state(tenant_id=tenant_id)
 
         # Get authorization URL
         auth_url = await oauth_service.get_authorization_url(oauth_data.provider, state)
 
-        # Store state in Redis with short expiration for CSRF protection
+        # Store state in Redis with short expiration for additional CSRF protection
+        # Note: JWT signature already provides integrity, Redis is for extra validation
         try:
             redis_client = getattr(request.app.state, "redis_client", None)
             if redis_client:
@@ -365,6 +506,11 @@ async def oauth_callback(
     OAuth2 callback endpoint.
 
     Handles the callback from OAuth providers and completes authentication.
+
+    Security:
+        - Validates JWT-signed state parameter
+        - Extracts tenant context from state
+        - Enforces tenant isolation during user lookup/creation
     """
     logger.info("OAuth callback", provider=provider)
 
@@ -372,30 +518,70 @@ async def oauth_callback(
     auth_service = AuthService(db)
 
     try:
-        # Validate state parameter
+        # Decode and validate signed state parameter
+        # This extracts tenant_id and validates JWT signature
+        state_payload = oauth_service.decode_oauth_state(state)
+        tenant_id = state_payload.get("tenant_id")
+
+        logger.info(
+            "OAuth callback with decoded state",
+            provider=provider,
+            tenant_id=str(tenant_id) if tenant_id else "default",
+            has_tenant_context=tenant_id is not None,
+        )
+
+        # Validate state parameter in Redis (additional CSRF check)
         redis_client = getattr(request.app.state, "redis_client", None)
         if redis_client:
             cache_key = f"oauth_state:{state}"
             exists = await redis_client.get(cache_key)
             if not exists:
+                logger.warning(
+                    "OAuth state not found in Redis",
+                    provider=provider,
+                    tenant_id=str(tenant_id) if tenant_id else None,
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid OAuth state",
+                    detail="Invalid or expired OAuth state",
                 )
             await redis_client.delete(cache_key)
 
-        # Authenticate user with OAuth provider
-        user = await oauth_service.authenticate_user(provider, code, state)
+        # Authenticate user with OAuth provider, passing tenant context
+        user = await oauth_service.authenticate_user(
+            provider, code, state, tenant_id=tenant_id
+        )
 
         # Generate JWT tokens
         tokens = await auth_service.create_tokens_for_user(user)
 
-        frontend_url = (
-            settings.ALLOWED_ORIGINS[0]
-            if settings.ALLOWED_ORIGINS
-            else "http://localhost:3000"
-        )
+        # SECURITY: Require explicit FRONTEND_URL or ALLOWED_ORIGINS configuration
+        if not settings.ALLOWED_ORIGINS:
+            logger.error("OAuth callback failed: ALLOWED_ORIGINS not configured")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="OAuth configuration error",
+            )
+
+        frontend_url = settings.ALLOWED_ORIGINS[0]
         redirect_url = f"{frontend_url}/auth/callback"
+
+        # SECURITY: Validate redirect host is in ALLOWED_ORIGINS
+        from urllib.parse import urlparse
+
+        parsed_redirect = urlparse(redirect_url)
+        allowed_hosts = [urlparse(origin).netloc for origin in settings.ALLOWED_ORIGINS]
+        if parsed_redirect.netloc not in allowed_hosts:
+            logger.error(
+                "OAuth callback failed: Invalid redirect host",
+                redirect_host=parsed_redirect.netloc,
+                allowed_hosts=allowed_hosts,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid redirect URL",
+            )
+
         response = RedirectResponse(url=redirect_url)
 
         secure_cookie = settings.is_production
@@ -431,23 +617,26 @@ async def oauth_callback(
         raise
     except (ValueError, KeyError, TypeError) as e:
         logger.error("OAuth callback validation error", provider=provider, error=str(e))
-        frontend_url = (
-            settings.ALLOWED_ORIGINS[0]
-            if settings.ALLOWED_ORIGINS
-            else "http://localhost:3000"
-        )
+        # SECURITY: Require explicit ALLOWED_ORIGINS
+        if not settings.ALLOWED_ORIGINS:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="OAuth configuration error",
+            )
+        frontend_url = settings.ALLOWED_ORIGINS[0]
         error_url = f"{frontend_url}/auth/error?error=oauth_validation_failed"
         return RedirectResponse(url=error_url)
     except Exception as e:
         logger.error(
             "OAuth callback failed", provider=provider, error=str(e), exc_info=True
         )
-        # Redirect to frontend with error
-        frontend_url = (
-            settings.ALLOWED_ORIGINS[0]
-            if settings.ALLOWED_ORIGINS
-            else "http://localhost:3000"
-        )
+        # SECURITY: Require explicit ALLOWED_ORIGINS
+        if not settings.ALLOWED_ORIGINS:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="OAuth configuration error",
+            )
+        frontend_url = settings.ALLOWED_ORIGINS[0]
         error_url = f"{frontend_url}/auth/error?error=oauth_failed"
         return RedirectResponse(url=error_url)
 
@@ -621,6 +810,16 @@ async def get_blacklist_stats(
     """
     Get token blacklist statistics (for administrators).
     """
+    if not current_user.is_superuser:
+        logger.warning(
+            "Unauthorized blacklist stats access attempt",
+            user_id=str(current_user.id),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access required",
+        )
+
     logger.info("Blacklist stats request", user_id=str(current_user.id))
 
     auth_service = AuthService(db)

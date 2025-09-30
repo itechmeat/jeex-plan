@@ -108,6 +108,7 @@ class Role(BaseModel):
         primaryjoin="and_(Role.id == role_permissions.c.role_id, Role.tenant_id == role_permissions.c.tenant_id)",
         secondaryjoin="and_(PermissionModel.id == role_permissions.c.permission_id, PermissionModel.tenant_id == role_permissions.c.tenant_id)",
         foreign_keys="[role_permissions.c.role_id, role_permissions.c.permission_id, role_permissions.c.tenant_id]",
+        lazy="selectin",  # Async-safe eager loading without unique() requirement
     )
     project_members: Mapped[list[ProjectMember]] = relationship(
         "ProjectMember",
@@ -148,6 +149,7 @@ class PermissionModel(BaseModel):
         primaryjoin="and_(PermissionModel.id == role_permissions.c.permission_id, PermissionModel.tenant_id == role_permissions.c.tenant_id)",
         secondaryjoin="and_(Role.id == role_permissions.c.role_id, Role.tenant_id == role_permissions.c.tenant_id)",
         foreign_keys="[role_permissions.c.role_id, role_permissions.c.permission_id, role_permissions.c.tenant_id]",
+        lazy="selectin",  # Async-safe eager loading without unique() requirement
     )
 
     __table_args__ = (
@@ -181,6 +183,7 @@ class ProjectMember(BaseModel):
         primaryjoin="and_(ProjectMember.project_id == Project.id, ProjectMember.tenant_id == Project.tenant_id)",
         foreign_keys="[ProjectMember.project_id, ProjectMember.tenant_id]",
         overlaps="project_members,members",
+        lazy="selectin",  # Async-safe eager loading without unique() requirement
     )
     user: Mapped[User] = relationship(
         "User",
@@ -188,6 +191,7 @@ class ProjectMember(BaseModel):
         back_populates="project_memberships",
         primaryjoin="and_(ProjectMember.user_id == User.id, ProjectMember.tenant_id == User.tenant_id)",
         overlaps="project_members,members,project,project_members,role",
+        lazy="selectin",  # Async-safe eager loading without unique() requirement
     )
     role: Mapped[Role] = relationship(
         "Role",
@@ -195,12 +199,14 @@ class ProjectMember(BaseModel):
         primaryjoin="and_(ProjectMember.role_id == Role.id, ProjectMember.tenant_id == Role.tenant_id)",
         foreign_keys="[ProjectMember.role_id, ProjectMember.tenant_id]",
         overlaps="project_members,members,project,user",
+        lazy="selectin",  # Async-safe eager loading without unique() requirement
     )
     invited_by: Mapped[User | None] = relationship(
         "User",
         foreign_keys="[ProjectMember.invited_by_id, ProjectMember.tenant_id]",
         primaryjoin="and_(ProjectMember.invited_by_id == User.id, ProjectMember.tenant_id == User.tenant_id)",
         overlaps="project_members,members,project,role,user",
+        lazy="selectin",  # Async-safe eager loading without unique() requirement
     )
 
     __table_args__ = (

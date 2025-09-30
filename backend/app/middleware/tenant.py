@@ -42,8 +42,8 @@ class TenantIsolationMiddleware(BaseHTTPMiddleware):
         # Extract tenant context from JWT token
         tenant_id = await self._extract_tenant_from_request(request)
 
-        # Always add tenant context to request state (may be None)
-        # The actual auth enforcement is handled by individual endpoints
+        # Add tenant context to request state (may be None)
+        # Authentication is enforced by individual endpoints via dependencies
         request.state.tenant_id = tenant_id
 
         response = await call_next(request)
@@ -101,6 +101,7 @@ class TenantContextManager:
         if not hasattr(state, "tenant_id"):
             return None
         tenant_id = state.tenant_id
+        # Check for None or empty string (defensive: should never be empty string in practice)
         if tenant_id in (None, ""):
             return None
         return tenant_id

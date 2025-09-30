@@ -81,11 +81,13 @@ export const Login: React.FC = () => {
       return;
     }
 
+    // Set loading state immediately for better UX
+    setIsSubmitting(true);
+
     if (!validateForm()) {
+      setIsSubmitting(false);
       return;
     }
-
-    setIsSubmitting(true);
 
     const minLoadingTime = Number(import.meta.env.VITE_MIN_LOADING_TIME_MS) || 100;
     const startTime = Date.now();

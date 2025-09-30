@@ -114,7 +114,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_environment(cls, v: str) -> str:
         """Validate environment setting"""
-        allowed = ["development", "staging", "production"]
+        allowed = ["development", "staging", "production", "testing"]
         if v not in allowed:
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return v

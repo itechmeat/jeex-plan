@@ -13,30 +13,6 @@ import {
   User,
 } from '../types/api';
 
-/**
- * SECURITY TODO: Critical security improvements needed
- *
- * Current implementation uses sessionStorage for refresh tokens as temporary mitigation
- * for XSS vulnerabilities. This is NOT production-ready for high-security applications.
- *
- * Required backend changes for full security:
- * 1. Configure refresh tokens as HttpOnly, Secure, SameSite cookies
- * 2. Remove refresh token from API response body
- * 3. Accept refresh requests without body (cookies auto-sent)
- * 4. Implement CSRF protection (double-submit cookie pattern)
- *
- * Frontend changes after backend migration:
- * 1. Remove all refresh token storage logic
- * 2. Add credentials: 'include' to refresh requests
- * 3. Implement CSRF token handling
- *
- * Additional security measures to implement:
- * - Content Security Policy (CSP) headers
- * - Token rotation on every refresh
- * - Rate limiting for refresh endpoints
- * - Secure session management
- */
-
 const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL =
   typeof envApiBaseUrl === 'string' && envApiBaseUrl.trim().length > 0
@@ -95,6 +71,18 @@ class ApiClient {
     sessionStorage.removeItem('refreshToken');
   }
 
+  // SECURITY: CSRF token handling for cookie-based authentication
+  private getCSRFToken(): string {
+    // Read CSRF token from non-HttpOnly cookie
+    const match = document.cookie.match(/csrf_token=([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  private shouldIncludeCSRF(method: string): boolean {
+    // CSRF protection needed for state-changing requests
+    return ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
+  }
+
   // SECURITY: Check if access token is expiring soon
   private isTokenExpiringSoon(token: string): boolean {
     try {
@@ -112,15 +100,37 @@ class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
+    // SECURITY: Build headers with CSRF protection for state-changing requests
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Merge any existing headers
+    if (options.headers) {
+      const existingHeaders = options.headers as Record<string, string>;
+      Object.assign(headers, existingHeaders);
+    }
+
+    // Add Authorization header if we have an access token
+    if (this.accessToken) {
+      headers.Authorization = `Bearer ${this.accessToken}`;
+    }
+
+    // SECURITY: Add CSRF token for state-changing requests
+    const method = options.method || 'GET';
+    if (this.shouldIncludeCSRF(method)) {
+      const csrfToken = this.getCSRFToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
     const config: RequestInit = {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-        ...(this.accessToken && {
-          Authorization: `Bearer ${this.accessToken}`,
-        }),
-      },
+      headers,
+      // SECURITY: Include credentials for cookie-based authentication
+      // Currently keeping for future cookie migration
+      credentials: 'include',
     };
 
     try {

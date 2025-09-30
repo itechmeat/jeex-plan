@@ -165,7 +165,10 @@ component design, and scalability considerations."""
 
     def _parse_markdown_section(self, content: str, section_name: str) -> list[str]:
         """Extract bullet point items from a specific markdown section."""
-        pattern = rf"#{1, 2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1, 2}|\Z)"
+        # Fix regex quantifier: remove space in {1,2}
+        pattern = (
+            rf"#{{{1, 2}}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{{1, 2}}}|\Z)"
+        )
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -180,7 +183,10 @@ component design, and scalability considerations."""
 
     def _extract_text_section(self, content: str, section_name: str) -> str:
         """Extract text content from a markdown section (non-bullet format)."""
-        pattern = rf"#{1, 2}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{1, 2}|\Z)"
+        # Fix regex quantifier: remove space in {1,2}
+        pattern = (
+            rf"#{{{1, 2}}}\s+{re.escape(section_name)}.*?\n(.*?)(?=#{{{1, 2}}}|\Z)"
+        )
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -268,16 +274,18 @@ component design, and scalability considerations."""
         ) or self._parse_markdown_section(content, "Risks")
 
         # Calculate confidence score based on populated sections
+        # Use generator expression for efficiency
         populated_sections = sum(
-            [
-                1 if technology_stack else 0,
-                1 if architecture_pattern else 0,
-                1 if component_diagram else 0,
-                1 if data_flow_description else 0,
-                1 if scalability_plan else 0,
-                1 if security_considerations else 0,
-                1 if deployment_strategy else 0,
-                1 if technical_risks else 0,
+            1 if section else 0
+            for section in [
+                technology_stack,
+                architecture_pattern,
+                component_diagram,
+                data_flow_description,
+                scalability_plan,
+                security_considerations,
+                deployment_strategy,
+                technical_risks,
             ]
         )
 

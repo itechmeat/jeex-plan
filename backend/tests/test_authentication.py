@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import AuthService
+from app.core.exceptions import AuthenticationError
 from app.core.oauth import GitHubOAuthProvider, GoogleOAuthProvider
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -212,9 +213,14 @@ class TestUserService:
     """Test suite for UserService."""
 
     @pytest.fixture
-    async def user_service(self, async_db: AsyncSession):
+    async def user_service(
+        self, async_db: AsyncSession, test_tenant, mock_password_service
+    ):
         """Create UserService instance for testing."""
-        return UserService(async_db)
+        service = UserService(async_db, tenant_id=test_tenant.id)
+        # Use bypassed password service for testing
+        service.password_service = mock_password_service
+        return service
 
     @pytest.fixture
     async def test_tenant(self, async_db: AsyncSession):
@@ -276,6 +282,7 @@ class TestUserService:
             full_name="User 1",
             hashed_password="hash1",
             is_active=True,
+            is_deleted=False,
         )
         async_db.add(user1)
         await async_db.commit()
@@ -314,8 +321,8 @@ class TestUserService:
         assert "tokens" in result
 
         user = result["user"]
-        assert user.email == email
-        assert user.is_active is True
+        assert user["email"] == email
+        assert user["is_active"] is True
 
     @pytest.mark.asyncio
     async def test_user_authentication_wrong_password(
@@ -333,17 +340,17 @@ class TestUserService:
         )
 
         # Try to authenticate with wrong password
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             await user_service.authenticate_user(email, "wrongpassword")
 
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "Invalid email or password" in str(exc_info.value.detail)
+        assert "Invalid email or password" in str(exc_info.value.message)
 
     @pytest.mark.asyncio
     async def test_user_authentication_nonexistent_user(self, user_service) -> None:
         """Test authentication with nonexistent user."""
         unique_suffix = uuid.uuid4().hex[:8]
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             await user_service.authenticate_user(
                 f"nonexistent-{unique_suffix}@example.com", "password"
             )
@@ -392,7 +399,11 @@ class TestUserService:
             full_name="Change Pass User",
         )
 
-        user_id = result["user"].id
+        user_id = (
+            uuid.UUID(result["user"]["id"])
+            if isinstance(result["user"]["id"], str)
+            else result["user"]["id"]
+        )
 
         # Change password
         success = await user_service.change_password(
@@ -403,7 +414,7 @@ class TestUserService:
 
         # Verify new password works
         auth_result = await user_service.authenticate_user(email, "newpassword123")
-        assert auth_result["user"].id == user_id
+        assert str(auth_result["user"]["id"]) == str(user_id)
 
     @pytest.mark.asyncio
     async def test_change_password_wrong_current(self, user_service, async_db) -> None:
@@ -417,7 +428,11 @@ class TestUserService:
             full_name="Wrong Current User",
         )
 
-        user_id = result["user"].id
+        user_id = (
+            uuid.UUID(result["user"]["id"])
+            if isinstance(result["user"]["id"], str)
+            else result["user"]["id"]
+        )
 
         # Try to change password with wrong current password
         with pytest.raises(HTTPException) as exc_info:
@@ -442,14 +457,14 @@ class TestAuthenticationEndpoints:
         unique_suffix = uuid.uuid4().hex[:8]
         user_data = {
             "email": f"register-{unique_suffix}@example.com",
-            "name": "Register User",
-            "password": "password123",
-            "confirm_password": "password123",
+            "name": f"Register User {unique_suffix}",
+            "password": "StrongP@ssw0rd123!",
+            "confirm_password": "StrongP@ssw0rd123!",
         }
 
-        response = client.post("/auth/register", json=user_data)
+        response = client.post("/api/v1/auth/register", json=user_data)
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         data = response.json()
 
         assert "user" in data
@@ -464,12 +479,12 @@ class TestAuthenticationEndpoints:
         unique_suffix = uuid.uuid4().hex[:8]
         user_data = {
             "email": f"mismatch-{unique_suffix}@example.com",
-            "name": "Mismatch User",
-            "password": "password123",
+            "name": f"Mismatch User {unique_suffix}",
+            "password": "StrongP@ssw0rd123!",
             "confirm_password": "different_password",
         }
 
-        response = client.post("/auth/register", json=user_data)
+        response = client.post("/api/v1/auth/register", json=user_data)
 
         assert response.status_code == 400
         data = response.json()
@@ -482,16 +497,24 @@ class TestAuthenticationEndpoints:
         email = f"login-{unique_suffix}@example.com"
         user_data = {
             "email": email,
-            "name": "Login User",
-            "password": "password123",
-            "confirm_password": "password123",
+            "name": f"Login User {unique_suffix}",
+            "password": "StrongP@ssw0rd123!",
+            "confirm_password": "StrongP@ssw0rd123!",
         }
-        client.post("/auth/register", json=user_data)
+        register_response = client.post("/api/v1/auth/register", json=user_data)
+
+        # Ensure registration succeeded before testing login
+        if register_response.status_code != 201:
+            print(f"Registration failed: {register_response.status_code}")
+            print(f"Response: {register_response.json()}")
+        assert register_response.status_code == 201, (
+            "Registration must succeed before login test"
+        )
 
         # Then login
-        login_data = {"email": email, "password": "password123"}
+        login_data = {"email": email, "password": "StrongP@ssw0rd123!"}
 
-        response = client.post("/auth/login", json=login_data)
+        response = client.post("/api/v1/auth/login", json=login_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -508,16 +531,16 @@ class TestAuthenticationEndpoints:
         email = f"wrongpass-{unique_suffix}@example.com"
         user_data = {
             "email": email,
-            "name": "Wrong Pass User",
+            "name": f"Wrong Pass User {unique_suffix}",
             "password": "correctpassword",
             "confirm_password": "correctpassword",
         }
-        client.post("/auth/register", json=user_data)
+        client.post("/api/v1/auth/register", json=user_data)
 
         # Try login with wrong password
         login_data = {"email": email, "password": "wrongpassword"}
 
-        response = client.post("/auth/login", json=login_data)
+        response = client.post("/api/v1/auth/login", json=login_data)
 
         assert response.status_code == 401
         data = response.json()
@@ -529,16 +552,16 @@ class TestAuthenticationEndpoints:
         unique_suffix = uuid.uuid4().hex[:8]
         user_data = {
             "email": f"refresh-{unique_suffix}@example.com",
-            "name": "Refresh User",
-            "password": "password123",
-            "confirm_password": "password123",
+            "name": f"Refresh User {unique_suffix}",
+            "password": "StrongP@ssw0rd123!",
+            "confirm_password": "StrongP@ssw0rd123!",
         }
-        register_response = client.post("/auth/register", json=user_data)
+        register_response = client.post("/api/v1/auth/register", json=user_data)
         refresh_token = register_response.json()["token"]["refresh_token"]
 
         # Refresh tokens
         refresh_data = {"refresh_token": refresh_token}
-        response = client.post("/auth/refresh", json=refresh_data)
+        response = client.post("/api/v1/auth/refresh", json=refresh_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -551,16 +574,16 @@ class TestAuthenticationEndpoints:
         unique_suffix = uuid.uuid4().hex[:8]
         user_data = {
             "email": f"current-{unique_suffix}@example.com",
-            "name": "Current User",
-            "password": "password123",
-            "confirm_password": "password123",
+            "name": f"Current User {unique_suffix}",
+            "password": "StrongP@ssw0rd123!",
+            "confirm_password": "StrongP@ssw0rd123!",
         }
-        register_response = client.post("/auth/register", json=user_data)
+        register_response = client.post("/api/v1/auth/register", json=user_data)
         access_token = register_response.json()["token"]["access_token"]
 
         # Get current user
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = client.get("/auth/me", headers=headers)
+        response = client.get("/api/v1/auth/me", headers=headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -569,9 +592,9 @@ class TestAuthenticationEndpoints:
 
     def test_get_current_user_unauthorized(self, client) -> None:
         """Test get current user without token."""
-        response = client.get("/auth/me")
+        response = client.get("/api/v1/auth/me")
 
-        assert response.status_code == 403  # No Authorization header
+        assert response.status_code == 401  # No Authorization header = Unauthorized
 
     def test_logout_endpoint(self, client) -> None:
         """Test logout endpoint."""
@@ -579,16 +602,16 @@ class TestAuthenticationEndpoints:
         unique_suffix = uuid.uuid4().hex[:8]
         user_data = {
             "email": f"logout-{unique_suffix}@example.com",
-            "name": "Logout User",
-            "password": "password123",
-            "confirm_password": "password123",
+            "name": f"Logout User {unique_suffix}",
+            "password": "StrongP@ssw0rd123!",
+            "confirm_password": "StrongP@ssw0rd123!",
         }
-        register_response = client.post("/auth/register", json=user_data)
+        register_response = client.post("/api/v1/auth/register", json=user_data)
         access_token = register_response.json()["token"]["access_token"]
 
         # Logout
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = client.post("/auth/logout", headers=headers)
+        response = client.post("/api/v1/auth/logout", headers=headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -596,7 +619,7 @@ class TestAuthenticationEndpoints:
 
     def test_get_oauth_providers_endpoint(self, client) -> None:
         """Test get available OAuth providers endpoint."""
-        response = client.get("/auth/providers")
+        response = client.get("/api/v1/auth/providers")
 
         assert response.status_code == 200
         data = response.json()
@@ -609,16 +632,16 @@ class TestAuthenticationEndpoints:
         unique_suffix = uuid.uuid4().hex[:8]
         user_data = {
             "email": f"validate-{unique_suffix}@example.com",
-            "name": "Validate User",
-            "password": "password123",
-            "confirm_password": "password123",
+            "name": f"Validate User {unique_suffix}",
+            "password": "StrongP@ssw0rd123!",
+            "confirm_password": "StrongP@ssw0rd123!",
         }
-        register_response = client.post("/auth/register", json=user_data)
+        register_response = client.post("/api/v1/auth/register", json=user_data)
         access_token = register_response.json()["token"]["access_token"]
 
         # Validate token
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = client.post("/auth/validate-token", headers=headers)
+        response = client.post("/api/v1/auth/validate-token", headers=headers)
 
         assert response.status_code == 200
         data = response.json()

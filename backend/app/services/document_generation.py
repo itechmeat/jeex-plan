@@ -546,7 +546,8 @@ class DocumentGenerationService:
             if "epics" in result and epic_docs:
                 epic_chunks = []
                 epic_metadata = []
-                for epic, doc in zip(result["epics"], epic_docs, strict=False):
+                # SECURITY: Use strict=True to detect length mismatches
+                for epic, doc in zip(result["epics"], epic_docs, strict=True):
                     epic_chunks.append(epic["content"])
                     epic_metadata.append(
                         {

@@ -35,6 +35,7 @@ export const Register: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasClearedAuthError, setHasClearedAuthError] = useState(false);
 
   const isLoading = authLoading || isSubmitting;
 
@@ -42,6 +43,12 @@ export const Register: React.FC = () => {
   useEffect(() => {
     clearError();
   }, [clearError]);
+
+  useEffect(() => {
+    if (authError) {
+      setHasClearedAuthError(false);
+    }
+  }, [authError]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -68,9 +75,13 @@ export const Register: React.FC = () => {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+    } else if (
+      !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/.test(
+        formData.password
+      )
+    ) {
       newErrors.password =
-        'Password must contain at least one uppercase letter, one lowercase letter, and one number';
+        'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character';
     }
 
     if (!formData.confirmPassword) {
@@ -92,8 +103,10 @@ export const Register: React.FC = () => {
         setErrors(prev => ({ ...prev, [field]: '' }));
       }
 
-      if (authError) {
+      // Clear auth error only once when form is first edited after an error
+      if (authError && !hasClearedAuthError) {
         clearError();
+        setHasClearedAuthError(true);
       }
     };
 
@@ -104,11 +117,13 @@ export const Register: React.FC = () => {
       return;
     }
 
+    // Set loading state immediately for better UX
+    setIsSubmitting(true);
+
     if (!validateForm()) {
+      setIsSubmitting(false);
       return;
     }
-
-    setIsSubmitting(true);
 
     try {
       await register({

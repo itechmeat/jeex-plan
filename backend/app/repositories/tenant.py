@@ -54,8 +54,10 @@ class TenantRepository:
         return tenant
 
     async def get_by_slug(self, slug: str) -> Tenant | None:
-        """Get tenant by slug."""
-        stmt = select(self.model).where(self.model.slug == slug)
+        """Get tenant by slug (active tenants only)."""
+        stmt = select(self.model).where(
+            self.model.slug == slug, self.model.is_active.is_(True)
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

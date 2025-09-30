@@ -96,10 +96,10 @@ class QdrantAdapter(LoggerMixin):
 
             hnsw_config = hnsw_configurator.get_optimized_config_for_tenant_isolation()
             # Keep only supported keys for Qdrant
+            # Note: 'ef' is a search-time parameter, not for index creation
             _supported = {
                 "m",
                 "ef_construct",
-                "ef",
                 "full_scan_threshold",
                 "max_indexing_threads",
             }
@@ -143,6 +143,14 @@ class QdrantAdapter(LoggerMixin):
 
             for field_name in payload_fields:
                 try:
+                    # Check if index already exists before creating
+                    collection_info = self.client.get_collection(self.collection_name)
+                    existing_indexes = collection_info.payload_schema or {}
+
+                    if field_name in existing_indexes:
+                        logger.debug("Payload index already exists", field=field_name)
+                        continue
+
                     self.client.create_payload_index(
                         collection_name=self.collection_name,
                         field_name=field_name,
@@ -150,11 +158,16 @@ class QdrantAdapter(LoggerMixin):
                     )
                     logger.info("Created payload index", field=field_name)
                 except qdrant_exceptions.ApiException as exc:
-                    logger.warning(
-                        "Failed to create payload index",
-                        field=field_name,
-                        error=str(exc),
-                    )
+                    # Distinguish "already exists" from real errors
+                    error_msg = str(exc).lower()
+                    if "already exists" in error_msg or "exists" in error_msg:
+                        logger.debug("Payload index already exists", field=field_name)
+                    else:
+                        logger.warning(
+                            "Failed to create payload index",
+                            field=field_name,
+                            error=str(exc),
+                        )
 
             logger.info(
                 "Collection created successfully", collection=self.collection_name

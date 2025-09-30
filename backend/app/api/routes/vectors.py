@@ -7,11 +7,13 @@ with automatic tenant/project scoping and server-side filtering.
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.adapters.qdrant import QdrantAdapter
+from app.core.auth import get_current_active_user_dependency
 from app.core.logger import get_logger
 from app.middleware.tenant_filter import VectorOperationFilter
+from app.models.user import User
 from app.schemas.vector import (
     CollectionStats,
     DeleteRequest,
@@ -26,7 +28,7 @@ from app.services.embedding import ChunkingStrategy, EmbeddingService, TextNorma
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/vectors", tags=["vectors"])
+router = APIRouter(prefix="/vectors", tags=["vectors"])
 
 # Initialize services
 qdrant_adapter = QdrantAdapter()
@@ -435,11 +437,14 @@ async def get_collection_stats(
 
 
 @router.get("/health")
-async def vector_health_check() -> dict[str, Any]:
+async def vector_health_check(
+    current_user: User = Depends(get_current_active_user_dependency),
+) -> dict[str, Any]:
     """
-    Health check for vector database operations.
+    Health check for vector database operations (authenticated users only).
 
     Returns status of Qdrant connection and embedding service.
+    Requires authentication to prevent information disclosure.
     """
     try:
         # Check Qdrant health

@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page } from "@playwright/test";
 
 /**
  * Professional Page Object Model for Authentication E2E Tests
@@ -9,11 +9,11 @@ class AuthPage {
 
   // Navigation methods
   async navigateToLogin() {
-    await this.page.goto('/login');
+    await this.page.goto("/login");
   }
 
   async navigateToRegister() {
-    await this.page.goto('/register');
+    await this.page.goto("/register");
   }
 
   // Form interaction methods - LOGIN
@@ -23,7 +23,13 @@ class AuthPage {
   }
 
   // Form interaction methods - REGISTRATION
-  async fillRegistrationForm(firstName: string, lastName: string, email: string, password: string, confirmPassword?: string) {
+  async fillRegistrationForm(
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
+    confirmPassword?: string
+  ) {
     await this.page.fill('[data-testid="first-name-input"]', firstName);
     await this.page.fill('[data-testid="last-name-input"]', lastName);
     await this.page.fill('[data-testid="email-input"]', email);
@@ -53,7 +59,7 @@ class AuthPage {
   // Error state expectations
   async expectGeneralErrorMessage() {
     // First wait for loading to complete (button should not be loading anymore)
-    await expect(this.page.locator('[data-testid="sign-in-button"]')).not.toHaveAttribute('data-loading', 'true');
+    await expect(this.page.locator('[data-testid="sign-in-button"]')).not.toHaveAttribute("data-loading", "true");
 
     // Then check for error message
     await expect(this.page.locator('[data-testid="error-message"]')).toBeVisible();
@@ -112,15 +118,15 @@ class AuthPage {
   }
 }
 
-test.describe('Authentication Flow', () => {
+test.describe("Authentication Flow", () => {
   let authPage: AuthPage;
 
   test.beforeEach(async ({ page }) => {
     authPage = new AuthPage(page);
   });
 
-  test.describe('User Registration', () => {
-    test('should display registration form when clicking sign up link', async ({ page }) => {
+  test.describe("User Registration", () => {
+    test("should display registration form when clicking sign up link", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
@@ -128,73 +134,73 @@ test.describe('Authentication Flow', () => {
       await authPage.expectRegisterFormVisible();
     });
 
-    test('should validate email format during registration', async ({ page }) => {
+    test("should validate email format during registration", async ({ page }) => {
       await authPage.navigateToRegister();
       await authPage.expectRegisterFormVisible();
 
-      await authPage.fillRegistrationForm('John', 'Doe', 'invalid-email', 'Password123!', 'Password123!');
+      await authPage.fillRegistrationForm("John", "Doe", "invalid-email", "Password123!", "Password123!");
       await authPage.clickSignUp();
 
       await authPage.expectEmailValidationError();
     });
 
-    test('should validate password confirmation mismatch', async ({ page }) => {
+    test("should validate password confirmation mismatch", async ({ page }) => {
       await authPage.navigateToRegister();
       await authPage.expectRegisterFormVisible();
 
-      await authPage.fillRegistrationForm('John', 'Doe', 'test@example.com', 'Password123!', 'DifferentPassword123!');
+      await authPage.fillRegistrationForm("John", "Doe", "test@example.com", "Password123!", "DifferentPassword123!");
       await authPage.clickSignUp();
 
       await authPage.expectConfirmPasswordValidationError();
     });
 
-    test('should validate required first name field', async ({ page }) => {
+    test("should validate required first name field", async ({ page }) => {
       await authPage.navigateToRegister();
       await authPage.expectRegisterFormVisible();
 
       // Fill all except first name
-      await authPage.fillRegistrationForm('', 'Doe', 'test@example.com', 'Password123!', 'Password123!');
+      await authPage.fillRegistrationForm("", "Doe", "test@example.com", "Password123!", "Password123!");
       await authPage.clickSignUp();
 
       await authPage.expectFirstNameValidationError();
     });
 
-    test('should validate required last name field', async ({ page }) => {
+    test("should validate required last name field", async ({ page }) => {
       await authPage.navigateToRegister();
       await authPage.expectRegisterFormVisible();
 
       // Fill all except last name
-      await authPage.fillRegistrationForm('John', '', 'test@example.com', 'Password123!', 'Password123!');
+      await authPage.fillRegistrationForm("John", "", "test@example.com", "Password123!", "Password123!");
       await authPage.clickSignUp();
 
       await authPage.expectLastNameValidationError();
     });
 
-    test('should validate required email field', async ({ page }) => {
+    test("should validate required email field", async ({ page }) => {
       await authPage.navigateToRegister();
       await authPage.expectRegisterFormVisible();
 
       // Fill all except email
-      await authPage.fillRegistrationForm('John', 'Doe', '', 'Password123!', 'Password123!');
+      await authPage.fillRegistrationForm("John", "Doe", "", "Password123!", "Password123!");
       await authPage.clickSignUp();
 
       await authPage.expectEmailValidationError();
     });
 
-    test('should validate required password field', async ({ page }) => {
+    test("should validate required password field", async ({ page }) => {
       await authPage.navigateToRegister();
       await authPage.expectRegisterFormVisible();
 
       // Fill all except password
-      await authPage.fillRegistrationForm('John', 'Doe', 'test@example.com', '', '');
+      await authPage.fillRegistrationForm("John", "Doe", "test@example.com", "", "");
       await authPage.clickSignUp();
 
       await authPage.expectPasswordValidationError();
     });
   });
 
-  test.describe('User Login', () => {
-    test('should display login form with all required elements', async ({ page }) => {
+  test.describe("User Login", () => {
+    test("should display login form with all required elements", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
@@ -204,54 +210,54 @@ test.describe('Authentication Flow', () => {
       await expect(page.locator('[data-testid="register-link"]')).toBeVisible();
     });
 
-    test('should validate email format on login', async ({ page }) => {
+    test("should validate email format on login", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
-      await authPage.fillLoginCredentials('invalid-email-format', 'password123');
+      await authPage.fillLoginCredentials("invalid-email-format", "password123");
       await authPage.clickSignIn();
 
       await authPage.expectEmailValidationError();
     });
 
-    test('should validate required email field on login', async ({ page }) => {
+    test("should validate required email field on login", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
       // Try to submit with empty email
-      await authPage.fillLoginCredentials('', 'password123');
+      await authPage.fillLoginCredentials("", "password123");
       await authPage.clickSignIn();
 
       await authPage.expectEmailValidationError();
     });
 
-    test('should validate required password field on login', async ({ page }) => {
+    test("should validate required password field on login", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
       // Try to submit with empty password
-      await authPage.fillLoginCredentials('test@example.com', '');
+      await authPage.fillLoginCredentials("test@example.com", "");
       await authPage.clickSignIn();
 
       await authPage.expectPasswordValidationError();
     });
 
-    test('should handle invalid credentials gracefully', async ({ page }) => {
+    test("should handle invalid credentials gracefully", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
-      await authPage.fillLoginCredentials('nonexistent@example.com', 'wrongpassword');
+      await authPage.fillLoginCredentials("nonexistent@example.com", "wrongpassword");
       await authPage.clickSignIn();
 
       // Should show general error message for invalid credentials
       await authPage.expectGeneralErrorMessage();
     });
 
-    test('should show loading state during login attempt', async ({ page }) => {
+    test("should show loading state during login attempt", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
-      await authPage.fillLoginCredentials('test@example.com', 'validpassword123');
+      await authPage.fillLoginCredentials("test@example.com", "validpassword123");
 
       // Start login process and immediately check for loading state
       await authPage.clickSignIn();
@@ -260,29 +266,21 @@ test.describe('Authentication Flow', () => {
       await page.waitForTimeout(10);
 
       // Should show loading spinner or disabled button
-      const hasLoadingSpinner = await page.locator('[data-testid="loading-spinner"]').isVisible().catch(() => false);
-      const isButtonDisabled = await page.locator('[data-testid="sign-in-button"]').isDisabled().catch(() => false);
-
-      // Additional debug info
-      const buttonText = await page.locator('[data-testid="sign-in-button"]').textContent().catch(() => 'unknown');
-      const debugInfo = await page.evaluate(() => {
-        const button = document.querySelector('[data-testid="sign-in-button"]') as HTMLButtonElement;
-        return {
-          disabled: button?.disabled,
-          loading: button?.dataset?.loading,
-          hasSpinner: !!document.querySelector('[data-testid="loading-spinner"]'),
-          className: button?.className
-        };
-      });
-
-      console.log('Loading test debug:', { hasLoadingSpinner, isButtonDisabled, buttonText, debugInfo });
+      const hasLoadingSpinner = await page
+        .locator('[data-testid="loading-spinner"]')
+        .isVisible()
+        .catch(() => false);
+      const isButtonDisabled = await page
+        .locator('[data-testid="sign-in-button"]')
+        .isDisabled()
+        .catch(() => false);
 
       expect(hasLoadingSpinner || isButtonDisabled).toBe(true);
     });
   });
 
-  test.describe('Navigation', () => {
-    test('should navigate between login and register forms', async ({ page }) => {
+  test.describe("Navigation", () => {
+    test("should navigate between login and register forms", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
@@ -295,81 +293,81 @@ test.describe('Authentication Flow', () => {
       await authPage.expectLoginFormVisible();
     });
 
-    test('should redirect unauthenticated users to login from protected routes', async ({ page }) => {
-      await page.goto('/dashboard');
+    test("should redirect unauthenticated users to login from protected routes", async ({ page }) => {
+      await page.goto("/dashboard");
 
       // Should redirect to login for protected routes
       await authPage.waitForLogin();
       await authPage.expectLoginFormVisible();
     });
 
-    test('should redirect from root to dashboard for authenticated users', async ({ page }) => {
+    test("should redirect from root to dashboard for authenticated users", async ({ page }) => {
       // This test would need authentication setup
       // For now, verify root redirects to login for unauthenticated users
-      await page.goto('/');
+      await page.goto("/");
       await authPage.waitForLogin();
     });
   });
 
-  test.describe('Error Handling and User Experience', () => {
-    test('should clear email errors when user starts typing', async ({ page }) => {
+  test.describe("Error Handling and User Experience", () => {
+    test("should clear email errors when user starts typing", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
       // Trigger email validation error
-      await authPage.fillLoginCredentials('', 'password123');
+      await authPage.fillLoginCredentials("", "password123");
       await authPage.clickSignIn();
       await authPage.expectEmailValidationError();
 
       // Start typing in email field to clear error
-      await authPage.clearErrorByTyping('email-input', 'test@');
+      await authPage.clearErrorByTyping("email-input", "test@");
 
       // Error should be cleared after typing
       await page.waitForTimeout(300);
       await expect(page.locator('[data-testid="email-input-error"]')).not.toBeVisible();
     });
 
-    test('should clear password errors when user starts typing', async ({ page }) => {
+    test("should clear password errors when user starts typing", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
       // Trigger password validation error
-      await authPage.fillLoginCredentials('test@example.com', '');
+      await authPage.fillLoginCredentials("test@example.com", "");
       await authPage.clickSignIn();
       await authPage.expectPasswordValidationError();
 
       // Start typing in password field to clear error
-      await authPage.clearErrorByTyping('password-input', 'pass');
+      await authPage.clearErrorByTyping("password-input", "pass");
 
       // Error should be cleared after typing
       await page.waitForTimeout(300);
       await expect(page.locator('[data-testid="password-input-error"]')).not.toBeVisible();
     });
 
-    test('should handle network errors gracefully', async ({ page }) => {
+    test("should handle network errors gracefully", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
       // Mock network failure for login endpoint
-      await page.route('**/api/v1/auth/login', route => route.abort());
+      await page.route("**/api/v1/auth/login", (route) => route.abort());
 
-      await authPage.fillLoginCredentials('test@example.com', 'password123');
+      await authPage.fillLoginCredentials("test@example.com", "password123");
       await authPage.clickSignIn();
 
       // Should show general error message for network issues
       await authPage.expectGeneralErrorMessage();
     });
 
-    test('should handle 500 server errors gracefully', async ({ page }) => {
+    test("should handle 500 server errors gracefully", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
       // Mock server error
-      await page.route('**/api/v1/auth/login', route =>
-        route.fulfill({ status: 500, body: 'Internal Server Error' })
+      await page.route("**/api/v1/auth/login", (route) =>
+        route.fulfill({ status: 500, body: "Internal Server Error" })
       );
 
-      await authPage.fillLoginCredentials('test@example.com', 'password123');
+      await authPage.fillLoginCredentials("test@example.com", "password123");
       await authPage.clickSignIn();
 
       // Should show general error message for server errors
@@ -377,8 +375,8 @@ test.describe('Authentication Flow', () => {
     });
   });
 
-  test.describe('Accessibility and User Experience', () => {
-    test('should have proper form accessibility attributes', async ({ page }) => {
+  test.describe("Accessibility and User Experience", () => {
+    test("should have proper form accessibility attributes", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
@@ -394,34 +392,42 @@ test.describe('Authentication Flow', () => {
       await expect(passwordInput).toBeVisible();
 
       // Inputs should have proper type attributes
-      await expect(emailInput).toHaveAttribute('type', 'email');
-      await expect(passwordInput).toHaveAttribute('type', 'password');
+      await expect(emailInput).toHaveAttribute("type", "email");
+      await expect(passwordInput).toHaveAttribute("type", "password");
     });
 
-
-    test('should allow form submission with Enter key', async ({ page }) => {
+    test("should allow form submission with Enter key", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
-      await authPage.fillLoginCredentials('test@example.com', 'password123');
+      await authPage.fillLoginCredentials("test@example.com", "password123");
 
       // Press Enter in password field to submit form
-      await page.locator('[data-testid="password-input"]').press('Enter');
+      await page.locator('[data-testid="password-input"]').press("Enter");
 
       // Form should be submitted - check for loading state or error message
-      const hasLoadingSpinner = await page.locator('[data-testid="loading-spinner"]').isVisible().catch(() => false);
-      const hasErrorMessage = await page.locator('[data-testid="error-message"]').isVisible().catch(() => false);
-      const isButtonDisabled = await page.locator('[data-testid="sign-in-button"]').isDisabled().catch(() => false);
+      const hasLoadingSpinner = await page
+        .locator('[data-testid="loading-spinner"]')
+        .isVisible()
+        .catch(() => false);
+      const hasErrorMessage = await page
+        .locator('[data-testid="error-message"]')
+        .isVisible()
+        .catch(() => false);
+      const isButtonDisabled = await page
+        .locator('[data-testid="sign-in-button"]')
+        .isDisabled()
+        .catch(() => false);
 
       // Should show loading state, error, or disabled button (form was submitted)
       expect(hasLoadingSpinner || hasErrorMessage || isButtonDisabled).toBe(true);
     });
 
-    test('should handle rapid successive clicks gracefully', async ({ page }) => {
+    test("should handle rapid successive clicks gracefully", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
-      await authPage.fillLoginCredentials('test@example.com', 'password123');
+      await authPage.fillLoginCredentials("test@example.com", "password123");
 
       // Click submit button multiple times rapidly
       const submitButton = page.locator('[data-testid="sign-in-button"]');
@@ -434,17 +440,20 @@ test.describe('Authentication Flow', () => {
       // Should not cause multiple submissions or errors
       // Button should be disabled or show loading state
       const isDisabled = await submitButton.isDisabled().catch(() => false);
-      const hasLoadingSpinner = await page.locator('[data-testid="loading-spinner"]').isVisible().catch(() => false);
+      const hasLoadingSpinner = await page
+        .locator('[data-testid="loading-spinner"]')
+        .isVisible()
+        .catch(() => false);
 
       expect(isDisabled || hasLoadingSpinner).toBe(true);
     });
 
-    test('should maintain form state when switching between login and register', async ({ page }) => {
+    test("should maintain form state when switching between login and register", async ({ page }) => {
       await authPage.navigateToLogin();
       await authPage.expectLoginFormVisible();
 
       // Fill login form
-      await authPage.fillLoginCredentials('test@example.com', 'password123');
+      await authPage.fillLoginCredentials("test@example.com", "password123");
 
       // Navigate to register
       await authPage.clickRegisterLink();
@@ -458,8 +467,8 @@ test.describe('Authentication Flow', () => {
       const emailValue = await page.locator('[data-testid="email-input"]').inputValue();
       const passwordValue = await page.locator('[data-testid="password-input"]').inputValue();
 
-      expect(emailValue).toBe('');
-      expect(passwordValue).toBe('');
+      expect(emailValue).toBe("");
+      expect(passwordValue).toBe("");
     });
   });
 });

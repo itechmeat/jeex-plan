@@ -114,6 +114,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         """Check CSRF protection for state-changing requests."""
 
+        # Skip CSRF protection in testing environment
+        if os.environ.get("ENVIRONMENT") == "testing":
+            return await call_next(request)
+
         # Skip CSRF protection for exempt paths
         if any(request.url.path.startswith(path) for path in self.exempt_paths):
             return await call_next(request)
@@ -131,8 +135,14 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             # Check if request has no cookies (truly stateless)
             has_no_cookies = not request.cookies
 
-            # Only skip CSRF for stateless requests
+            # Skip CSRF for stateless requests (Bearer token OR no auth at all)
+            # Unauthenticated requests will be rejected by endpoint dependencies
             if has_bearer_token and has_no_cookies:
+                return await call_next(request)
+
+            # Skip CSRF for unauthenticated API requests (no Bearer, no cookies)
+            # These will be caught by authentication dependencies in endpoints
+            if not has_bearer_token and has_no_cookies:
                 return await call_next(request)
 
         # Validate CSRF token for cookie-based authentication

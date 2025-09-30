@@ -42,25 +42,27 @@ class UserService:
         password: str,
         full_name: str | None = None,
         tenant_id: uuid.UUID | None = None,
-        *,
-        skip_password_validation: bool = False,
     ) -> User:
         """
-        Create a new user without generating tokens (for testing and internal use).
+        Create a new user without generating tokens (for internal use).
 
         Args:
             email: User's email address
             username: User's username
-            password: User's password
+            password: User's password (will be validated for strength)
             full_name: User's full name (optional)
             tenant_id: Tenant ID (optional, will use service's tenant_id if not provided)
-            skip_password_validation: Skip password strength validation (for testing)
 
         Returns:
             User: The created user object
 
         Raises:
-            HTTPException: If email/username already exists or other validation errors
+            HTTPException: If email/username already exists or validation errors
+            ValueError: If password doesn't meet strength requirements
+
+        Note:
+            This method always enforces password validation for security.
+            For testing, use dependency injection to provide a mock password service.
         """
         # Compute effective tenant_id first
         if tenant_id:
@@ -70,42 +72,28 @@ class UserService:
                 self.tenant_id or await self._get_or_create_default_tenant()
             )
 
-        # Initialize repositories with effective tenant
-        if not self.user_repo or self.tenant_id != effective_tenant_id:
-            self.tenant_id = effective_tenant_id
-            self.user_repo = UserRepository(self.db, self.tenant_id)
+        # Use local repository scoped to effective tenant for this operation
+        # This avoids mutating service state and is safe for concurrent requests
+        user_repo = UserRepository(self.db, effective_tenant_id)
 
         # Validate email availability (against correct tenant)
-        if not await self.user_repo.check_email_availability(email):
+        if not await user_repo.check_email_availability(email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered",
             )
 
         # Validate username availability (against correct tenant)
-        if not await self.user_repo.check_username_availability(username):
+        if not await user_repo.check_username_availability(username):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
             )
 
-        # Hash password with optional validation skip for testing
-        if skip_password_validation:
-            # Use existing password service but bypass validation
-            import copy
-
-            temp_service = copy.copy(self.password_service)
-            # Temporarily bypass validation
-            original_validate = temp_service._validate_password_strength
-            temp_service._validate_password_strength = lambda p: None  # No-op
-            try:
-                hashed_password = temp_service.get_password_hash(password)
-            finally:
-                temp_service._validate_password_strength = original_validate
-        else:
-            hashed_password = self.password_service.get_password_hash(password)
+        # Hash password with validation (always enforced for security)
+        hashed_password = self.password_service.get_password_hash(password)
 
         # Create user
-        user = await self.user_repo.create(
+        user = await user_repo.create(
             email=email,
             username=username,
             full_name=full_name,
@@ -145,7 +133,11 @@ class UserService:
         # Compute effective tenant_id first
         if tenant_id:
             effective_tenant_id = tenant_id
+        elif self.tenant_id:
+            # Use tenant_id from service initialization
+            effective_tenant_id = self.tenant_id
         else:
+            # Create default tenant for new registrations
             effective_tenant_id = await self._get_or_create_default_tenant()
 
         # Initialize repositories and auth service with effective tenant
@@ -245,7 +237,7 @@ class UserService:
 
         return {"user": self._serialize_user(user), "tokens": tokens}
 
-    async def refresh_tokens(self, refresh_token: str) -> dict[str, Any] | None:
+    async def refresh_tokens(self, refresh_token: str) -> dict[str, Any]:
         """Refresh access token using refresh token."""
         tokens = await self.auth_service.refresh_access_token(refresh_token)
 
@@ -256,6 +248,16 @@ class UserService:
             )
 
         return tokens
+
+    async def get_user_by_email(self, email: str) -> User | None:
+        """Get user by email within the service's tenant scope."""
+        if self.user_repo is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User repository not initialized",
+            )
+
+        return await self.user_repo.get_by_email(email)
 
     async def get_user_profile(self, user_id: uuid.UUID) -> User:
         """Get user profile by ID."""

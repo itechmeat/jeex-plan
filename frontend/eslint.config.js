@@ -66,17 +66,7 @@ export default [
     languageOptions: {
       globals: {
         ...globals.browser,
-        ...globals.mocha,
-        ...globals.jest,
-        describe: 'readonly',
-        it: 'readonly',
-        test: 'readonly',
-        expect: 'readonly',
         vi: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-        beforeAll: 'readonly',
-        afterAll: 'readonly',
       },
     },
   },

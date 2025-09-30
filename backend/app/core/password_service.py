@@ -11,9 +11,10 @@ Security features:
 """
 
 import secrets
+from typing import cast
 
-from passlib.context import CryptContext
-from passlib.exc import UnknownHashError
+from passlib.context import CryptContext  # type: ignore[import-untyped]
+from passlib.exc import UnknownHashError  # type: ignore[import-untyped]
 
 
 class PasswordService:
@@ -41,7 +42,10 @@ class PasswordService:
             return False
 
         try:
-            return self.pwd_context.verify(plain_password, hashed_password)
+            result: bool = cast(
+                bool, self.pwd_context.verify(plain_password, hashed_password)
+            )
+            return result
         except (UnknownHashError, ValueError):
             return False
 
@@ -54,7 +58,8 @@ class PasswordService:
         self._validate_password_strength(password)
 
         try:
-            return self.pwd_context.hash(password)
+            hashed: str = cast(str, self.pwd_context.hash(password))
+            return hashed
         except Exception as e:
             raise ValueError(f"Failed to hash password: {e}") from e
 

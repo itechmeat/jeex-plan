@@ -4,6 +4,7 @@ Health check endpoints for monitoring system status.
 
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -17,6 +18,34 @@ from app.core.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+def _sanitize_database_url(database_url: str) -> str:
+    """
+    Remove credentials from DATABASE_URL for safe logging/display.
+
+    Args:
+        database_url: Full database URL with potential credentials
+
+    Returns:
+        Sanitized URL without username/password
+    """
+    try:
+        parsed = urlparse(database_url)
+        # Rebuild netloc without credentials
+        if parsed.hostname:
+            safe_netloc = parsed.hostname
+            if parsed.port:
+                safe_netloc = f"{safe_netloc}:{parsed.port}"
+        else:
+            safe_netloc = ""
+
+        # Reconstruct URL without credentials
+        sanitized = urlunparse((parsed.scheme, safe_netloc, parsed.path, "", "", ""))
+        return sanitized
+    except Exception as e:
+        logger.warning("Failed to sanitize database URL", error=str(e))
+        return "configured"
 
 
 @router.get("/health")
@@ -217,9 +246,7 @@ async def health_metrics() -> dict[str, Any]:
         "uptime": "N/A",  # Would need to track application start time
         "components": {
             "database": {
-                "url": settings.DATABASE_URL.split("@")[-1]
-                if "@" in settings.DATABASE_URL
-                else "configured",
+                "url": _sanitize_database_url(settings.DATABASE_URL),
                 "configured": bool(settings.DATABASE_URL),
             },
             "redis": {

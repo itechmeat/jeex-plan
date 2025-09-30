@@ -134,20 +134,21 @@ class TestUserRegistration:
                     "name": "Test User",
                 },
             )
-            # Should either reject weak password or accept and continue
-            # The actual behavior depends on implementation
-            assert response.status_code in [400, 422, 201, 500], (
+            # Should either reject weak password (400/422) or accept if validation disabled (201)
+            # HTTP 500 should never occur - it would indicate a server bug
+            assert response.status_code in [400, 422, 201], (
                 f"Password {weak_password} handling"
             )
 
     @pytest.mark.asyncio
     async def test_registration_duplicate_email(
-        self, test_session: AsyncSession, test_tenant
+        self, test_session: AsyncSession, test_tenant, mock_password_service
     ):
         """Test registration with duplicate email within the same tenant."""
         from app.services.user import UserService
 
         user_service = UserService(test_session, test_tenant.id)
+        user_service.password_service = mock_password_service  # Use mock for testing
 
         # Create first user
         email = "duplicate@test.com"
@@ -305,7 +306,9 @@ class TestMultiTenantIsolation:
     """Test multi-tenant user isolation."""
 
     @pytest.mark.asyncio
-    async def test_user_isolation_between_tenants(self, test_session: AsyncSession):
+    async def test_user_isolation_between_tenants(
+        self, test_session: AsyncSession, mock_password_service
+    ):
         """Test that users are isolated between tenants."""
         from app.repositories.tenant import TenantRepository
 
@@ -320,33 +323,28 @@ class TestMultiTenantIsolation:
 
         # Create users in different tenants with same email
         user_service1 = UserService(test_session, tenant1.id)
+        user_service1.password_service = mock_password_service  # Use mock for testing
         user_service2 = UserService(test_session, tenant2.id)
+        user_service2.password_service = mock_password_service  # Use mock for testing
 
-        # This should work - same email in different tenants
-        try:
-            user1 = await user_service1.create_user(
-                email="test@example.com",
-                username="testuser1",
-                password="password123",
-                full_name="Test User 1",
-                skip_password_validation=True,
-            )
-            user2 = await user_service2.create_user(
-                email="test@example.com",
-                username="testuser2",
-                password="password123",
-                full_name="Test User 2",
-                skip_password_validation=True,
-            )
+        # MUST work - same email in different tenants is required by multi-tenant design
+        # UniqueConstraint("tenant_id", "email") ensures email uniqueness per tenant
+        user1 = await user_service1.create_user(
+            email="test@example.com",
+            username="testuser1",
+            password="password123",
+            full_name="Test User 1",
+        )
+        user2 = await user_service2.create_user(
+            email="test@example.com",
+            username="testuser2",
+            password="password123",
+            full_name="Test User 2",
+        )
 
-            assert user1.tenant_id == tenant1.id
-            assert user2.tenant_id == tenant2.id
-            assert user1.email == user2.email  # Same email, different tenants
-
-        except Exception as e:
-            # If implementation doesn't allow same email across tenants,
-            # that's also a valid design choice
-            pytest.skip(f"Same email across tenants not supported: {e}")
+        assert user1.tenant_id == tenant1.id
+        assert user2.tenant_id == tenant2.id
+        assert user1.email == user2.email  # Same email across tenants IS required
 
     @pytest.mark.asyncio
     async def test_user_queries_are_tenant_scoped(self, test_session: AsyncSession):
@@ -475,7 +473,9 @@ class TestPasswordSecurity:
         assert response.status_code in [401, 403]
 
     @pytest.mark.asyncio
-    async def test_passwords_are_hashed(self, db_session: AsyncSession):
+    async def test_passwords_are_hashed(
+        self, db_session: AsyncSession, mock_password_service
+    ):
         """Test that passwords are properly hashed in database."""
         # Create a user and verify password is not stored in plain text
         user = User(
@@ -487,6 +487,8 @@ class TestPasswordSecurity:
 
         # Test password hashing through the user service
         user_service = UserService(db_session)
+
+        user_service.password_service = mock_password_service  # Use mock for testing
         hashed = user_service.password_service.get_password_hash("SecurePassword123!")
 
         assert hashed != "SecurePassword123!"
@@ -548,12 +550,12 @@ class TestSecurityHeaders:
             )
             responses.append(response.status_code)
 
-        # Should eventually hit rate limits (429) or continue processing
-        # The exact behavior depends on rate limiting configuration
+        # Should either hit rate limit (429) or process normally (401/422 for invalid creds)
+        # HTTP 500 should never occur - rate limiting must not cause server errors
         status_codes = set(responses)
         assert 429 in status_codes or all(
-            code in [401, 422, 500] for code in status_codes
-        )
+            code in [401, 422] for code in status_codes
+        ), f"Unexpected status codes (500 not allowed): {status_codes}"
 
 
 class TestErrorHandling:
@@ -662,38 +664,40 @@ class TestCompleteAuthFlow:
             },
         )
 
-        if register_response.status_code in [200, 201]:
-            # Registration successful
+        # Step 1: Registration must succeed
+        assert register_response.status_code in [200, 201], (
+            f"Registration should succeed, got {register_response.status_code}"
+        )
 
-            # Step 2: Login with same credentials
-            login_response = await async_client.post(
-                "/api/v1/auth/login",
-                json={"email": unique_email, "password": "test123456"},
-            )
+        # Step 2: Login with same credentials must succeed
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={"email": unique_email, "password": "test123456"},
+        )
+        assert login_response.status_code in [200, 201], (
+            f"Login should succeed, got {login_response.status_code}"
+        )
 
-            if login_response.status_code in [200, 201]:
-                # Login successful, get token
-                login_data = login_response.json()
+        # Step 3: Token must be present in response
+        login_data = login_response.json()
+        token = login_data.get("token", {}).get("access_token") or login_data.get(
+            "access_token"
+        )
+        assert token, "Token must be present in login response"
 
-                # Step 3: Access protected endpoint
-                token = login_data.get("token", {}).get(
-                    "access_token"
-                ) or login_data.get("access_token")
-                if token:
-                    me_response = await async_client.get(
-                        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
-                    )
-                    assert me_response.status_code in [
-                        200,
-                        401,
-                    ]  # 401 if token format issues
+        # Step 4: Protected endpoint must succeed with valid token
+        me_response = await async_client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert me_response.status_code == 200, (
+            f"Protected endpoint should succeed with valid token, got {me_response.status_code}"
+        )
 
-                    # Step 4: Logout
-                    logout_response = await async_client.post(
-                        "/api/v1/auth/logout",
-                        headers={"Authorization": f"Bearer {token}"},
-                    )
-                    assert logout_response.status_code in [200, 401]
-
-        # Test completed regardless of implementation status
-        assert True, "Complete flow test executed"
+        # Step 5: Logout must succeed
+        logout_response = await async_client.post(
+            "/api/v1/auth/logout",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert logout_response.status_code == 200, (
+            f"Logout should succeed, got {logout_response.status_code}"
+        )

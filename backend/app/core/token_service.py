@@ -3,10 +3,11 @@ Token service for JWT token management.
 Separated from AuthService to follow Single Responsibility Principle.
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
-from jose import JWTError, jwt
+from jose import JWTError, jwt  # type: ignore[import-untyped]
 
 from .config import get_settings
 
@@ -39,11 +40,15 @@ class TokenService:
                 "exp": int(expire.timestamp()),
                 "type": "access",
                 "iat": int(issued_at.timestamp()),
+                "jti": str(uuid.uuid4()),  # Unique token ID for token tracking
             }
         )
 
         try:
-            return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+            token: str = cast(
+                str, jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+            )
+            return token
         except Exception as e:
             raise ValueError(f"Failed to create access token: {e}") from e
 
@@ -64,11 +69,15 @@ class TokenService:
                 "exp": int(expire.timestamp()),
                 "type": "refresh",
                 "iat": int(issued_at.timestamp()),
+                "jti": str(uuid.uuid4()),  # Unique token ID for token tracking
             }
         )
 
         try:
-            return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+            token: str = cast(
+                str, jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+            )
+            return token
         except Exception as e:
             raise ValueError(f"Failed to create refresh token: {e}") from e
 
@@ -80,7 +89,10 @@ class TokenService:
             return None
 
         try:
-            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            payload: dict[str, Any] = cast(
+                dict[str, Any],
+                jwt.decode(token, self.secret_key, algorithms=[self.algorithm]),
+            )
 
             if payload.get("type") != token_type:
                 return None

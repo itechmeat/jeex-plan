@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -365,5 +365,39 @@ async def get_current_active_user_dependency(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """FastAPI dependency to get current active user."""
+    """FastAPI dependency to get current active user from Bearer token."""
+    return await get_current_active_user(credentials, db)
+
+
+async def get_current_active_user_flexible(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    FastAPI dependency to get current active user from either Bearer token or cookies.
+
+    Supports both authentication methods:
+    - Authorization: Bearer <token> header (preferred for API clients)
+    - access_token cookie (for browser-based clients)
+    """
+    # Try to get token from Authorization header first
+    auth_header = request.headers.get("authorization", "")
+    token = None
+
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:]  # Remove "Bearer " prefix
+    else:
+        # Fall back to cookie-based authentication
+        token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Create HTTPAuthorizationCredentials object for compatibility
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
     return await get_current_active_user(credentials, db)

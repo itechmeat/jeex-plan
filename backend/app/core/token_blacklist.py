@@ -8,7 +8,7 @@ functionality by preventing invalidated tokens from being used after logout.
 from datetime import UTC, datetime
 from typing import Any
 
-from jose import jwt
+from jose import jwt  # type: ignore[import-untyped]
 
 from ..adapters.redis import RedisAdapter
 from .config import get_settings
@@ -112,6 +112,11 @@ class TokenBlacklistService:
 
         Returns:
             True if token is blacklisted, False otherwise
+
+        Security:
+            FAIL-CLOSED behavior: On Redis errors, return True to treat
+            unknown tokens as blacklisted. Additionally checks JWT expiry
+            before returning True.
         """
         try:
             token_hash = self._hash_token(token)
@@ -125,9 +130,21 @@ class TokenBlacklistService:
             return exists
 
         except Exception as e:
-            logger.error("Error checking token blacklist", error=str(e))
-            # In case of Redis failure, we fail open (don't block valid tokens)
-            return False
+            logger.error(
+                "Error checking token blacklist - FAIL-CLOSED",
+                error=str(e),
+                token_hash=self._hash_token(token)[:16],
+            )
+            # SECURITY: FAIL-CLOSED behavior - treat as blacklisted on error
+            # Check if token is expired before rejecting
+            exp_timestamp = self._get_token_expiry(token)
+            if exp_timestamp:
+                current_timestamp = int(datetime.now(UTC).timestamp())
+                if current_timestamp < exp_timestamp:
+                    # Token not expired, but Redis error - treat as blacklisted (fail-closed)
+                    return True
+            # Token expired or no expiry - treat as blacklisted
+            return True
 
     async def blacklist_user_tokens(self, user_id: str) -> bool:
         """
@@ -168,6 +185,10 @@ class TokenBlacklistService:
 
         Returns:
             True if user is blacklisted, False otherwise
+
+        Security:
+            FAIL-CLOSED behavior: On Redis errors, return True to treat
+            unknown user status as blacklisted.
         """
         try:
             user_blacklist_key = f"blacklist:user:{user_id}"
@@ -179,35 +200,29 @@ class TokenBlacklistService:
             return exists
 
         except Exception as e:
-            logger.error("Error checking user blacklist", user_id=user_id, error=str(e))
-            # In case of Redis failure, we fail open
-            return False
-
-    async def cleanup_expired_tokens(self) -> int:
-        """
-        Cleanup expired blacklist entries (Redis should handle this with TTL,
-        but this can be used for manual cleanup if needed).
-
-        Returns:
-            Number of entries cleaned up
-        """
-        try:
-            # This is mostly handled by Redis TTL, but we can implement
-            # manual cleanup for monitoring purposes
-            logger.info("Token blacklist cleanup initiated")
-            # In practice, Redis TTL handles this automatically
-            return 0
-
-        except Exception as e:
-            logger.error("Error during token blacklist cleanup", error=str(e))
-            return 0
+            logger.error(
+                "Error checking user blacklist - FAIL-CLOSED",
+                user_id=user_id,
+                error=str(e),
+            )
+            # SECURITY: FAIL-CLOSED behavior - treat as blacklisted on error
+            return True
 
     async def get_blacklist_stats(self) -> dict[str, Any]:
         """
         Get statistics about blacklisted tokens.
 
+        Warning: This operation scans Redis keys and may be expensive on large datasets.
+        Results are limited to prevent blocking Redis. Consider caching results if called
+        frequently.
+
         Returns:
-            Dictionary with blacklist statistics
+            Dictionary with blacklist statistics including:
+            - blacklisted_tokens: Count of blacklisted tokens (max 10,000)
+            - blacklisted_users: Count of users with blacklisted tokens (max 10,000)
+            - tokens_limited: True if token count reached limit
+            - users_limited: True if user count reached limit
+            - redis_status: Connection status
         """
         try:
             # Count blacklisted tokens
@@ -217,15 +232,24 @@ class TokenBlacklistService:
             token_keys = []
             user_keys = []
 
+            # Limit scan to prevent blocking Redis
+            max_keys = 10000
+
             async for key in self.redis.client.scan_iter(match=token_pattern):
                 token_keys.append(str(key))
+                if len(token_keys) >= max_keys:
+                    break
 
             async for key in self.redis.client.scan_iter(match=user_pattern):
                 user_keys.append(str(key))
+                if len(user_keys) >= max_keys:
+                    break
 
             return {
                 "blacklisted_tokens": len(token_keys),
                 "blacklisted_users": len(user_keys),
+                "tokens_limited": len(token_keys) >= max_keys,
+                "users_limited": len(user_keys) >= max_keys,
                 "redis_status": "connected",
             }
 
@@ -234,6 +258,8 @@ class TokenBlacklistService:
             return {
                 "blacklisted_tokens": 0,
                 "blacklisted_users": 0,
+                "tokens_limited": False,
+                "users_limited": False,
                 "redis_status": "error",
                 "error": str(e),
             }

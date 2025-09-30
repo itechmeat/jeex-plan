@@ -1,6 +1,6 @@
 import * as ProgressPrimitive from '@radix-ui/react-progress';
 import classNames from 'classnames';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from './Progress.module.css';
 
 export interface ProgressProps
@@ -30,8 +30,18 @@ export const Progress = React.forwardRef<
   ) => {
     const clampedValue = Math.min(100, Math.max(0, value));
     const progressScale = clampedValue / 100;
+    const [isAnimating, setIsAnimating] = useState(false);
 
     const rootClass = classNames(styles.root, styles[size], styles[variant], className);
+
+    useEffect(() => {
+      setIsAnimating(true);
+      const timer = setTimeout(() => {
+        setIsAnimating(false);
+      }, 350);
+
+      return () => clearTimeout(timer);
+    }, [progressScale]);
 
     return (
       <div className={styles.wrapper}>
@@ -54,10 +64,7 @@ export const Progress = React.forwardRef<
           {...props}
         >
           <ProgressPrimitive.Indicator
-            className={classNames(
-              styles.indicator,
-              progressScale > 0 && styles.animating
-            )}
+            className={classNames(styles.indicator, isAnimating && styles.animating)}
           />
         </ProgressPrimitive.Root>
       </div>

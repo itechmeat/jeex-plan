@@ -12,6 +12,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Performance test thresholds
+# These can be adjusted based on environment (CI vs local, hardware specs)
+TEST_HASH_MAX_SECONDS = 1.0  # Argon2id should complete in <1s on modern hardware
+TEST_MEMORY_THRESHOLD_MB = 30  # Reasonable limit for JWT operations with DB queries
+
 
 class PerformanceMetrics:
     """Helper class to collect and analyze performance metrics."""
@@ -279,8 +284,10 @@ class TestAuthenticationPerformance:
         summary = metrics.get_summary()
 
         # Password hashing should be reasonably fast but secure
-        assert summary["avg_response_time"] < 2.0, (
-            f"Password hashing too slow: {summary['avg_response_time']}s"
+        # Using TEST_HASH_MAX_SECONDS to catch performance regressions
+        assert summary["avg_response_time"] < TEST_HASH_MAX_SECONDS, (
+            f"Password hashing too slow: {summary['avg_response_time']}s "
+            f"(threshold: {TEST_HASH_MAX_SECONDS}s)"
         )
         assert summary["error_count"] == 0, (
             f"Password hashing errors: {summary['error_count']}"
@@ -423,12 +430,16 @@ class TestResourceUsage:
         memory_increase = final_memory - initial_memory
 
         # Memory usage should not increase dramatically
-        assert memory_increase < 100, (
-            f"Memory usage increased too much: {memory_increase}MB"
+        # Using TEST_MEMORY_THRESHOLD_MB to catch memory leaks early
+        # Note: Threshold can be tuned for specific environments if test proves flaky
+        assert memory_increase < TEST_MEMORY_THRESHOLD_MB, (
+            f"Memory usage increased too much: {memory_increase:.2f}MB "
+            f"(threshold: {TEST_MEMORY_THRESHOLD_MB}MB)"
         )
 
         print(
-            f"Memory usage: Initial={initial_memory:.2f}MB, Final={final_memory:.2f}MB, Increase={memory_increase:.2f}MB"
+            f"Memory usage: Initial={initial_memory:.2f}MB, Final={final_memory:.2f}MB, "
+            f"Increase={memory_increase:.2f}MB (threshold: {TEST_MEMORY_THRESHOLD_MB}MB)"
         )
 
     @pytest.mark.asyncio

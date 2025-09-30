@@ -66,7 +66,7 @@ export const Wizard: React.FC<WizardProps> = ({
   const currentStep = steps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === steps.length - 1;
-  const progress = steps.length > 0 ? ((currentStepIndex + 1) / steps.length) * 100 : 0;
+  const progress = ((currentStepIndex + 1) / steps.length) * 100;
 
   const isCurrentStepValid = () => {
     return Boolean(stepValidation[currentStep.id] ?? currentStep.isValid ?? false);

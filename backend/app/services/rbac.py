@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..core.exceptions import TenantError
 from ..models.rbac import Permission, PermissionModel, ProjectMember, Role
 from ..repositories.base import TenantRepository
 
@@ -20,7 +21,7 @@ class RBACService:
 
     def __init__(self, db: AsyncSession, tenant_id: uuid.UUID) -> None:
         if tenant_id is None:
-            raise ValueError("tenant_id is required for RBACService")
+            raise TenantError("tenant_id is required for RBACService")
 
         self.db = db
         self.tenant_id = tenant_id
@@ -35,7 +36,7 @@ class RBACService:
 
         tenant_id = tenant_id or getattr(self, "tenant_id", None)
         if tenant_id is None:
-            raise ValueError(
+            raise TenantError(
                 "tenant_id is required to initialize roles and permissions"
             )
 

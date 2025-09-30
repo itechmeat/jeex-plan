@@ -20,6 +20,7 @@ from app.core.config import EXEMPT_PATHS
 from app.core.logger import get_logger
 
 # Import middleware
+from app.middleware.security import CSRFProtectionMiddleware
 from app.middleware.tenant import TenantIsolationMiddleware
 
 logger = get_logger()
@@ -50,9 +51,23 @@ def add_tenant_middleware() -> None:
     app.add_middleware(TenantIsolationMiddleware, excluded_path_prefixes=EXEMPT_PATHS)
 
 
-# Add middleware
-add_cors_middleware()
-add_tenant_middleware()
+def add_csrf_middleware() -> None:
+    """Add CSRF protection middleware.
+
+    Note: Registered after tenant middleware to ensure tenant context is available.
+    In FastAPI, middleware is executed in reverse order of registration:
+    - CORS (executes first - handles preflight)
+    - Tenant Isolation (executes second - extracts tenant_id)
+    - CSRF Protection (executes last - validates CSRF with tenant context)
+    """
+    app.add_middleware(CSRFProtectionMiddleware, exempt_paths=EXEMPT_PATHS)
+
+
+# Add middleware in correct order
+# Execution order is REVERSED: last registered = first to execute
+add_cors_middleware()  # Executes first (CORS preflight handling)
+add_tenant_middleware()  # Executes second (extracts tenant context)
+add_csrf_middleware()  # Executes last (CSRF validation with tenant context)
 
 # Include all routes
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])

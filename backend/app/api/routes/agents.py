@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Security, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
@@ -13,8 +13,10 @@ from pydantic import BaseModel, Field
 from app.agents.contracts.base import ProjectContext
 from app.agents.orchestration.orchestrator import orchestrator
 from app.agents.orchestration.workflow import workflow_engine
+from app.core.auth import get_current_active_user_dependency
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.models.user import User
 
 logger = get_logger()
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -284,8 +286,15 @@ async def execute_engineering_standards(
 
 
 @router.get("/health")
-async def agent_health_check() -> dict:
-    """Health check for agent system."""
+async def agent_health_check(
+    current_user: User = Depends(get_current_active_user_dependency),
+) -> dict:
+    """
+    Health check for agent system (authenticated users only).
+
+    Returns status of agent orchestration system and workflow execution.
+    Requires authentication to prevent information disclosure.
+    """
     try:
         health = await orchestrator.health_check()
         status_str = health.get("status", "unhealthy")

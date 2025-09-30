@@ -33,7 +33,7 @@ make api-logs     # Follow API-specific events
 make clean        # Reset development artifacts
 
 cd frontend
-npm run dev       # Run standalone frontend (Port 5200, outside Docker)
+pnpm run dev       # Run standalone frontend (Port 5200, outside Docker)
 ```
 
 ## Database Operations
@@ -65,6 +65,8 @@ make vault-status # Check Vault readiness
 - Execute `docker-compose exec api pytest` for backend suites; target ≥80% line coverage.
 - Use `docker-compose exec api pytest tests/test_models.py` for focused runs.
 - Run `cd frontend && pnpm run test` for UI coverage (≥70%).
+- Run `cd tests && pnpm run test` for E2E test suites (Playwright).
+- Use `cd tests && pnpm run test -- auth.spec.ts` for focused E2E scenarios.
 - Prefer async pytest patterns and reuse fixtures from `backend/tests/conftest.py`.
 
 ## Secret Handling & Observability
@@ -95,5 +97,5 @@ make vault-status # Check Vault readiness
 ## Environment Notes
 
 - Backend work executes inside Docker containers; use `docker-compose exec` for shell access.
-- Frontend development runs locally via npm/pnpm, independent of Docker.
+- Frontend development runs locally via pnpm, independent of Docker.
 - Set `ENVIRONMENT=development` to unlock dev tooling and hot reload inside containers.

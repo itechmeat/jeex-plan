@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import text
 from sqlalchemy.engine import Result
@@ -22,10 +23,38 @@ from app.models.base import Base
 
 logger = get_logger()
 
+
+def _sanitize_database_url(database_url: str) -> str:
+    """Remove credentials from DATABASE_URL for safe logging."""
+    try:
+        parsed = urlparse(database_url)
+        if parsed.hostname:
+            safe_netloc = parsed.hostname
+            if parsed.port:
+                safe_netloc = f"{safe_netloc}:{parsed.port}"
+        else:
+            safe_netloc = ""
+        return urlunparse((parsed.scheme, safe_netloc, parsed.path, "", "", ""))
+    except Exception:
+        return "configured"
+
+
 # Create async engine with optimized settings
-ASYNC_DATABASE_URL = settings.DATABASE_URL.replace(
-    "postgresql://", "postgresql+asyncpg://"
-)
+# SECURITY: Validate and normalize DATABASE_URL properly
+# Check if already using asyncpg driver to avoid double-replacement corruption
+if "postgresql+asyncpg://" in settings.DATABASE_URL:
+    ASYNC_DATABASE_URL = settings.DATABASE_URL
+elif "postgresql://" in settings.DATABASE_URL:
+    ASYNC_DATABASE_URL = settings.DATABASE_URL.replace(
+        "postgresql://", "postgresql+asyncpg://"
+    )
+else:
+    logger.error(
+        "Invalid DATABASE_URL format", url=_sanitize_database_url(settings.DATABASE_URL)
+    )
+    raise ValueError(
+        "DATABASE_URL must start with postgresql:// or postgresql+asyncpg://"
+    )
 
 if settings.is_development:
     # Development: use NullPool (no pool parameters)
@@ -105,7 +134,7 @@ class DatabaseManager:
                     "status": "healthy",
                     "message": "Database connection successful",
                     "details": {
-                        "database_url": settings.DATABASE_URL.split("@")[-1],
+                        "database_url": _sanitize_database_url(settings.DATABASE_URL),
                     },
                 }
         except Exception as e:

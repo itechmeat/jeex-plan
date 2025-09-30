@@ -1,8 +1,9 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { AUTH_MESSAGES } from '../config/constants';
 import { ROUTES } from '../config/routes';
 import { useAuth } from '../contexts/useAuth';
-import styles from './ProtectedRoute.module.css';
+import styles from './AuthLoader.module.css';
 
 interface PublicRouteProps {
   children: React.ReactNode;
@@ -27,7 +28,9 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
     return (
       <div className={styles.loaderContainer}>
         <div className={styles.spinner} />
-        <p className={styles.message}>Checking authentication...</p>
+        <p className={styles.message} role='status' aria-live='polite'>
+          {AUTH_MESSAGES.CHECKING_AUTHENTICATION}
+        </p>
       </div>
     );
   }
