@@ -28,9 +28,23 @@ class TokenBlacklistService:
         self.secret_key = settings.SECRET_KEY
         self.algorithm = settings.ALGORITHM
 
-    def _get_blacklist_key(self, jti: str) -> str:
-        """Generate Redis key for blacklisted token using JTI."""
-        return f"blacklist:token:{jti}"
+    def _get_blacklist_key(self, jti: str, tenant_id: str) -> str:
+        """
+        Generate Redis key for blacklisted token with tenant isolation.
+
+        SECURITY: Tenant ID is REQUIRED to prevent cross-tenant token collisions.
+        Format: blacklist:tenant:{tenant_id}:token:{jti}
+
+        Args:
+            jti: JWT ID (unique token identifier)
+            tenant_id: Tenant UUID for isolation
+
+        Returns:
+            Tenant-scoped Redis key
+        """
+        if not tenant_id:
+            raise ValueError("tenant_id is required for token blacklist key generation")
+        return f"blacklist:tenant:{tenant_id}:token:{jti}"
 
     def _extract_jti(self, token: str) -> str | None:
         """Extract JTI from JWT token."""
@@ -44,6 +58,29 @@ class TokenBlacklistService:
             return None
         except Exception as e:
             logger.warning("Failed to extract JTI from token", error=str(e))
+            return None
+
+    def _extract_tenant_id(self, token: str) -> str | None:
+        """
+        Extract tenant_id from JWT token.
+
+        SECURITY: Tenant ID is required for multi-tenant token isolation.
+
+        Args:
+            token: JWT token string
+
+        Returns:
+            Tenant ID string or None if not found
+        """
+        try:
+            unverified_payload = jwt.get_unverified_claims(token)
+            tenant_id = unverified_payload.get("tenant_id")
+
+            if tenant_id and isinstance(tenant_id, str):
+                return tenant_id  # type: ignore[no-any-return]
+            return None
+        except Exception as e:
+            logger.warning("Failed to extract tenant_id from token", error=str(e))
             return None
 
     def _get_token_expiry(self, token: str) -> int | None:
@@ -75,7 +112,9 @@ class TokenBlacklistService:
 
     async def blacklist_token(self, token: str) -> bool:
         """
-        Add token to blacklist with appropriate TTL.
+        Add token to blacklist with tenant isolation and appropriate TTL.
+
+        SECURITY: Tenant ID is REQUIRED and extracted from token for isolation.
 
         Args:
             token: JWT token to blacklist
@@ -89,37 +128,56 @@ class TokenBlacklistService:
                 logger.error("Failed to extract JTI from token for blacklisting")
                 return False
 
-            blacklist_key = self._get_blacklist_key(jti)
+            # SECURITY: Extract tenant_id for isolation
+            tenant_id = self._extract_tenant_id(token)
+            if not tenant_id:
+                logger.error(
+                    "Failed to extract tenant_id from token for blacklisting",
+                    jti=jti[:16],
+                )
+                raise ValueError(
+                    "tenant_id is required in token for blacklist operation"
+                )
+
+            blacklist_key = self._get_blacklist_key(jti, tenant_id)
             ttl = self._calculate_ttl(token)
 
             if ttl <= 0:
                 logger.info(
                     "Token already expired, not blacklisting",
                     jti=jti[:16],
+                    tenant_id=tenant_id,
                 )
                 return True
 
-            # Store in Redis with TTL
+            # Store in Redis with TTL and tenant isolation
             success = await self.redis.set(blacklist_key, "1", ex=ttl)
 
             if success:
                 logger.info(
                     "Token blacklisted successfully",
                     jti=jti[:16],
+                    tenant_id=tenant_id,
                     ttl=ttl,
                 )
             else:
-                logger.error("Failed to blacklist token", jti=jti[:16])
+                logger.error(
+                    "Failed to blacklist token", jti=jti[:16], tenant_id=tenant_id
+                )
 
             return success
 
+        except ValueError:
+            raise  # Re-raise tenant_id validation errors
         except Exception as e:
-            logger.error("Error blacklisting token", error=str(e))
-            return False
+            logger.error("Error blacklisting token", error=str(e), exc_info=True)
+            raise  # Preserve original exception
 
     async def is_token_blacklisted(self, token: str) -> bool:
         """
-        Check if token is blacklisted.
+        Check if token is blacklisted with tenant isolation.
+
+        SECURITY: Tenant ID is REQUIRED and extracted from token for isolation.
 
         Args:
             token: JWT token to check
@@ -140,18 +198,36 @@ class TokenBlacklistService:
                 logger.warning("Cannot extract JTI from token, treating as blacklisted")
                 return True
 
-            blacklist_key = self._get_blacklist_key(jti)
+            # SECURITY: Extract tenant_id for isolation
+            tenant_id = self._extract_tenant_id(token)
+            if not tenant_id:
+                logger.warning(
+                    "Cannot extract tenant_id from token, treating as blacklisted",
+                    jti=jti[:16],
+                )
+                return True
+
+            blacklist_key = self._get_blacklist_key(jti, tenant_id)
             exists = await self.redis.exists(blacklist_key)
 
             if exists:
-                logger.debug("Token found in blacklist", jti=jti[:16])
+                logger.debug(
+                    "Token found in blacklist", jti=jti[:16], tenant_id=tenant_id
+                )
 
             return exists
 
+        except ValueError as e:
+            logger.error(
+                "Tenant validation error - FAIL-CLOSED",
+                error=str(e),
+            )
+            return True
         except Exception as e:
             logger.error(
                 "Error checking token blacklist - FAIL-CLOSED",
                 error=str(e),
+                exc_info=True,
             )
             # SECURITY: FAIL-CLOSED behavior - treat as blacklisted on error
             # Check if token is expired before rejecting
@@ -164,42 +240,68 @@ class TokenBlacklistService:
             # Token expired or no expiry - treat as blacklisted
             return True
 
-    async def blacklist_user_tokens(self, user_id: str) -> bool:
+    async def blacklist_user_tokens(self, user_id: str, tenant_id: str) -> bool:
         """
-        Blacklist all tokens for a specific user (for account compromise scenarios).
+        Blacklist all tokens for a specific user with tenant isolation.
+
+        SECURITY: Tenant ID is REQUIRED to prevent cross-tenant user blacklisting.
 
         Args:
             user_id: User ID to blacklist all tokens for
+            tenant_id: Tenant UUID for isolation
 
         Returns:
             True if successfully added to user blacklist, False otherwise
         """
+        if not tenant_id:
+            logger.error(
+                "tenant_id is required for user token blacklisting", user_id=user_id
+            )
+            raise ValueError("tenant_id is required for user blacklist operation")
+
         try:
-            user_blacklist_key = f"blacklist:user:{user_id}"
+            user_blacklist_key = f"blacklist:tenant:{tenant_id}:user:{user_id}"
             # Set with a long TTL (refresh token lifetime)
             ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
 
             success = await self.redis.set(user_blacklist_key, "1", ex=ttl)
 
             if success:
-                logger.info("All user tokens blacklisted", user_id=user_id)
+                logger.info(
+                    "All user tokens blacklisted",
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                )
             else:
-                logger.error("Failed to blacklist user tokens", user_id=user_id)
+                logger.error(
+                    "Failed to blacklist user tokens",
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                )
 
             return success
 
+        except ValueError:
+            raise  # Re-raise tenant_id validation errors
         except Exception as e:
             logger.error(
-                "Error blacklisting user tokens", user_id=user_id, error=str(e)
+                "Error blacklisting user tokens",
+                user_id=user_id,
+                tenant_id=tenant_id,
+                error=str(e),
+                exc_info=True,
             )
-            return False
+            raise  # Preserve original exception
 
-    async def is_user_blacklisted(self, user_id: str) -> bool:
+    async def is_user_blacklisted(self, user_id: str, tenant_id: str) -> bool:
         """
-        Check if all tokens for user are blacklisted.
+        Check if all tokens for user are blacklisted with tenant isolation.
+
+        SECURITY: Tenant ID is REQUIRED to prevent cross-tenant user checks.
 
         Args:
             user_id: User ID to check
+            tenant_id: Tenant UUID for isolation
 
         Returns:
             True if user is blacklisted, False otherwise
@@ -208,12 +310,20 @@ class TokenBlacklistService:
             FAIL-CLOSED behavior: On Redis errors, return True to treat
             unknown user status as blacklisted.
         """
+        if not tenant_id:
+            logger.error(
+                "tenant_id is required for user blacklist check", user_id=user_id
+            )
+            return True  # FAIL-CLOSED on missing tenant_id
+
         try:
-            user_blacklist_key = f"blacklist:user:{user_id}"
+            user_blacklist_key = f"blacklist:tenant:{tenant_id}:user:{user_id}"
             exists = await self.redis.exists(user_blacklist_key)
 
             if exists:
-                logger.debug("User found in blacklist", user_id=user_id)
+                logger.debug(
+                    "User found in blacklist", user_id=user_id, tenant_id=tenant_id
+                )
 
             return exists
 
@@ -221,7 +331,9 @@ class TokenBlacklistService:
             logger.error(
                 "Error checking user blacklist - FAIL-CLOSED",
                 user_id=user_id,
+                tenant_id=tenant_id,
                 error=str(e),
+                exc_info=True,
             )
             # SECURITY: FAIL-CLOSED behavior - treat as blacklisted on error
             return True

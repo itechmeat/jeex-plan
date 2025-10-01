@@ -73,9 +73,20 @@ class AuthService:
             )
             return None
 
+        # SECURITY: tenant_id is REQUIRED for user blacklist check
+        if not token_tenant_id:
+            self.logger.warning(
+                "auth.invalid_token",
+                extra={"reason": "missing_tenant_id"},
+            )
+            return None
+
         # Check if user is blacklisted (for account compromise scenarios)
-        if await self.token_blacklist.is_user_blacklisted(user_id):
-            self.logger.warning("auth.user_blacklisted", extra={"user_id": user_id})
+        if await self.token_blacklist.is_user_blacklisted(user_id, token_tenant_id):
+            self.logger.warning(
+                "auth.user_blacklisted",
+                extra={"user_id": user_id, "tenant_id": token_tenant_id},
+            )
             return None
 
         try:

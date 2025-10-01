@@ -34,15 +34,32 @@ class BaseRepository(ABC, Generic[ModelType]):
             await (
                 self.session.flush()
             )  # Use flush instead of commit for better transaction control
-            # Try to refresh, but don't fail if it doesn't work (e.g., SQLite or constrained backends)
+
+            # SECURITY: NO fallback to "unknown" - entity ID MUST be determinable
             try:
                 await self.session.refresh(instance)
-                # If refresh worked, get ID from instance
+                # Verify ID was assigned after refresh
+                if not hasattr(instance, "id") or instance.id is None:
+                    raise ValueError(
+                        f"Entity ID not assigned after refresh for {self.model.__name__}"
+                    )
                 entity_id = str(instance.id)
-            except Exception:
-                # Refresh failed; prefer ID if it was populated by flush/RETURNING
+            except Exception as refresh_exc:
+                # Refresh failed - try to get ID directly from instance
                 _id = getattr(instance, "id", None)
-                entity_id = str(_id) if _id else "unknown"
+                if _id is None:
+                    # CRITICAL: Entity ID cannot be determined - raise explicit error
+                    logger.error(
+                        "Entity ID not assigned after flush/refresh",
+                        model=self.model.__name__,
+                        refresh_error=str(refresh_exc),
+                    )
+                    raise ValueError(
+                        f"Failed to determine entity ID for {self.model.__name__}. "
+                        f"Database may not support RETURNING clause or ID generation failed."
+                    ) from refresh_exc
+                entity_id = str(_id)
+
             logger.info(
                 "Created entity",
                 model=self.model.__name__,
@@ -57,6 +74,9 @@ class BaseRepository(ABC, Generic[ModelType]):
                 error=str(exc),
             )
             raise exc
+        except ValueError:
+            await self.session.rollback()
+            raise  # Re-raise ID assignment errors
 
     async def get_by_id(self, entity_id: UUID) -> ModelType | None:
         """Get entity by ID."""
