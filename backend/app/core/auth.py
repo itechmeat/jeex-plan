@@ -200,10 +200,20 @@ class AuthService:
 
     async def create_tokens_for_user(self, user: User) -> dict[str, Any]:
         """Create access and refresh tokens for user."""
+        if user.tenant_id is None:
+            self.logger.error(
+                "auth.missing_tenant_for_token_issue",
+                extra={"user_id": str(user.id)},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Tenant context missing for user token issuance",
+            )
+
         user_data = {
             "id": str(user.id),
             "email": user.email,
-            "tenant_id": str(user.tenant_id) if user.tenant_id is not None else None,
+            "tenant_id": str(user.tenant_id),
             "username": user.username,
             "full_name": user.full_name or "",
         }
