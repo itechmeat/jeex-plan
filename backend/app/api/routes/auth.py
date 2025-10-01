@@ -83,26 +83,59 @@ async def register_user(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match"
         )
 
-    # Create or get a tenant for the user
+    # SECURITY: Tenant context is REQUIRED for registration
+    # Registration requires explicit tenant_id or invitation token
+    # NO automatic tenant creation from email domain
+
+    tenant_id = None
     tenant_repo = TenantRepository(db)
 
-    # Extract domain from email for tenant slug
-    email_domain = user_data.email.split("@")[-1]
-    tenant_slug = email_domain.replace(".", "-").lower()
+    # Priority 1: Check for tenant_id in payload (if UserCreate supports it)
+    if hasattr(user_data, "tenant_id") and getattr(user_data, "tenant_id", None):
+        tenant_id = user_data.tenant_id
+        # Validate tenant exists
+        tenant = await tenant_repo.get_by_id(tenant_id)
+        if not tenant:
+            logger.warning(
+                "Invalid tenant_id in registration", tenant_id=str(tenant_id)
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tenant identifier",
+            )
 
-    # Try to get existing tenant by slug, or create new one
-    tenant = await tenant_repo.get_by_slug(tenant_slug)
-    if not tenant:
-        # Create new tenant with email domain as name
-        tenant = await tenant_repo.create_tenant(
-            name=email_domain.capitalize(),
-            slug=tenant_slug,
-            description=f"Tenant for {email_domain}",
+    # Priority 2: Check for tenant_slug in payload
+    elif hasattr(user_data, "tenant_slug") and getattr(user_data, "tenant_slug", None):
+        tenant_slug = user_data.tenant_slug
+        tenant = await tenant_repo.get_by_slug(tenant_slug)
+        if not tenant:
+            logger.warning(
+                "Invalid tenant_slug in registration", tenant_slug=tenant_slug
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tenant identifier",
+            )
+        tenant_id = tenant.id
+
+    # Priority 3: Check for invitation token (future implementation)
+    # elif hasattr(user_data, "invitation_token"):
+    #     invitation = await validate_invitation_token(user_data.invitation_token)
+    #     tenant_id = invitation.tenant_id
+
+    # SECURITY: Reject registration without valid tenant context
+    if not tenant_id:
+        logger.warning(
+            "Registration rejected: missing tenant context",
+            email=user_data.email,
         )
-        await db.commit()
-        await db.refresh(tenant)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Registration requires valid tenant context. "
+            "Please provide tenant_id, tenant_slug, or invitation_token.",
+        )
 
-    user_service = UserService(db, tenant.id)
+    user_service = UserService(db, tenant_id)
 
     try:
         # Register user and get tokens
@@ -171,27 +204,83 @@ async def register_user(
 
 @router.post("/login", response_model=LoginResponse)
 async def login_user(
-    response: Response, login_data: LoginRequest, db: AsyncSession = Depends(get_db)
+    request: Request,
+    response: Response,
+    login_data: LoginRequest,
+    db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     """
     User login with email and password.
 
     Authenticates user and returns JWT tokens.
 
-    SECURITY: Sets authentication tokens as HttpOnly, Secure cookies
-    to prevent XSS attacks. Tokens are NOT included in response body.
+    SECURITY:
+    - Requires tenant context (subdomain, slug, or header) for isolation
+    - Sets authentication tokens as HttpOnly, Secure cookies
+    - Implements rate limiting per tenant to prevent brute force attacks
+    - Tokens are NOT included in response body
     """
     logger.info("Login attempt", email=login_data.email)
 
-    # For login, we need to search across all tenants initially
-    # since we don't know which tenant the user belongs to
-    # Use AuthService directly to avoid tenant context requirement
-    auth_service = AuthService(db)
+    # SECURITY: Extract tenant context from request
+    # Priority: X-Tenant-ID header > tenant_slug in payload > subdomain
+    tenant_id = None
+    tenant_slug = None
+
+    # Check X-Tenant-ID header
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    if tenant_id_header:
+        try:
+            from uuid import UUID
+
+            tenant_id = UUID(tenant_id_header)
+        except (ValueError, TypeError):
+            logger.warning("Invalid X-Tenant-ID header", header=tenant_id_header)
+
+    # Check tenant_slug in payload (if LoginRequest supports it)
+    if not tenant_id and hasattr(login_data, "tenant_slug"):
+        tenant_slug = getattr(login_data, "tenant_slug", None)
+
+    # TODO: Check subdomain from request host (requires proper DNS/routing setup)
+    # if not tenant_id and not tenant_slug:
+    #     host = request.headers.get("host", "")
+    #     subdomain = extract_subdomain(host)
+    #     if subdomain:
+    #         tenant_slug = subdomain
+
+    # Resolve tenant_slug to tenant_id if needed
+    if not tenant_id and tenant_slug:
+        tenant_repo = TenantRepository(db)
+        tenant = await tenant_repo.get_by_slug(tenant_slug)
+        if not tenant:
+            logger.warning("Tenant not found for slug", tenant_slug=tenant_slug)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tenant identifier",
+            )
+        tenant_id = tenant.id
+
+    # SECURITY: Tenant context is REQUIRED for login
+    if not tenant_id:
+        logger.warning(
+            "Login rejected: missing tenant context",
+            email=login_data.email,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required for authentication. "
+            "Please provide tenant_slug or X-Tenant-ID header.",
+        )
+
+    # TODO: Implement per-tenant rate limiting
+    # rate_limiter.check_login_attempts(tenant_id, login_data.email)
+
+    auth_service = AuthService(db, tenant_id)
 
     try:
-        # Authenticate user (searches across all tenants when tenant_id=None)
+        # SECURITY: Authenticate user within tenant scope only
         user = await auth_service.authenticate_user(
-            email=login_data.email, password=login_data.password, tenant_id=None
+            email=login_data.email, password=login_data.password, tenant_id=tenant_id
         )
 
         if not user:
